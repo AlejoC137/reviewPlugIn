@@ -18,7 +18,7 @@ Este documento detalla los pasos que debes seguir para compilar, instalar y usar
 
 Si deseas compartir este plugin con otra persona (o instalarlo tú mismo sin tener que abrir Visual Studio), puedes crear un "paquete" con los archivos compilados:
 
-1.  Copia el archivo `RevitToSupabasePlugin.dll` y `Newtonsoft.Json.dll` desde `bin\Release\net8.0-windows\` (o Debug).
+1.  Copia el archivo `RevitToSupabasePlugin.dll` y `Newtonsoft.Json.dll` desde `bin\Release\net10.0-windows\` (o Debug).
 2.  Copia el archivo `RevitToSupabasePlugin.addin`.
 3.  Copia el archivo `Instalador.bat`.
 4.  Pon todo en una misma carpeta, dásela a tu usuario y dile que simplemente haga **doble clic en Instalador.bat**. 

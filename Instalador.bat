@@ -52,16 +52,16 @@ if exist "%~dp0RevitToSupabasePlugin.dll" (
     set "DLL_PATH=%~dp0RevitToSupabasePlugin.dll"
     set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
     set "NEWTONSOFT_PATH=%~dp0Newtonsoft.Json.dll"
-) else if exist "%~dp0bin\Release\net8.0-windows\RevitToSupabasePlugin.dll" (
+) else if exist "%~dp0bin\Release\net10.0-windows\RevitToSupabasePlugin.dll" (
     :: Caso 2: El .bat se ejecuta desde el proyecto (Modo Release)
-    set "DLL_PATH=%~dp0bin\Release\net8.0-windows\RevitToSupabasePlugin.dll"
+    set "DLL_PATH=%~dp0bin\Release\net10.0-windows\RevitToSupabasePlugin.dll"
     set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
-    set "NEWTONSOFT_PATH=%~dp0bin\Release\net8.0-windows\Newtonsoft.Json.dll"
-) else if exist "%~dp0bin\Debug\net8.0-windows\RevitToSupabasePlugin.dll" (
+    set "NEWTONSOFT_PATH=%~dp0bin\Release\net10.0-windows\Newtonsoft.Json.dll"
+) else if exist "%~dp0bin\Debug\net10.0-windows\RevitToSupabasePlugin.dll" (
     :: Caso 3: El .bat se ejecuta desde el proyecto (Modo Debug)
-    set "DLL_PATH=%~dp0bin\Debug\net8.0-windows\RevitToSupabasePlugin.dll"
+    set "DLL_PATH=%~dp0bin\Debug\net10.0-windows\RevitToSupabasePlugin.dll"
     set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
-    set "NEWTONSOFT_PATH=%~dp0bin\Debug\net8.0-windows\Newtonsoft.Json.dll"
+    set "NEWTONSOFT_PATH=%~dp0bin\Debug\net10.0-windows\Newtonsoft.Json.dll"
 ) else (
     color 0C
     echo [ERROR] Hmm... no logro encontrar los archivos del plugin.

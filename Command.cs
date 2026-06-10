@@ -27,7 +27,7 @@ namespace RevitToSupabasePlugin
 
                 if (string.IsNullOrEmpty(jsonResponse))
                 {
-                    TaskDialog.Show("Error de Conexión", "No se pudo obtener respuesta del Local Server. Verifica que tu app Node/React esté corriendo.");
+                    Autodesk.Revit.UI.TaskDialog.Show("Error de Conexión", "No se pudo obtener respuesta del Local Server. Verifica que tu app Node/React esté corriendo.");
                     return Result.Failed;
                 }
 
@@ -42,11 +42,11 @@ namespace RevitToSupabasePlugin
                         resultMessage += $"ID: {item.Id} - Nombre: {item.Name} - Estado: {item.Status}\n";
                     }
 
-                    TaskDialog.Show("Sincronización Exitosa", resultMessage);
+                    Autodesk.Revit.UI.TaskDialog.Show("Sincronización Exitosa", resultMessage);
                 }
                 else
                 {
-                    TaskDialog.Show("Aviso", "La consulta al Local Server no devolvió datos.");
+                    Autodesk.Revit.UI.TaskDialog.Show("Aviso", "La consulta al Local Server no devolvió datos.");
                 }
 
                 return Result.Succeeded;
@@ -54,7 +54,7 @@ namespace RevitToSupabasePlugin
             catch (Exception ex)
             {
                 message = ex.Message;
-                TaskDialog.Show("Excepción Crítica", ex.ToString());
+                Autodesk.Revit.UI.TaskDialog.Show("Excepción Crítica", ex.ToString());
                 return Result.Failed;
             }
         }
