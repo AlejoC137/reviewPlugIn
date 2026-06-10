@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Command">
+    <Text>Conectar con MCP Local</Text>
+    <Description>Obtiene datos de la app React/Supabase vía Local Server</Description>
+    <Assembly>RevitToSupabasePlugin.dll</Assembly>
+    <FullClassName>RevitToSupabasePlugin.Command</FullClassName>
+    <ClientId>A1B2C3D4-E5F6-4A5B-8C9D-E0F1A2B3C4D5</ClientId>
+    <VendorId>ANTIGRAVITY</VendorId>
+    <VendorDescription>Herramientas de Integración BIM</VendorDescription>
+  </AddIn>
+</RevitAddIns>
