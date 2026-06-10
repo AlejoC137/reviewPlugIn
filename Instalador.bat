@@ -2,11 +2,43 @@
 title Instalador del Plugin para Revit 2027
 color 0B
 
+echo.
+echo      .----------------.
+echo      ^|                ^|\
+echo      ^|                ^| \
+echo      ^|                ^|  \
+echo      ^|                +---+
+echo      ^|   rrrrrrrr         ^|
+echo      ^|   rrrrrrrrrrr      ^|
+echo      ^|   rrr     rrr      ^|
+echo      ^|   rrr              ^|
+echo      ^|   rrr              ^|
+echo      ^|   rrr              ^|
+echo      ^|   rrr              ^|
+echo      ^|   rrr              ^|
+echo      ^|                    ^|
+echo      '--------------------'
+echo.
 echo ========================================================
-echo       Instalador del Plugin de Revit a Supabase
+echo       Bienvenido al Instalador de reviewPlugIn
 echo                 (Para Revit 2027)
 echo ========================================================
 echo.
+echo Hola! Este asistente instalara el plugin "Review" en tu
+echo entorno de Autodesk Revit 2027.
+echo.
+set /p user_choice="Deseas continuar con la instalacion? (S/N): "
+
+if /I "%user_choice%" NEQ "S" (
+    echo.
+    echo Ok, instalacion cancelada por el usuario. Nos vemos pronto!
+    pause
+    exit /b
+)
+
+echo.
+echo Genial. Iniciando instalacion...
+echo --------------------------------------------------------
 
 set "ADDIN_FOLDER=%AppData%\Autodesk\Revit\Addins\2027"
 
@@ -15,7 +47,7 @@ set "DLL_PATH="
 set "ADDIN_PATH="
 set "NEWTONSOFT_PATH="
 
-:: Caso 1: Los archivos están en la misma carpeta que el .bat (Paquete distribuido a clientes)
+:: Caso 1: Los archivos estan en la misma carpeta que el .bat (Paquete distribuido a clientes)
 if exist "%~dp0RevitToSupabasePlugin.dll" (
     set "DLL_PATH=%~dp0RevitToSupabasePlugin.dll"
     set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
@@ -32,39 +64,37 @@ if exist "%~dp0RevitToSupabasePlugin.dll" (
     set "NEWTONSOFT_PATH=%~dp0bin\Debug\net8.0-windows\Newtonsoft.Json.dll"
 ) else (
     color 0C
-    echo [ERROR] No se encontraron los archivos compilados del plugin.
-    echo Asegurate de compilar el proyecto en Visual Studio primero (Ctrl + Shift + B).
-    echo.
-    echo Si este es el instalador final para un usuario, asegurese de que los 
-    echo archivos .dll y el .addin esten en la misma carpeta que este archivo .bat.
+    echo [ERROR] Hmm... no logro encontrar los archivos del plugin.
+    echo Asegurate de que el instalador este en la misma carpeta que 'RevitToSupabasePlugin.dll'.
     echo.
     pause
     exit /b
 )
 
-echo Verificando directorio destino...
+echo Paso 1: Verificando directorio de destino en Revit 2027...
 if not exist "%ADDIN_FOLDER%" (
-    echo Creando la carpeta de Addins para Revit 2027...
+    echo   - Creando la carpeta de Addins para Revit 2027...
     mkdir "%ADDIN_FOLDER%"
+) else (
+    echo   - La carpeta de Addins ya existe. Todo en orden.
 )
 
-echo Copiando archivos del plugin...
+echo Paso 2: Copiando los archivos principales del plugin...
 copy /Y "%ADDIN_PATH%" "%ADDIN_FOLDER%\" >nul
 copy /Y "%DLL_PATH%" "%ADDIN_FOLDER%\" >nul
 
 if exist "%NEWTONSOFT_PATH%" (
-    echo Copiando dependencias (Newtonsoft.Json)...
+    echo Paso 3: Copiando dependencias adicionales...
     copy /Y "%NEWTONSOFT_PATH%" "%ADDIN_FOLDER%\" >nul
 )
 
 echo.
 color 0A
 echo ========================================================
-echo [EXITO] Plugin instalado correctamente.
-echo Los archivos se han copiado a:
-echo %ADDIN_FOLDER%
+echo [EXITO] Plugin de Review instalado correctamente.
 echo.
-echo Ya puedes iniciar Revit 2027 y usar el plugin.
+echo Todo listo! Tu conexion con Supabase/React te espera.
+echo Ya puedes iniciar Revit 2027.
 echo ========================================================
 echo.
 pause
