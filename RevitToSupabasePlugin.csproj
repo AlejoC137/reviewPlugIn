@@ -29,6 +29,7 @@
     <Message Text="Copiando archivos del plugin a la carpeta de Addins de Revit 2027..." Importance="high" />
     <Exec Command="if not exist &quot;$(AppData)\Autodesk\Revit\Addins\2027&quot; mkdir &quot;$(AppData)\Autodesk\Revit\Addins\2027&quot;" />
     <Exec Command="xcopy &quot;$(TargetDir)*.dll&quot; &quot;$(AppData)\Autodesk\Revit\Addins\2027\&quot; /Y" />
+    <Exec Command="if exist &quot;$(ProjectDir)*.png&quot; xcopy &quot;$(ProjectDir)*.png&quot; &quot;$(AppData)\Autodesk\Revit\Addins\2027\&quot; /Y" />
     <Exec Command="copy &quot;$(ProjectDir)RevitToSupabasePlugin.addin&quot; &quot;$(AppData)\Autodesk\Revit\Addins\2027\&quot; /Y" />
   </Target>
 </Project>

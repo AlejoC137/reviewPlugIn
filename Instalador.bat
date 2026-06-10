@@ -88,6 +88,11 @@ if exist "%NEWTONSOFT_PATH%" (
     copy /Y "%NEWTONSOFT_PATH%" "%ADDIN_FOLDER%\" >nul
 )
 
+if exist "%~dp0icon.png" (
+    echo Paso 4: Copiando icono de la interfaz...
+    copy /Y "%~dp0icon.png" "%ADDIN_FOLDER%\" >nul
+)
+
 echo.
 color 0A
 echo ========================================================
