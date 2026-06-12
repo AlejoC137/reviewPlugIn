@@ -23,7 +23,7 @@ namespace RevitToSupabasePlugin
                 string localServerUrl = "http://localhost:3000/api/mcp-data";
 
                 // Llamada HTTP síncrona dentro del comando de Revit
-                string jsonResponse = GetDataFromLocalServer(localServerUrl);
+                string? jsonResponse = GetDataFromLocalServer(localServerUrl);
 
                 if (string.IsNullOrEmpty(jsonResponse))
                 {
@@ -32,7 +32,7 @@ namespace RevitToSupabasePlugin
                 }
 
                 // Deserializar la respuesta (Ajusta la clase SupabaseDataModel según las columnas de tu BD)
-                List<SupabaseDataModel> dataList = JsonConvert.DeserializeObject<List<SupabaseDataModel>>(jsonResponse);
+                List<SupabaseDataModel>? dataList = JsonConvert.DeserializeObject<List<SupabaseDataModel>>(jsonResponse);
 
                 if (dataList != null && dataList.Count > 0)
                 {
@@ -100,4 +100,22 @@ namespace RevitToSupabasePlugin
         [JsonProperty("status")]
         public string? Status { get; set; }
     }
+
+    [Transaction(TransactionMode.Manual)]
+    public class CommandGenerador : IExternalCommand { public Result Execute(ExternalCommandData c, ref string m, ElementSet e) { Autodesk.Revit.UI.TaskDialog.Show("IA", "Generador Estructural"); return Result.Succeeded; } }
+    
+    [Transaction(TransactionMode.Manual)]
+    public class CommandQAQC : IExternalCommand { public Result Execute(ExternalCommandData c, ref string m, ElementSet e) { Autodesk.Revit.UI.TaskDialog.Show("IA", "QA/QC Inspector"); return Result.Succeeded; } }
+    
+    [Transaction(TransactionMode.Manual)]
+    public class CommandMasivo : IExternalCommand { public Result Execute(ExternalCommandData c, ref string m, ElementSet e) { Autodesk.Revit.UI.TaskDialog.Show("IA", "Gestor Masivo"); return Result.Succeeded; } }
+    
+    [Transaction(TransactionMode.Manual)]
+    public class CommandDoc : IExternalCommand { public Result Execute(ExternalCommandData c, ref string m, ElementSet e) { Autodesk.Revit.UI.TaskDialog.Show("IA", "Auto-Documentación"); return Result.Succeeded; } }
+    
+    [Transaction(TransactionMode.Manual)]
+    public class CommandCostos : IExternalCommand { public Result Execute(ExternalCommandData c, ref string m, ElementSet e) { Autodesk.Revit.UI.TaskDialog.Show("IA", "Asistente Costos"); return Result.Succeeded; } }
+    
+    [Transaction(TransactionMode.Manual)]
+    public class CommandCopilot : IExternalCommand { public Result Execute(ExternalCommandData c, ref string m, ElementSet e) { Autodesk.Revit.UI.TaskDialog.Show("IA", "Revit Copilot"); return Result.Succeeded; } }
 }

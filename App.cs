@@ -21,36 +21,31 @@ namespace RevitToSupabasePlugin
             catch { }
 
             // Crear el panel dentro de la pestaña
-            RibbonPanel panel = application.CreateRibbonPanel(tabName, panelName);
-
-            // Obtener la ruta del ensamblado (DLL) actual
+            RibbonPanel panel = application.CreateRibbonPanel(tabName, "AI Studio");
             string thisAssemblyPath = Assembly.GetExecutingAssembly().Location;
+            string? dirPath = System.IO.Path.GetDirectoryName(thisAssemblyPath);
 
-            // Crear la información del botón
-            PushButtonData buttonData = new PushButtonData(
-                "cmdReviewMCP",
-                "Conectar\nLocal Server",
-                thisAssemblyPath,
-                "RevitToSupabasePlugin.Command");
-
-            // Añadir el botón al panel
-            PushButton pushButton = panel.AddItem(buttonData) as PushButton;
-
-            // Tooltip explicativo
-            pushButton.ToolTip = "Obtiene datos de la app React/Supabase vía Local Server";
-            
-            try
+            // Método helper para crear botones
+            void AddButton(string name, string text, string className, string iconName)
             {
-                // Intentar cargar la imagen icon.png desde la misma carpeta que el dll
-                string iconPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(thisAssemblyPath), "icon.png");
-                if (System.IO.File.Exists(iconPath))
+                PushButtonData bData = new PushButtonData(name, text, thisAssemblyPath, "RevitToSupabasePlugin." + className);
+                PushButton? btn = panel.AddItem(bData) as PushButton;
+                if (btn != null && dirPath != null)
                 {
-                    Uri iconUri = new Uri(iconPath, UriKind.Absolute);
-                    BitmapImage bitmapImage = new BitmapImage(iconUri);
-                    pushButton.LargeImage = bitmapImage; // Icono grande (32x32)
+                    string iconPath = System.IO.Path.Combine(dirPath, iconName);
+                    if (System.IO.File.Exists(iconPath))
+                    {
+                        btn.LargeImage = new BitmapImage(new Uri(iconPath, UriKind.Absolute));
+                    }
                 }
             }
-            catch { }
+
+            AddButton("cmdGen", "Generador\nEstructural", "CommandGenerador", "icon_generador.png");
+            AddButton("cmdQA", "QA/QC\nInspector", "CommandQAQC", "icon_qaqc.png");
+            AddButton("cmdMasivo", "Gestor\nMasivo", "CommandMasivo", "icon_masivo.png");
+            AddButton("cmdDoc", "Auto\nDocumentación", "CommandDoc", "icon_doc.png");
+            AddButton("cmdCostos", "Asistente\nCostos", "CommandCostos", "icon_costos.png");
+            AddButton("cmdCopilot", "Revit\nCopilot", "CommandCopilot", "icon_copilot.png");
 
             return Result.Succeeded;
         }
