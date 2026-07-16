@@ -11,7 +11,7 @@ namespace RevitToSupabasePlugin
         {
             // Nombre de la pestaña personalizada en Revit
             string tabName = "Review";
-            string panelName = "Supabase MCP";
+            string panelName = "AI Studio";
 
             try
             {
@@ -21,7 +21,7 @@ namespace RevitToSupabasePlugin
             catch { }
 
             // Crear el panel dentro de la pestaña
-            RibbonPanel panel = application.CreateRibbonPanel(tabName, "AI Studio");
+            RibbonPanel panel = application.CreateRibbonPanel(tabName, panelName);
             string thisAssemblyPath = Assembly.GetExecutingAssembly().Location;
             string? dirPath = System.IO.Path.GetDirectoryName(thisAssemblyPath);
 

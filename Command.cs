@@ -102,7 +102,35 @@ namespace RevitToSupabasePlugin
     }
 
     [Transaction(TransactionMode.Manual)]
-    public class CommandGenerador : IExternalCommand { public Result Execute(ExternalCommandData c, ref string m, ElementSet e) { Autodesk.Revit.UI.TaskDialog.Show("IA", "Generador Estructural"); return Result.Succeeded; } }
+    public class CommandGenerador : IExternalCommand
+    {
+        public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
+        {
+            UIApplication uiapp = commandData.Application;
+            UIDocument uidoc = uiapp.ActiveUIDocument;
+            if (uidoc == null)
+            {
+                Autodesk.Revit.UI.TaskDialog.Show("Error", "No hay ningún documento activo.");
+                return Result.Failed;
+            }
+            Document doc = uidoc.Document;
+
+            try
+            {
+                GeneradorIAWindow window = new GeneradorIAWindow(doc);
+                System.Windows.Interop.WindowInteropHelper helper = new System.Windows.Interop.WindowInteropHelper(window);
+                helper.Owner = uiapp.MainWindowHandle;
+                window.ShowDialog();
+                return Result.Succeeded;
+            }
+            catch (Exception ex)
+            {
+                message = ex.Message;
+                Autodesk.Revit.UI.TaskDialog.Show("Error", "No se pudo iniciar el generador: " + ex.ToString());
+                return Result.Failed;
+            }
+        }
+    }
     
     [Transaction(TransactionMode.Manual)]
     public class CommandQAQC : IExternalCommand { public Result Execute(ExternalCommandData c, ref string m, ElementSet e) { Autodesk.Revit.UI.TaskDialog.Show("IA", "QA/QC Inspector"); return Result.Succeeded; } }
