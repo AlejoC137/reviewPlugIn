@@ -1,13 +1,18 @@
 using System;
+using System.IO;
 using System.Net.Http;
 using System.Collections.Generic;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using TaskDialog = Autodesk.Revit.UI.TaskDialog;
 using Newtonsoft.Json;
 
 namespace RevitToSupabasePlugin
 {
+    // =========================================================================
+    // 1. COMANDO: CONEXIÓN CON MCP LOCAL / SUPABASE
+    // =========================================================================
     [Transaction(TransactionMode.Manual)]
     public class Command : IExternalCommand
     {
@@ -15,80 +20,29 @@ namespace RevitToSupabasePlugin
         {
             UIApplication uiapp = commandData.Application;
             UIDocument uidoc = uiapp.ActiveUIDocument;
-            Document doc = uidoc.Document;
+            if (uidoc == null) return Result.Failed;
 
             try
             {
-                // URL de tu Local Server o MCP que sirve de puente con Supabase
-                string localServerUrl = "http://localhost:3000/api/mcp-data";
+                ExportMetadataExternalEventHandler handler = new ExportMetadataExternalEventHandler();
+                ExternalEvent extEvent = ExternalEvent.Create(handler);
 
-                // Llamada HTTP síncrona dentro del comando de Revit
-                string? jsonResponse = GetDataFromLocalServer(localServerUrl);
-
-                if (string.IsNullOrEmpty(jsonResponse))
-                {
-                    Autodesk.Revit.UI.TaskDialog.Show("Error de Conexión", "No se pudo obtener respuesta del Local Server. Verifica que tu app Node/React esté corriendo.");
-                    return Result.Failed;
-                }
-
-                // Deserializar la respuesta (Ajusta la clase SupabaseDataModel según las columnas de tu BD)
-                List<SupabaseDataModel>? dataList = JsonConvert.DeserializeObject<List<SupabaseDataModel>>(jsonResponse);
-
-                if (dataList != null && dataList.Count > 0)
-                {
-                    string resultMessage = "Datos obtenidos de Supabase vía Local Server:\n\n";
-                    foreach (var item in dataList)
-                    {
-                        resultMessage += $"ID: {item.Id} - Nombre: {item.Name} - Estado: {item.Status}\n";
-                    }
-
-                    Autodesk.Revit.UI.TaskDialog.Show("Sincronización Exitosa", resultMessage);
-                }
-                else
-                {
-                    Autodesk.Revit.UI.TaskDialog.Show("Aviso", "La consulta al Local Server no devolvió datos.");
-                }
+                ExportadorMetadataWindow window = new ExportadorMetadataWindow(uidoc.Document, extEvent, handler);
+                System.Windows.Interop.WindowInteropHelper helper = new System.Windows.Interop.WindowInteropHelper(window);
+                helper.Owner = uiapp.MainWindowHandle;
+                window.Show();
 
                 return Result.Succeeded;
             }
             catch (Exception ex)
             {
                 message = ex.Message;
-                Autodesk.Revit.UI.TaskDialog.Show("Excepción Crítica", ex.ToString());
+                TaskDialog.Show("Excepción", ex.ToString());
                 return Result.Failed;
-            }
-        }
-
-        private string? GetDataFromLocalServer(string url)
-        {
-            using (HttpClient client = new HttpClient())
-            {
-                try
-                {
-                    // Timeout de 10 segundos para evitar que Revit se congele indefinidamente si el server cae
-                    client.Timeout = TimeSpan.FromSeconds(10);
-
-                    // Se utiliza GetAwaiter().GetResult() para mantener la sincronía requerida por la API de Revit
-                    HttpResponseMessage response = client.GetAsync(url).GetAwaiter().GetResult();
-
-                    if (response.IsSuccessStatusCode)
-                    {
-                        return response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                    }
-                    else
-                    {
-                        return null;
-                    }
-                }
-                catch
-                {
-                    return null;
-                }
             }
         }
     }
 
-    // Modelo de datos de ejemplo para mapear el JSON que viene de tu Local Server / Supabase
     public class SupabaseDataModel
     {
         [JsonProperty("id")]
@@ -101,6 +55,9 @@ namespace RevitToSupabasePlugin
         public string? Status { get; set; }
     }
 
+    // =========================================================================
+    // 2. COMANDO: GENERADOR ESTRUCTURAL / IA
+    // =========================================================================
     [Transaction(TransactionMode.Manual)]
     public class CommandGenerador : IExternalCommand
     {
@@ -110,14 +67,13 @@ namespace RevitToSupabasePlugin
             UIDocument uidoc = uiapp.ActiveUIDocument;
             if (uidoc == null)
             {
-                Autodesk.Revit.UI.TaskDialog.Show("Error", "No hay ningún documento activo.");
+                TaskDialog.Show("Error", "No hay ningún documento activo.");
                 return Result.Failed;
             }
-            Document doc = uidoc.Document;
 
             try
             {
-                GeneradorIAWindow window = new GeneradorIAWindow(doc);
+                GeneradorIAWindow window = new GeneradorIAWindow(uidoc.Document);
                 System.Windows.Interop.WindowInteropHelper helper = new System.Windows.Interop.WindowInteropHelper(window);
                 helper.Owner = uiapp.MainWindowHandle;
                 window.ShowDialog();
@@ -126,24 +82,118 @@ namespace RevitToSupabasePlugin
             catch (Exception ex)
             {
                 message = ex.Message;
-                Autodesk.Revit.UI.TaskDialog.Show("Error", "No se pudo iniciar el generador: " + ex.ToString());
+                TaskDialog.Show("Error", "No se pudo iniciar el generador: " + ex.ToString());
                 return Result.Failed;
             }
         }
     }
-    
-    [Transaction(TransactionMode.Manual)]
-    public class CommandQAQC : IExternalCommand { public Result Execute(ExternalCommandData c, ref string m, ElementSet e) { Autodesk.Revit.UI.TaskDialog.Show("IA", "QA/QC Inspector"); return Result.Succeeded; } }
-    
-    [Transaction(TransactionMode.Manual)]
-    public class CommandMasivo : IExternalCommand { public Result Execute(ExternalCommandData c, ref string m, ElementSet e) { Autodesk.Revit.UI.TaskDialog.Show("IA", "Gestor Masivo"); return Result.Succeeded; } }
-    
-    [Transaction(TransactionMode.Manual)]
-    public class CommandDoc : IExternalCommand { public Result Execute(ExternalCommandData c, ref string m, ElementSet e) { Autodesk.Revit.UI.TaskDialog.Show("IA", "Auto-Documentación"); return Result.Succeeded; } }
-    
-    [Transaction(TransactionMode.Manual)]
-    public class CommandCostos : IExternalCommand { public Result Execute(ExternalCommandData c, ref string m, ElementSet e) { Autodesk.Revit.UI.TaskDialog.Show("IA", "Asistente Costos"); return Result.Succeeded; } }
-    
-    [Transaction(TransactionMode.Manual)]
-    public class CommandCopilot : IExternalCommand { public Result Execute(ExternalCommandData c, ref string m, ElementSet e) { Autodesk.Revit.UI.TaskDialog.Show("IA", "Revit Copilot"); return Result.Succeeded; } }
+
+
+    // =========================================================================
+    // MANEJADOR DE EVENTO EXTERNO (IExternalEventHandler) - PLANTILLA NONICA V1.0
+    // =========================================================================
+    public class ExportMetadataExternalEventHandler : IExternalEventHandler
+    {
+        public string UserEmail { get; set; } = "";
+        public string UserPassword { get; set; } = "";
+        public bool IncludeProjectInfo { get; set; } = true;
+        public bool IncludeSiteLocation { get; set; } = true;
+        public bool IncludeLevels { get; set; } = true;
+        public bool IncludeCategorySummary { get; set; } = true;
+        public bool IncludeElementDetails { get; set; } = true;
+
+        private ExportadorMetadataWindow? _mainWindow;
+
+        public void SetWindowReference(ExportadorMetadataWindow window)
+        {
+            _mainWindow = window;
+        }
+
+        public void Execute(UIApplication uiapp)
+        {
+            NonicaProgressWindow? progressWin = null;
+            try
+            {
+                UIDocument uidoc = uiapp.ActiveUIDocument;
+                if (uidoc == null) return;
+                Document doc = uidoc.Document;
+
+                // Crear y mostrar la ventana de progreso Nonica
+                progressWin = new NonicaProgressWindow();
+                progressWin.Show();
+
+                // Recopilar metadata del modelo según los checkboxes activados
+                ProjectMetadataPackage package = MetadataExporterService.CollectMetadata(
+                    doc,
+                    IncludeElementDetails,
+                    IncludeProjectInfo,
+                    IncludeSiteLocation,
+                    IncludeLevels,
+                    IncludeCategorySummary,
+                    (current, total, msg) => progressWin.UpdateProgress(current, total, msg),
+                    () => progressWin.IsInterrupted
+                );
+
+                package.UserEmail = UserEmail;
+
+                // Comprobar si el proceso fue cancelado por el usuario
+                if (progressWin.IsInterrupted)
+                {
+                    progressWin.Close();
+                    TaskDialog.Show("Proceso Cancelado", "El proceso de exportación fue interrumpido por el usuario.\nNo se enviaron datos.");
+                    if (_mainWindow != null)
+                    {
+                        _mainWindow.Show();
+                        _mainWindow.UpdateStatus("Exportación cancelada por el usuario.");
+                    }
+                    return;
+                }
+
+                // Enviar directamente a Supabase
+                progressWin.UpdateProgress(100, 100, "Guardando datos en la tabla plugin_project_data de Supabase...");
+                string successMessage = "";
+                bool isOk = MetadataExporterService.SendToSupabaseDirect(package, out successMessage);
+
+                // Cerrar ventana de progreso
+                progressWin.Close();
+
+                if (!isOk)
+                {
+                    TaskDialog.Show("Error al Guardar en Supabase", successMessage);
+                    if (_mainWindow != null)
+                    {
+                        _mainWindow.Show();
+                        _mainWindow.UpdateStatus("Error al conectar con Supabase.");
+                    }
+                    return;
+                }
+
+                // Mostrar notificación de éxito
+                int elemCount = package.ElementsById != null ? package.ElementsById.Count : 0;
+                TaskDialog.Show("Guardado Exitoso en Supabase", successMessage + $"\n\nUsuario: {UserEmail}\nElementos procesados por ID: {elemCount}");
+
+                if (_mainWindow != null)
+                {
+                    _mainWindow.Show();
+                    _mainWindow.UpdateStatus("Exportación guardada con éxito en Supabase.");
+                    _mainWindow.UpdatePreviewText(JsonConvert.SerializeObject(package, Formatting.Indented));
+                }
+            }
+            catch (Exception ex)
+            {
+                if (progressWin != null) progressWin.Close();
+                TaskDialog.Show("Excepción en Exportación", ex.Message + "\n" + ex.StackTrace);
+                if (_mainWindow != null)
+                {
+                    _mainWindow.Show();
+                    _mainWindow.UpdateStatus("Excepción producida durante la exportación.");
+                }
+            }
+        }
+
+        public string GetName()
+        {
+            return "ExportMetadataNonicaEventHandler";
+        }
+    }
 }

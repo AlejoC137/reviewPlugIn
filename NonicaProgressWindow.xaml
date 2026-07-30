@@ -1,0 +1,47 @@
+<Window x:Class="RevitToSupabasePlugin.NonicaProgressWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Procesando..." Height="140" Width="360"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Topmost="True"
+        Background="#1E1E1E">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="3"/>
+            <RowDefinition Height="30"/>
+            <RowDefinition Height="25"/>
+            <RowDefinition Height="35"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top branded line (Color morado Nonica #5235EF) -->
+        <Rectangle Grid.Row="0" Fill="#5235EF" HorizontalAlignment="Stretch"/>
+
+        <!-- Text Block -->
+        <TextBlock x:Name="txtProgress" Grid.Row="1" Text="0 / 0 Elementos Procesados" 
+                   Foreground="#FFFFFF" FontSize="13" FontWeight="SemiBold"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+        <!-- Progress Bar -->
+        <ProgressBar x:Name="progressBar" Grid.Row="2" Margin="15,2,15,2" 
+                     Height="14" Minimum="0" Maximum="100" Value="0"
+                     Foreground="#5235EF" Background="#2D2D30" BorderBrush="#3F3F46"/>
+
+        <!-- Interrupt / Cancel Button -->
+        <Button x:Name="btnInterrupt" Grid.Row="3" Content="Interrumpir / Cancelar" 
+                Width="200" Height="24" Margin="0,4,0,0"
+                Background="#3E3E42" Foreground="#FFFFFF" BorderBrush="#555555"
+                FontSize="12" FontWeight="SemiBold" Click="BtnInterrupt_Click">
+            <Button.Style>
+                <Style TargetType="Button">
+                    <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="#CC2929"/>
+                            <Setter Property="Foreground" Value="#FFFFFF"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </Button.Style>
+        </Button>
+    </Grid>
+</Window>
