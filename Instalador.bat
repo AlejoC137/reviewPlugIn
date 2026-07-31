@@ -34,6 +34,28 @@ echo   [*] Generador Estructural con IA
 echo.
 echo ============================================================
 echo.
+
+:: -----------------------------------------------------------
+:: Paso 0: Verificar si Revit esta abierto
+:: -----------------------------------------------------------
+tasklist /FI "IMAGENAME eq Revit.exe" 2>NUL | find /I /N "Revit.exe">NUL
+if "%ERRORLEVEL%"=="0" (
+    color 0C
+    echo [ADVERTENCIA] Revit esta actualmente abierto.
+    echo Si Revit esta abierto, Windows bloqueara los archivos y la instalacion fallara.
+    set /p kill_revit="Deseas cerrar Revit automaticamente ahora mismo? (S/N): "
+    if /I "%kill_revit%"=="S" (
+        taskkill /F /IM Revit.exe
+        echo Revit cerrado.
+        timeout /t 2 >nul
+        color 0B
+    ) else (
+        echo Por favor, cierra Revit manualmente e intenta de nuevo.
+        pause
+        exit /b
+    )
+)
+
 set /p user_choice="Deseas continuar con la instalacion? (S/N): "
 
 if /I "%user_choice%" NEQ "S" (
@@ -46,6 +68,23 @@ if /I "%user_choice%" NEQ "S" (
 echo.
 echo Genial. Iniciando instalacion...
 echo ------------------------------------------------------------
+
+:: -----------------------------------------------------------
+:: Paso 0.5: Compilar el codigo automaticamente (si existe el .csproj)
+:: -----------------------------------------------------------
+if exist "%~dp0RevitToSupabasePlugin.csproj" (
+    echo Compilando el codigo fuente para asegurar que tienes la ultima version...
+    dotnet build "%~dp0RevitToSupabasePlugin.csproj" -c Debug
+    if errorlevel 1 (
+        color 0C
+        echo.
+        echo [ERROR] La compilacion fallo. Revisa el codigo en Visual Studio.
+        pause
+        exit /b
+    )
+    echo Compilacion exitosa.
+    echo ------------------------------------------------------------
+)
 
 set "ADDIN_FOLDER=%AppData%\Autodesk\Revit\Addins\2027"
 
@@ -62,18 +101,18 @@ if exist "%~dp0RevitToSupabasePlugin.dll" (
     set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
     set "BUILD_DIR=%~dp0"
     echo [INFO] Modo: Paquete distribuido (archivos en la misma carpeta).
-) else if exist "%~dp0bin\Release\net10.0-windows\RevitToSupabasePlugin.dll" (
-    :: Caso 2: Modo Release
-    set "DLL_PATH=%~dp0bin\Release\net10.0-windows\RevitToSupabasePlugin.dll"
-    set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
-    set "BUILD_DIR=%~dp0bin\Release\net10.0-windows\"
-    echo [INFO] Modo: Proyecto (Release).
 ) else if exist "%~dp0bin\Debug\net10.0-windows\RevitToSupabasePlugin.dll" (
-    :: Caso 3: Modo Debug
+    :: Caso 2: Modo Debug (por defecto despues del dotnet build)
     set "DLL_PATH=%~dp0bin\Debug\net10.0-windows\RevitToSupabasePlugin.dll"
     set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
     set "BUILD_DIR=%~dp0bin\Debug\net10.0-windows\"
     echo [INFO] Modo: Proyecto (Debug).
+) else if exist "%~dp0bin\Release\net10.0-windows\RevitToSupabasePlugin.dll" (
+    :: Caso 3: Modo Release
+    set "DLL_PATH=%~dp0bin\Release\net10.0-windows\RevitToSupabasePlugin.dll"
+    set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
+    set "BUILD_DIR=%~dp0bin\Release\net10.0-windows\"
+    echo [INFO] Modo: Proyecto (Release).
 ) else (
     color 0C
     echo.
@@ -108,8 +147,11 @@ if errorlevel 1 (
 echo Paso 3: Copiando la DLL principal del plugin...
 copy /Y "%DLL_PATH%" "%ADDIN_FOLDER%\" >nul
 if errorlevel 1 (
-    echo   [AVISO] No se pudo copiar la DLL principal. Revit puede estar abierto.
-    echo   Cierra Revit e intenta de nuevo.
+    color 0C
+    echo   [ERROR CRITICO] No se pudo copiar la DLL principal. 
+    echo   Probablemente Revit todavia tiene el archivo bloqueado.
+    pause
+    exit /b
 ) else (
     echo   - RevitToSupabasePlugin.dll copiado correctamente.
 )
@@ -147,16 +189,12 @@ echo   - Iconos copiados (icon_generador.png, icon_masivo.png, etc.).
 echo.
 color 0A
 echo ============================================================
-echo  [EXITO] Plugin Review instalado correctamente en Revit 2027
+echo  [EXITO] Plugin Review actualizado e instalado correctamente!
 echo.
 echo  Ubicacion de instalacion:
 echo    %ADDIN_FOLDER%
 echo.
-echo  Botones disponibles en la pestana "Review":
-echo    [*] Generador Estructural - Crea elementos con IA
-echo    [*] Conexion Supabase     - Exporta y sincroniza metadata
-echo.
-echo  Ya puedes iniciar Revit 2027 y usar el plugin!
+echo  Ya puedes iniciar Revit 2027 y usar el plugin.
 echo ============================================================
 echo.
 pause
