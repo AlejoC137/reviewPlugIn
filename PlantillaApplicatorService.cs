@@ -2,491 +2,518 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Autodesk.Revit.DB;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using RevitColor = Autodesk.Revit.DB.Color;
+using RevitView  = Autodesk.Revit.DB.View;
 
 namespace RevitToSupabasePlugin
 {
-    /// <summary>
-    /// Resultado devuelto después de aplicar el JSON de la IA al modelo Revit.
-    /// </summary>
-    public class ApplicatorResult
+    // ══════════════════════════════════════════════════════════════════════════════
+    // DATA MODELS
+    // ══════════════════════════════════════════════════════════════════════════════
+
+    public class PlantillaJsonConfig
     {
-        public int Changes { get; set; } = 0;
-        public List<string> Log { get; set; } = new List<string>();
-        public List<string> Errors { get; set; } = new List<string>();
+        [JsonProperty("project_info")]
+        public PlantillaProjectInfo? ProjectInfo { get; set; }
+
+        [JsonProperty("levels")]
+        public List<PlantillaLevel>? Levels { get; set; }
+
+        [JsonProperty("materials")]
+        public List<PlantillaMaterial>? Materials { get; set; }
+
+        [JsonProperty("text_styles")]
+        public List<PlantillaTextStyle>? TextStyles { get; set; }
+
+        [JsonProperty("views")]
+        public List<PlantillaView>? Views { get; set; }
+
+        [JsonProperty("sheets")]
+        public List<PlantillaSheet>? Sheets { get; set; }
+
+        [JsonProperty("schedules_to_create")]
+        public List<PlantillaSchedule>? SchedulesToCreate { get; set; }
+
+        [JsonProperty("project_parameters")]
+        public List<PlantillaParameter>? ProjectParameters { get; set; }
     }
 
-    /// <summary>
-    /// Aplica un JSON generado por IA sobre la plantilla Revit activa dentro de una Transaction.
-    /// Secciones soportadas: project_info, levels, materials, text_note_types,
-    /// views, sheets, schedules_to_create, project_parameters, type_names.
-    /// </summary>
+    public class PlantillaProjectInfo
+    {
+        [JsonProperty("name")] public string? Name { get; set; }
+        [JsonProperty("number")] public string? Number { get; set; }
+        [JsonProperty("client")] public string? Client { get; set; }
+        [JsonProperty("author")] public string? Author { get; set; }
+        [JsonProperty("address")] public string? Address { get; set; }
+        [JsonProperty("building_name")] public string? BuildingName { get; set; }
+        [JsonProperty("organization_name")] public string? OrganizationName { get; set; }
+        [JsonProperty("status")] public string? Status { get; set; }
+        [JsonProperty("issue_date")] public string? IssueDate { get; set; }
+    }
+
+    public class PlantillaLevel
+    {
+        [JsonProperty("current_name")] public string CurrentName { get; set; } = "";
+        [JsonProperty("new_name")] public string? NewName { get; set; }
+        [JsonProperty("elevation_mm")] public double? ElevationMm { get; set; }
+    }
+
+    public class PlantillaMaterial
+    {
+        [JsonProperty("current_name")] public string CurrentName { get; set; } = "";
+        [JsonProperty("new_name")] public string? NewName { get; set; }
+        [JsonProperty("color_r")] public int? ColorR { get; set; }
+        [JsonProperty("color_g")] public int? ColorG { get; set; }
+        [JsonProperty("color_b")] public int? ColorB { get; set; }
+    }
+
+    public class PlantillaTextStyle
+    {
+        [JsonProperty("type_name")] public string TypeName { get; set; } = "";
+        [JsonProperty("font_size_mm")] public double? FontSizeMm { get; set; }
+        [JsonProperty("bold")] public bool? Bold { get; set; }
+        [JsonProperty("italic")] public bool? Italic { get; set; }
+    }
+
+    public class PlantillaView
+    {
+        [JsonProperty("current_name")] public string CurrentName { get; set; } = "";
+        [JsonProperty("new_name")] public string? NewName { get; set; }
+        [JsonProperty("scale")] public int? Scale { get; set; }
+    }
+
+    public class PlantillaSheet
+    {
+        [JsonProperty("current_number")] public string CurrentNumber { get; set; } = "";
+        [JsonProperty("new_number")] public string? NewNumber { get; set; }
+        [JsonProperty("new_name")] public string? NewName { get; set; }
+        [JsonProperty("drawn_by")] public string? DrawnBy { get; set; }
+        [JsonProperty("checked_by")] public string? CheckedBy { get; set; }
+        [JsonProperty("approved_by")] public string? ApprovedBy { get; set; }
+    }
+
+    public class PlantillaSchedule
+    {
+        [JsonProperty("name")] public string Name { get; set; } = "";
+        [JsonProperty("category")] public string Category { get; set; } = "Rooms";
+        [JsonProperty("fields")] public List<string>? Fields { get; set; }
+    }
+
+    public class PlantillaParameter
+    {
+        [JsonProperty("name")] public string Name { get; set; } = "";
+        [JsonProperty("value")] public string Value { get; set; } = "";
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════════
+    // SERVICE
+    // ══════════════════════════════════════════════════════════════════════════════
+
+    public class ApplicatorResult
+    {
+        public bool Success { get; set; }
+        public List<string> Log { get; set; } = new();
+        public List<string> Errors { get; set; } = new();
+        public string Summary => $"{Log.Count} cambios aplicados, {Errors.Count} errores.";
+    }
+
     public static class PlantillaApplicatorService
     {
-        private static double MmToFt(double mm) => mm / 304.8;
+        private const double MmToFt = 1.0 / 304.8;
 
-        // ═════════════════════════════════════════════════════════════════
-        // ENTRY POINT
-        // ═════════════════════════════════════════════════════════════════
-
-        public static ApplicatorResult ApplyJson(Document doc, JObject data)
+        public static ApplicatorResult ApplyJson(Document doc, string jsonText)
         {
             var result = new ApplicatorResult();
 
-            ApplyProjectInfo(doc, data["project_info"] as JObject, result);
-            ApplyLevels(doc, data["levels"] as JArray, result);
-            ApplyMaterials(doc, data["materials"] as JArray, result);
-            ApplyTextStyles(doc, data["text_note_types"] as JArray, result);
-            ApplyViews(doc, data["views"] as JArray, result);
-            ApplySheets(doc, data["sheets"] as JArray, result);
-            CreateSchedules(doc, data["schedules_to_create"] as JArray, result);
-            ApplyProjectParameters(doc, data["project_parameters"] as JArray, result);
-            ApplyTypeNames(doc, data["type_names"] as JArray, result);
+            jsonText = jsonText.Trim();
+            if (jsonText.StartsWith("```"))
+            {
+                var lines = jsonText.Split('\n');
+                var sb = new System.Text.StringBuilder();
+                bool inBlock = false;
+                foreach (var line in lines)
+                {
+                    if (line.TrimStart().StartsWith("```"))
+                    {
+                        inBlock = !inBlock;
+                        continue;
+                    }
+                    if (inBlock || !jsonText.Contains("```"))
+                        sb.AppendLine(line);
+                }
+                jsonText = sb.ToString().Trim();
+            }
+
+            PlantillaJsonConfig? config;
+            try
+            {
+                config = JsonConvert.DeserializeObject<PlantillaJsonConfig>(jsonText);
+            }
+            catch (Exception ex)
+            {
+                result.Success = false;
+                result.Errors.Add($"JSON inválido: {ex.Message}");
+                return result;
+            }
+
+            if (config == null)
+            {
+                result.Success = false;
+                result.Errors.Add("El JSON está vacío o no pudo ser interpretado.");
+                return result;
+            }
+
+            using (Transaction tx = new Transaction(doc, "IA: Aplicar Configuración de Plantilla"))
+            {
+                tx.Start();
+                try
+                {
+                    if (config.ProjectInfo != null)
+                        ApplyProjectInfo(doc, config.ProjectInfo, result);
+
+                    if (config.Levels != null)
+                        ApplyLevels(doc, config.Levels, result);
+
+                    if (config.Materials != null)
+                        ApplyMaterials(doc, config.Materials, result);
+
+                    if (config.TextStyles != null)
+                        ApplyTextStyles(doc, config.TextStyles, result);
+
+                    if (config.Views != null)
+                        ApplyViews(doc, config.Views, result);
+
+                    if (config.Sheets != null)
+                        ApplySheets(doc, config.Sheets, result);
+
+                    if (config.SchedulesToCreate != null)
+                        CreateSchedules(doc, config.SchedulesToCreate, result);
+
+                    if (config.ProjectParameters != null)
+                        ApplyProjectParameters(doc, config.ProjectParameters, result);
+
+                    tx.Commit();
+                    result.Success = true;
+                }
+                catch (Exception ex)
+                {
+                    try { tx.RollBack(); } catch { }
+                    result.Success = false;
+                    result.Errors.Add($"Excepción durante la transacción: {ex.Message}");
+                }
+            }
 
             return result;
         }
 
-        // ═════════════════════════════════════════════════════════════════
-        // 1. PROJECT INFO
-        // ═════════════════════════════════════════════════════════════════
-
-        private static void ApplyProjectInfo(Document doc, JObject? info, ApplicatorResult result)
+        private static void ApplyProjectInfo(Document doc, PlantillaProjectInfo info, ApplicatorResult result)
         {
-            if (info == null || doc.ProjectInformation == null) return;
             try
             {
                 ProjectInfo pi = doc.ProjectInformation;
-                TrySet(() => { if (info["name"] != null) { pi.Name = info["name"]!.ToString(); result.Log.Add($"✅ Nombre → \"{pi.Name}\""); result.Changes++; } });
-                TrySet(() => { if (info["number"] != null) { pi.Number = info["number"]!.ToString(); result.Log.Add($"✅ Número → \"{pi.Number}\""); result.Changes++; } });
-                TrySet(() => { if (info["client"] != null) { pi.ClientName = info["client"]!.ToString(); result.Log.Add($"✅ Cliente → \"{pi.ClientName}\""); result.Changes++; } });
-                TrySet(() => { if (info["status"] != null) { pi.Status = info["status"]!.ToString(); result.Log.Add($"✅ Estado → \"{pi.Status}\""); result.Changes++; } });
-                TrySet(() => { if (info["address"] != null) { pi.Address = info["address"]!.ToString(); result.Log.Add($"✅ Dirección → \"{pi.Address}\""); result.Changes++; } });
-                TrySet(() => { if (info["building_name"] != null) { pi.BuildingName = info["building_name"]!.ToString(); result.Log.Add($"✅ Edificio → \"{pi.BuildingName}\""); result.Changes++; } });
-                TrySet(() => { if (info["author"] != null) { pi.Author = info["author"]!.ToString(); result.Log.Add($"✅ Autor → \"{pi.Author}\""); result.Changes++; } });
-                TrySet(() => { if (info["issue_date"] != null) { pi.IssueDate = info["issue_date"]!.ToString(); result.Log.Add($"✅ Fecha emisión → \"{pi.IssueDate}\""); result.Changes++; } });
+                if (!string.IsNullOrWhiteSpace(info.Name)) { pi.Name = info.Name; result.Log.Add($"Nombre del proyecto → \"{info.Name}\""); }
+                if (!string.IsNullOrWhiteSpace(info.Number)) { pi.Number = info.Number; result.Log.Add($"Número del proyecto → \"{info.Number}\""); }
+                if (!string.IsNullOrWhiteSpace(info.Address)) { pi.Address = info.Address; result.Log.Add($"Dirección → \"{info.Address}\""); }
+                if (!string.IsNullOrWhiteSpace(info.Author)) { pi.Author = info.Author; result.Log.Add($"Autor → \"{info.Author}\""); }
+                if (!string.IsNullOrWhiteSpace(info.BuildingName)) { pi.BuildingName = info.BuildingName; result.Log.Add($"Edificio → \"{info.BuildingName}\""); }
+                if (!string.IsNullOrWhiteSpace(info.OrganizationName)) { pi.OrganizationName = info.OrganizationName; result.Log.Add($"Organización → \"{info.OrganizationName}\""); }
+
+                TrySetParam(pi, "Project Status", info.Status, result);
+                TrySetParam(pi, "Project Issue Date", info.IssueDate, result);
+                TrySetParam(pi, "Client Name", info.Client, result);
             }
-            catch (Exception ex) { result.Errors.Add($"⚠️ project_info: {ex.Message}"); }
-        }
-
-        // ═════════════════════════════════════════════════════════════════
-        // 2. NIVELES
-        // ═════════════════════════════════════════════════════════════════
-
-        private static void ApplyLevels(Document doc, JArray? levels, ApplicatorResult result)
-        {
-            if (levels == null) return;
-            var existing = new FilteredElementCollector(doc)
-                .OfClass(typeof(Level)).Cast<Level>().ToList();
-
-            foreach (var token in levels)
+            catch (Exception ex)
             {
-                string currentName = token["current_name"]?.ToString() ?? "";
-                string newName = token["new_name"]?.ToString() ?? "";
-
-                Level? found = existing.FirstOrDefault(l =>
-                    l.Name.Equals(currentName, StringComparison.OrdinalIgnoreCase));
-
-                if (found == null) { result.Errors.Add($"⚠️ Nivel no encontrado: \"{currentName}\""); continue; }
-
-                TrySet(() =>
-                {
-                    if (!string.IsNullOrEmpty(newName) && newName != currentName)
-                    {
-                        found.Name = newName;
-                        result.Log.Add($"✅ Nivel \"{currentName}\" → \"{newName}\"");
-                        result.Changes++;
-                    }
-                });
-
-                TrySet(() =>
-                {
-                    if (token["elevation_mm"] != null)
-                    {
-                        double mm = Convert.ToDouble(token["elevation_mm"]);
-                        found.Elevation = MmToFt(mm);
-                        result.Log.Add($"✅ Elevación \"{(string.IsNullOrEmpty(newName) ? currentName : newName)}\" → {mm} mm");
-                        result.Changes++;
-                    }
-                });
+                result.Errors.Add($"Error en ProjectInfo: {ex.Message}");
             }
         }
 
-        // ═════════════════════════════════════════════════════════════════
-        // 3. MATERIALES
-        // ═════════════════════════════════════════════════════════════════
-
-        private static void ApplyMaterials(Document doc, JArray? materials, ApplicatorResult result)
+        private static void TrySetParam(Element elem, string paramName, string? value, ApplicatorResult result)
         {
-            if (materials == null) return;
-            var existing = new FilteredElementCollector(doc)
-                .OfClass(typeof(Material)).Cast<Material>().ToList();
-
-            foreach (var token in materials)
+            if (string.IsNullOrWhiteSpace(value)) return;
+            var p = elem.LookupParameter(paramName);
+            if (p != null && !p.IsReadOnly)
             {
-                string currentName = token["current_name"]?.ToString() ?? "";
-                Material? found = existing.FirstOrDefault(m =>
-                    m.Name.Equals(currentName, StringComparison.OrdinalIgnoreCase));
-
-                if (found == null) { result.Errors.Add($"⚠️ Material no encontrado: \"{currentName}\""); continue; }
-
-                string displayName = currentName;
-
-                TrySet(() =>
-                {
-                    string newName = token["new_name"]?.ToString() ?? "";
-                    if (!string.IsNullOrEmpty(newName) && newName != currentName)
-                    {
-                        found.Name = newName;
-                        displayName = newName;
-                        result.Log.Add($"✅ Material \"{currentName}\" → \"{newName}\"");
-                        result.Changes++;
-                    }
-                });
-
-                TrySet(() =>
-                {
-                    if (token["color_r"] != null || token["color_g"] != null || token["color_b"] != null)
-                    {
-                        byte r = token["color_r"] != null ? Convert.ToByte(Math.Clamp(Convert.ToInt32(token["color_r"]), 0, 255)) : found.Color.Red;
-                        byte g = token["color_g"] != null ? Convert.ToByte(Math.Clamp(Convert.ToInt32(token["color_g"]), 0, 255)) : found.Color.Green;
-                        byte b = token["color_b"] != null ? Convert.ToByte(Math.Clamp(Convert.ToInt32(token["color_b"]), 0, 255)) : found.Color.Blue;
-                        found.Color = new Color(r, g, b);
-                        result.Log.Add($"✅ Color \"{displayName}\" → RGB({r},{g},{b})");
-                        result.Changes++;
-                    }
-                });
-
-                TrySet(() =>
-                {
-                    if (token["category"] != null)
-                    {
-                        found.MaterialCategory = token["category"]!.ToString();
-                        result.Changes++;
-                    }
-                });
+                p.Set(value);
+                result.Log.Add($"Parámetro '{paramName}' → \"{value}\"");
             }
         }
 
-        // ═════════════════════════════════════════════════════════════════
-        // 4. ESTILOS DE TEXTO (TextNoteType)
-        // ═════════════════════════════════════════════════════════════════
-
-        private static void ApplyTextStyles(Document doc, JArray? styles, ApplicatorResult result)
+        private static void ApplyLevels(Document doc, List<PlantillaLevel> levels, ApplicatorResult result)
         {
-            if (styles == null) return;
-            var existing = new FilteredElementCollector(doc)
-                .OfClass(typeof(TextNoteType)).Cast<TextNoteType>().ToList();
-
-            foreach (var token in styles)
+            var existing = new Dictionary<string, Level>(StringComparer.OrdinalIgnoreCase);
+            using (FilteredElementCollector col = new FilteredElementCollector(doc))
             {
-                string typeName = token["type_name"]?.ToString() ?? "";
-                TextNoteType? found = existing.FirstOrDefault(t =>
-                    t.Name.Equals(typeName, StringComparison.OrdinalIgnoreCase));
-
-                if (found == null) { result.Errors.Add($"⚠️ Estilo de texto no encontrado: \"{typeName}\""); continue; }
-
-                TrySet(() =>
+                col.OfClass(typeof(Level));
+                foreach (Element e in col)
                 {
-                    if (token["new_name"] != null)
-                    {
-                        string newName = token["new_name"]!.ToString();
-                        if (!string.IsNullOrEmpty(newName)) { found.Name = newName; result.Log.Add($"✅ Texto \"{typeName}\" → \"{newName}\""); result.Changes++; }
-                    }
-                });
-                TrySet(() =>
-                {
-                    if (token["font_size_mm"] != null)
-                    {
-                        double mm = Convert.ToDouble(token["font_size_mm"]);
-                        Parameter? p = found.get_Parameter(BuiltInParameter.TEXT_SIZE);
-                        if (p != null && !p.IsReadOnly) { p.Set(MmToFt(mm)); result.Log.Add($"✅ Tamaño texto \"{typeName}\" → {mm}mm"); result.Changes++; }
-                    }
-                });
-                TrySet(() =>
-                {
-                    if (token["bold"] != null)
-                    {
-                        bool bold = Convert.ToBoolean(token["bold"]);
-                        Parameter? p = found.get_Parameter(BuiltInParameter.TEXT_STYLE_BOLD);
-                        if (p != null && !p.IsReadOnly) { p.Set(bold ? 1 : 0); result.Changes++; }
-                    }
-                });
-                TrySet(() =>
-                {
-                    if (token["italic"] != null)
-                    {
-                        bool italic = Convert.ToBoolean(token["italic"]);
-                        Parameter? p = found.get_Parameter(BuiltInParameter.TEXT_STYLE_ITALIC);
-                        if (p != null && !p.IsReadOnly) { p.Set(italic ? 1 : 0); result.Changes++; }
-                    }
-                });
+                    if (e is Level lv) existing[lv.Name] = lv;
+                }
             }
-        }
 
-        // ═════════════════════════════════════════════════════════════════
-        // 5. VISTAS
-        // ═════════════════════════════════════════════════════════════════
-
-        private static void ApplyViews(Document doc, JArray? views, ApplicatorResult result)
-        {
-            if (views == null) return;
-            var existing = new FilteredElementCollector(doc)
-                .OfClass(typeof(View)).Cast<View>()
-                .Where(v => !v.IsTemplate && !(v is ViewSchedule) && !(v is ViewSheet))
-                .ToList();
-
-            foreach (var token in views)
+            foreach (var cfg in levels)
             {
-                string currentName = token["current_name"]?.ToString() ?? "";
-                View? found = existing.FirstOrDefault(v =>
-                    v.Name.Equals(currentName, StringComparison.OrdinalIgnoreCase));
-
-                if (found == null) { result.Errors.Add($"⚠️ Vista no encontrada: \"{currentName}\""); continue; }
-
-                TrySet(() =>
+                if (!existing.TryGetValue(cfg.CurrentName, out Level? level))
                 {
-                    if (token["new_name"] != null)
-                    {
-                        string newName = token["new_name"]!.ToString();
-                        if (!string.IsNullOrEmpty(newName) && newName != currentName)
-                        { found.Name = newName; result.Log.Add($"✅ Vista \"{currentName}\" → \"{newName}\""); result.Changes++; }
-                    }
-                });
-                TrySet(() =>
-                {
-                    if (token["scale"] != null)
-                    { found.Scale = Convert.ToInt32(token["scale"]); result.Log.Add($"✅ Escala \"{currentName}\" → 1:{found.Scale}"); result.Changes++; }
-                });
-            }
-        }
-
-        // ═════════════════════════════════════════════════════════════════
-        // 6. PLANOS (ViewSheet)
-        // ═════════════════════════════════════════════════════════════════
-
-        private static void ApplySheets(Document doc, JArray? sheets, ApplicatorResult result)
-        {
-            if (sheets == null) return;
-            var existing = new FilteredElementCollector(doc)
-                .OfClass(typeof(ViewSheet)).Cast<ViewSheet>().ToList();
-
-            foreach (var token in sheets)
-            {
-                string currentNumber = token["current_number"]?.ToString() ?? "";
-                ViewSheet? found = existing.FirstOrDefault(s =>
-                    s.SheetNumber.Equals(currentNumber, StringComparison.OrdinalIgnoreCase));
-
-                if (found == null) { result.Errors.Add($"⚠️ Plano no encontrado: \"{currentNumber}\""); continue; }
-
-                TrySet(() =>
-                {
-                    if (token["new_number"] != null)
-                    {
-                        string newNum = token["new_number"]!.ToString();
-                        if (!string.IsNullOrEmpty(newNum) && newNum != currentNumber)
-                        { found.SheetNumber = newNum; result.Log.Add($"✅ Plano \"{currentNumber}\" → \"{newNum}\""); result.Changes++; }
-                    }
-                });
-                TrySet(() =>
-                {
-                    if (token["new_name"] != null)
-                    {
-                        string newName = token["new_name"]!.ToString();
-                        if (!string.IsNullOrEmpty(newName)) { found.Name = newName; result.Log.Add($"✅ Nombre plano → \"{newName}\""); result.Changes++; }
-                    }
-                });
-                TrySet(() => SetSheetParam(found, BuiltInParameter.SHEET_DRAWN_BY, token["drawn_by"]?.ToString(), ref result.Changes));
-                TrySet(() => SetSheetParam(found, BuiltInParameter.SHEET_CHECKED_BY, token["checked_by"]?.ToString(), ref result.Changes));
-                TrySet(() => SetSheetParam(found, BuiltInParameter.SHEET_DESIGNED_BY, token["designed_by"]?.ToString(), ref result.Changes));
-                TrySet(() => SetSheetParam(found, BuiltInParameter.SHEET_APPROVED_BY, token["approved_by"]?.ToString(), ref result.Changes));
-            }
-        }
-
-        private static void SetSheetParam(ViewSheet sheet, BuiltInParameter bip, string? value, ref int changes)
-        {
-            if (string.IsNullOrEmpty(value)) return;
-            Parameter? p = sheet.get_Parameter(bip);
-            if (p != null && !p.IsReadOnly) { p.Set(value); changes++; }
-        }
-
-        // ═════════════════════════════════════════════════════════════════
-        // 7. CREAR SCHEDULES
-        // ═════════════════════════════════════════════════════════════════
-
-        private static readonly Dictionary<string, BuiltInCategory> CategoryMap =
-            new Dictionary<string, BuiltInCategory>(StringComparer.OrdinalIgnoreCase)
-            {
-                { "Rooms",                  BuiltInCategory.OST_Rooms },
-                { "Habitaciones",           BuiltInCategory.OST_Rooms },
-                { "Walls",                  BuiltInCategory.OST_Walls },
-                { "Muros",                  BuiltInCategory.OST_Walls },
-                { "Doors",                  BuiltInCategory.OST_Doors },
-                { "Puertas",                BuiltInCategory.OST_Doors },
-                { "Windows",                BuiltInCategory.OST_Windows },
-                { "Ventanas",               BuiltInCategory.OST_Windows },
-                { "Floors",                 BuiltInCategory.OST_Floors },
-                { "Pisos",                  BuiltInCategory.OST_Floors },
-                { "Ceilings",               BuiltInCategory.OST_Ceilings },
-                { "Furniture",              BuiltInCategory.OST_Furniture },
-                { "Mobiliario",             BuiltInCategory.OST_Furniture },
-                { "Structural Columns",     BuiltInCategory.OST_StructuralColumns },
-                { "Structural Framing",     BuiltInCategory.OST_StructuralFraming },
-                { "Generic Models",         BuiltInCategory.OST_GenericModel },
-                { "Mechanical Equipment",   BuiltInCategory.OST_MechanicalEquipment },
-                { "Plumbing Fixtures",      BuiltInCategory.OST_PlumbingFixtures },
-                { "Electrical Fixtures",    BuiltInCategory.OST_ElectricalFixtures },
-                { "Areas",                  BuiltInCategory.OST_Areas },
-                { "Stairs",                 BuiltInCategory.OST_Stairs },
-                { "Escaleras",              BuiltInCategory.OST_Stairs },
-                { "Railings",               BuiltInCategory.OST_Railings },
-                { "Ramps",                  BuiltInCategory.OST_Ramps },
-            };
-
-        private static void CreateSchedules(Document doc, JArray? schedules, ApplicatorResult result)
-        {
-            if (schedules == null) return;
-
-            foreach (var token in schedules)
-            {
-                string name = token["name"]?.ToString() ?? "";
-                string categoryName = token["category"]?.ToString() ?? "";
-                JArray? fields = token["fields"] as JArray;
-
-                if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(categoryName)) continue;
-
-                if (!CategoryMap.TryGetValue(categoryName, out BuiltInCategory bic))
-                {
-                    result.Errors.Add($"⚠️ Categoría no soportada para schedule: \"{categoryName}\"");
+                    result.Errors.Add($"Nivel no encontrado: \"{cfg.CurrentName}\"");
                     continue;
                 }
 
-                TrySet(() =>
+                if (!string.IsNullOrWhiteSpace(cfg.NewName) && cfg.NewName != cfg.CurrentName)
                 {
-                    ViewSchedule vs = ViewSchedule.CreateSchedule(doc, new ElementId(bic));
-                    vs.Name = name;
-                    result.Log.Add($"✅ Schedule creado: \"{name}\" ({categoryName})");
-                    result.Changes++;
+                    level.Name = cfg.NewName;
+                    result.Log.Add($"Nivel renombrado: \"{cfg.CurrentName}\" → \"{cfg.NewName}\"");
+                }
 
-                    if (fields != null && fields.Count > 0)
-                    {
-                        ScheduleDefinition def = vs.Definition;
-                        IList<SchedulableField> schedulable = def.GetSchedulableFields();
-
-                        foreach (var fieldToken in fields)
-                        {
-                            string fieldName = fieldToken.ToString();
-                            SchedulableField? sf = FindSchedulableField(doc, schedulable, fieldName);
-                            if (sf != null)
-                            {
-                                try { def.AddField(sf); result.Changes++; }
-                                catch { }
-                            }
-                        }
-                    }
-                }, ex => result.Errors.Add($"⚠️ Error creando schedule \"{name}\": {ex.Message}"));
+                if (cfg.ElevationMm.HasValue)
+                {
+                    double ft = cfg.ElevationMm.Value * MmToFt;
+                    level.Elevation = ft;
+                    result.Log.Add($"Nivel \"{cfg.NewName ?? cfg.CurrentName}\" elevación → {cfg.ElevationMm}mm");
+                }
             }
         }
 
-        private static SchedulableField? FindSchedulableField(
-            Document doc, IList<SchedulableField> fields, string fieldName)
+        private static void ApplyMaterials(Document doc, List<PlantillaMaterial> materials, ApplicatorResult result)
         {
-            foreach (var sf in fields)
+            var existing = new Dictionary<string, Material>(StringComparer.OrdinalIgnoreCase);
+            using (FilteredElementCollector col = new FilteredElementCollector(doc))
+            {
+                col.OfClass(typeof(Material));
+                foreach (Element e in col)
+                {
+                    if (e is Material m) existing[m.Name] = m;
+                }
+            }
+
+            foreach (var cfg in materials)
+            {
+                if (!existing.TryGetValue(cfg.CurrentName, out Material? mat))
+                {
+                    result.Errors.Add($"Material no encontrado: \"{cfg.CurrentName}\"");
+                    continue;
+                }
+
+                if (cfg.ColorR.HasValue && cfg.ColorG.HasValue && cfg.ColorB.HasValue)
+                {
+                    mat.Color = new RevitColor(
+                        (byte)Math.Clamp(cfg.ColorR.Value, 0, 255),
+                        (byte)Math.Clamp(cfg.ColorG.Value, 0, 255),
+                        (byte)Math.Clamp(cfg.ColorB.Value, 0, 255));
+                    result.Log.Add($"Material \"{cfg.CurrentName}\" color → RGB({cfg.ColorR},{cfg.ColorG},{cfg.ColorB})");
+                }
+
+                if (!string.IsNullOrWhiteSpace(cfg.NewName) && cfg.NewName != cfg.CurrentName)
+                {
+                    mat.Name = cfg.NewName;
+                    result.Log.Add($"Material renombrado: \"{cfg.CurrentName}\" → \"{cfg.NewName}\"");
+                }
+            }
+        }
+
+        private static void ApplyTextStyles(Document doc, List<PlantillaTextStyle> styles, ApplicatorResult result)
+        {
+            using (FilteredElementCollector col = new FilteredElementCollector(doc))
+            {
+                col.OfClass(typeof(TextNoteType));
+                foreach (Element e in col)
+                {
+                    if (e is not TextNoteType tnt) continue;
+                    var cfg = styles.Find(s => string.Equals(s.TypeName, tnt.Name, StringComparison.OrdinalIgnoreCase));
+                    if (cfg == null) continue;
+
+                    if (cfg.FontSizeMm.HasValue)
+                    {
+                        double ft = cfg.FontSizeMm.Value * MmToFt;
+                        Parameter? pSize = tnt.get_Parameter(BuiltInParameter.TEXT_SIZE);
+                        if (pSize != null && !pSize.IsReadOnly)
+                        {
+                            pSize.Set(ft);
+                            result.Log.Add($"TextStyle \"{tnt.Name}\" tamaño → {cfg.FontSizeMm}mm");
+                        }
+                    }
+
+                    if (cfg.Bold.HasValue)
+                    {
+                        Parameter? pBold = tnt.get_Parameter(BuiltInParameter.TEXT_STYLE_BOLD);
+                        if (pBold != null && !pBold.IsReadOnly)
+                        {
+                            pBold.Set(cfg.Bold.Value ? 1 : 0);
+                            result.Log.Add($"TextStyle \"{tnt.Name}\" bold → {cfg.Bold}");
+                        }
+                    }
+
+                    if (cfg.Italic.HasValue)
+                    {
+                        Parameter? pItalic = tnt.get_Parameter(BuiltInParameter.TEXT_STYLE_ITALIC);
+                        if (pItalic != null && !pItalic.IsReadOnly)
+                        {
+                            pItalic.Set(cfg.Italic.Value ? 1 : 0);
+                            result.Log.Add($"TextStyle \"{tnt.Name}\" italic → {cfg.Italic}");
+                        }
+                    }
+                }
+            }
+        }
+
+        private static void ApplyViews(Document doc, List<PlantillaView> views, ApplicatorResult result)
+        {
+            using (FilteredElementCollector col = new FilteredElementCollector(doc))
+            {
+                col.OfClass(typeof(RevitView));
+                foreach (Element e in col)
+                {
+                    if (e is not RevitView v || v is ViewSheet) continue;
+                    var cfg = views.Find(vv => string.Equals(vv.CurrentName, v.Name, StringComparison.OrdinalIgnoreCase));
+                    if (cfg == null) continue;
+
+                    if (cfg.Scale.HasValue && cfg.Scale.Value > 0)
+                    {
+                        v.Scale = cfg.Scale.Value;
+                        result.Log.Add($"Vista \"{v.Name}\" escala → 1:{cfg.Scale}");
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(cfg.NewName) && cfg.NewName != cfg.CurrentName)
+                    {
+                        string oldName = v.Name;
+                        v.Name = cfg.NewName;
+                        result.Log.Add($"Vista renombrada: \"{oldName}\" → \"{cfg.NewName}\"");
+                    }
+                }
+            }
+        }
+
+        private static void ApplySheets(Document doc, List<PlantillaSheet> sheets, ApplicatorResult result)
+        {
+            using (FilteredElementCollector col = new FilteredElementCollector(doc))
+            {
+                col.OfClass(typeof(ViewSheet));
+                foreach (Element e in col)
+                {
+                    if (e is not ViewSheet vs) continue;
+                    var cfg = sheets.Find(s => string.Equals(s.CurrentNumber, vs.SheetNumber, StringComparison.OrdinalIgnoreCase));
+                    if (cfg == null) continue;
+
+                    if (!string.IsNullOrWhiteSpace(cfg.NewNumber))
+                    {
+                        vs.SheetNumber = cfg.NewNumber;
+                        result.Log.Add($"Plano número: \"{cfg.CurrentNumber}\" → \"{cfg.NewNumber}\"");
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(cfg.NewName))
+                    {
+                        vs.Name = cfg.NewName;
+                        result.Log.Add($"Plano nombre: \"{cfg.CurrentNumber}\" → \"{cfg.NewName}\"");
+                    }
+
+                    TrySetParam(vs, "Drawn By", cfg.DrawnBy, result);
+                    TrySetParam(vs, "Checked By", cfg.CheckedBy, result);
+                    TrySetParam(vs, "Approved By", cfg.ApprovedBy, result);
+                }
+            }
+        }
+
+        private static readonly Dictionary<string, BuiltInCategory> CategoryMap = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Rooms"] = BuiltInCategory.OST_Rooms,
+            ["Walls"] = BuiltInCategory.OST_Walls,
+            ["Doors"] = BuiltInCategory.OST_Doors,
+            ["Windows"] = BuiltInCategory.OST_Windows,
+            ["Floors"] = BuiltInCategory.OST_Floors,
+            ["Ceilings"] = BuiltInCategory.OST_Ceilings,
+            ["Stairs"] = BuiltInCategory.OST_Stairs,
+            ["Columns"] = BuiltInCategory.OST_Columns,
+            ["Structural Columns"] = BuiltInCategory.OST_StructuralColumns,
+            ["Structural Framing"] = BuiltInCategory.OST_StructuralFraming,
+            ["Furniture"] = BuiltInCategory.OST_Furniture,
+            ["Generic Models"] = BuiltInCategory.OST_GenericModel,
+        };
+
+        private static void CreateSchedules(Document doc, List<PlantillaSchedule> schedules, ApplicatorResult result)
+        {
+            foreach (var cfg in schedules)
             {
                 try
                 {
-                    string label = "";
-                    long paramIdValue = sf.ParameterId.Value;
-
-                    if (Enum.IsDefined(typeof(BuiltInParameter), (int)paramIdValue))
+                    if (!CategoryMap.TryGetValue(cfg.Category, out BuiltInCategory bic))
                     {
-                        var bip = (BuiltInParameter)(int)paramIdValue;
-                        label = LabelUtils.GetLabelFor(bip);
-                    }
-                    else
-                    {
-                        var elem = doc.GetElement(sf.ParameterId);
-                        if (elem != null) label = elem.Name;
+                        result.Errors.Add($"Categoría desconocida para schedule: \"{cfg.Category}\"");
+                        continue;
                     }
 
-                    if (label.Equals(fieldName, StringComparison.OrdinalIgnoreCase))
-                        return sf;
+                    ViewSchedule vs = ViewSchedule.CreateSchedule(doc, new ElementId(bic));
+                    vs.Name = cfg.Name;
+                    result.Log.Add($"Schedule creado: \"{cfg.Name}\" (categoría: {cfg.Category})");
+
+                    if (cfg.Fields != null)
+                    {
+                        ScheduleDefinition def = vs.Definition;
+                        IList<SchedulableField> schedulableFields = def.GetSchedulableFields();
+
+                        foreach (string fieldName in cfg.Fields)
+                        {
+                            foreach (SchedulableField sf in schedulableFields)
+                            {
+                                string label = sf.GetName(doc);
+                                if (string.Equals(label, fieldName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    def.AddField(sf);
+                                    result.Log.Add($"  Campo añadido: \"{fieldName}\"");
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
-                catch { }
-            }
-            return null;
-        }
-
-        // ═════════════════════════════════════════════════════════════════
-        // 8. PARÁMETROS DE PROYECTO
-        // ═════════════════════════════════════════════════════════════════
-
-        private static void ApplyProjectParameters(Document doc, JArray? parameters, ApplicatorResult result)
-        {
-            if (parameters == null || doc.ProjectInformation == null) return;
-
-            foreach (var token in parameters)
-            {
-                string pName = token["name"]?.ToString() ?? "";
-                string pValue = token["value"]?.ToString() ?? "";
-                if (string.IsNullOrEmpty(pName)) continue;
-
-                TrySet(() =>
+                catch (Exception ex)
                 {
-                    Parameter? p = doc.ProjectInformation.LookupParameter(pName);
-                    if (p != null && !p.IsReadOnly)
-                    {
-                        p.Set(pValue);
-                        result.Log.Add($"✅ Parámetro \"{pName}\" → \"{pValue}\"");
-                        result.Changes++;
-                    }
-                    else result.Errors.Add($"⚠️ Parámetro no encontrado/solo lectura: \"{pName}\"");
-                });
+                    result.Errors.Add($"Error creando schedule \"{cfg.Name}\": {ex.Message}");
+                }
             }
         }
 
-        // ═════════════════════════════════════════════════════════════════
-        // 9. TIPOS DE ELEMENTO (ElementType)
-        // ═════════════════════════════════════════════════════════════════
-
-        private static void ApplyTypeNames(Document doc, JArray? types, ApplicatorResult result)
+        private static void ApplyProjectParameters(Document doc, List<PlantillaParameter> parameters, ApplicatorResult result)
         {
-            if (types == null) return;
-
-            var allTypes = new FilteredElementCollector(doc)
-                .OfClass(typeof(ElementType)).Cast<ElementType>().ToList();
-
-            foreach (var token in types)
+            ProjectInfo pi = doc.ProjectInformation;
+            foreach (var cfg in parameters)
             {
-                string familyName = token["family_name"]?.ToString() ?? "";
-                string currentName = token["current_name"]?.ToString() ?? "";
-                string newName = token["new_name"]?.ToString() ?? "";
-
-                if (string.IsNullOrEmpty(currentName) || string.IsNullOrEmpty(newName)) continue;
-
-                ElementType? found = allTypes.FirstOrDefault(et =>
-                    et.Name.Equals(currentName, StringComparison.OrdinalIgnoreCase) &&
-                    (string.IsNullOrEmpty(familyName) ||
-                     et.FamilyName.Equals(familyName, StringComparison.OrdinalIgnoreCase)));
-
-                if (found == null) { result.Errors.Add($"⚠️ Tipo no encontrado: \"{familyName}:{currentName}\""); continue; }
-
-                TrySet(() =>
+                Parameter? p = pi.LookupParameter(cfg.Name);
+                if (p == null)
                 {
-                    found.Name = newName;
-                    result.Log.Add($"✅ Tipo \"{currentName}\" → \"{newName}\"");
-                    result.Changes++;
-                });
+                    result.Errors.Add($"Parámetro de proyecto no encontrado: \"{cfg.Name}\"");
+                    continue;
+                }
+
+                if (p.IsReadOnly)
+                {
+                    result.Errors.Add($"Parámetro \"{cfg.Name}\" es de solo lectura.");
+                    continue;
+                }
+
+                switch (p.StorageType)
+                {
+                    case StorageType.String:
+                        p.Set(cfg.Value);
+                        result.Log.Add($"Parámetro \"{cfg.Name}\" → \"{cfg.Value}\"");
+                        break;
+                    case StorageType.Double:
+                        if (double.TryParse(cfg.Value, out double d))
+                        {
+                            p.Set(d);
+                            result.Log.Add($"Parámetro \"{cfg.Name}\" → {d}");
+                        }
+                        break;
+                    case StorageType.Integer:
+                        if (int.TryParse(cfg.Value, out int i))
+                        {
+                            p.Set(i);
+                            result.Log.Add($"Parámetro \"{cfg.Name}\" → {i}");
+                        }
+                        break;
+                }
             }
-        }
-
-        // ═════════════════════════════════════════════════════════════════
-        // HELPERS
-        // ═════════════════════════════════════════════════════════════════
-
-        private static void TrySet(Action action, Action<Exception>? onError = null)
-        {
-            try { action(); }
-            catch (Exception ex) { onError?.Invoke(ex); }
         }
     }
 }
