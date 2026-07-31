@@ -90,6 +90,39 @@ namespace RevitToSupabasePlugin
 
 
     // =========================================================================
+    // 3. COMANDO: CONFIGURADOR IA DE PLANTILLAS
+    // =========================================================================
+    [Transaction(TransactionMode.Manual)]
+    public class CommandConfiguradorPlantilla : IExternalCommand
+    {
+        public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
+        {
+            UIApplication uiapp = commandData.Application;
+            UIDocument uidoc = uiapp.ActiveUIDocument;
+            if (uidoc == null)
+            {
+                TaskDialog.Show("Error", "No hay ningún documento activo.");
+                return Result.Failed;
+            }
+
+            try
+            {
+                ConfiguradorIAPlantillaWindow window = new ConfiguradorIAPlantillaWindow(uidoc.Document);
+                System.Windows.Interop.WindowInteropHelper helper = new System.Windows.Interop.WindowInteropHelper(window);
+                helper.Owner = uiapp.MainWindowHandle;
+                window.ShowDialog();
+                return Result.Succeeded;
+            }
+            catch (Exception ex)
+            {
+                message = ex.Message;
+                TaskDialog.Show("Error", "No se pudo iniciar el Configurador IA: " + ex.ToString());
+                return Result.Failed;
+            }
+        }
+    }
+
+    // =========================================================================
     // MANEJADOR DE EVENTO EXTERNO (IExternalEventHandler) - PLANTILLA NONICA V1.0
     // =========================================================================
     public class ExportMetadataExternalEventHandler : IExternalEventHandler
