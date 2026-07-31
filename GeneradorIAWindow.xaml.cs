@@ -77,63 +77,54 @@ Debes traducir la máquina o equipo a un ensamblaje paramétrico tridimensional 
 * Meso-geometría: Paneles inclinados, cubiertas, biseles, tolvas, puertas, marcos, ductos y viseras.
 * Micro-geometría: Patas niveladoras, botones, perillas, pantallas, rejillas de ventilación, bisagras, conectores, dispensadores y relieves.
 
-Devuélveme ÚNICAMENTE un bloque JSON válido (sin código Python ni comentarios) que cumpla ESTRICTAMENTE con este esquema:json
-{{
-""parameters"": [
-{{""name"": ""Modelo"", ""type"": ""Text"", ""value"": ""Texto_A_Extraer""}},
-{loiInstruction}
-],
-""geometry"": [
-{{
-""type"": ""box"",
-""name"": ""Cuerpo Principal - Gabinete Base"",
-""x_min"": -270, ""x_max"": 270,
-""y_min"": -355, ""y_max"": 355,
-""z_min"": 50, ""z_max"": 860
-}},
-{{
-""type"": ""cylinder"",
-""name"": ""Pata delantera"",
-""axis"": ""Z"",
-""center_x"": -200, ""center_y"": -300,
-""radius"": 25,
-""z_min"": 0, ""z_max"": 50
-}},
-{{
-""type"": ""custom_extrusion"",
-""name"": ""Panel Frontal Diagonal"",
-""axis"": ""X"",
-""profile"": [
-[0, 50],
-[270, 50],
-[270, 400],
-[150, 450],
-[0, 450]
-],
-""start"": -355,
-""end"": -200
-}}
-]
-}}
+Devuélveme ÚNICAMENTE un bloque JSON válido (sin código Python ni comentarios) que cumpla ESTRICTAMENTE con este esquema:
 
-```
+{{
+  ""parameters"": [
+    {{""name"": ""Modelo"", ""type"": ""Text"", ""value"": ""Texto_A_Extraer""}},
+    {loiInstruction}
+  ],
+  ""geometry"": [
+    {{
+      ""type"": ""box"",
+      ""name"": ""Cuerpo Principal - Gabinete Base"",
+      ""x_min"": -270, ""x_max"": 270,
+      ""y_min"": -355, ""y_max"": 355,
+      ""z_min"": 50, ""z_max"": 860
+    }},
+    {{
+      ""type"": ""cylinder"",
+      ""name"": ""Pata delantera"",
+      ""axis"": ""Z"",
+      ""center_x"": -200, ""center_y"": -300,
+      ""radius"": 25,
+      ""z_min"": 0, ""z_max"": 50
+    }},
+    {{
+      ""type"": ""custom_extrusion"",
+      ""name"": ""Panel Frontal Diagonal"",
+      ""axis"": ""X"",
+      ""profile"": [
+        [0, 50],
+        [270, 50],
+        [270, 400],
+        [150, 450],
+        [0, 450]
+      ],
+      ""start"": -355,
+      ""end"": -200
+    }}
+  ]
+}}
 
 Reglas Obligatorias:
 1. Todas las medidas en la geometría deben estar en MILÍMETROS matemáticamente calculados desde un origen de coordenadas absoluto (0,0,0).
 2. Puedes usar `type: ""box""`, `""cylinder""` y `""custom_extrusion""`.
 3. Para `box`, DEBES proveer `x_min`, `x_max`, `y_min`, `y_max`, `z_min`, `z_max`.
 4. Para `cylinder`, el `axis` puede ser `""X""`, `""Y""` o `""Z""`.
-   - Si `axis = ""Z""`: provee `center_x`, `center_y`, `radius`, `z_min`, `z_max`.
-   - Si `axis = ""Y""`: provee `center_x`, `center_z`, `radius`, `y_min`, `y_max`.
-   - Si `axis = ""X""`: provee `center_y`, `center_z`, `radius`, `x_min`, `x_max`.
-5. Para `custom_extrusion`, el `axis` define el plano de dibujo 2D (X, Y o Z) y la dirección de la extrusión. `start` y `end` definen el inicio y fin de la extrusión. El `profile` es una secuencia continua de puntos 2D `[u, v]` que dibuja la cara lateral (úsalo OBLIGATORIAMENTE para capturar paneles inclinados, diagonales, biseles, chaflanes o formas complejas asimétricas uniéndolas punto por punto):
-   - Si axis = ""X"", U = Y y V = Z (extrusión a lo largo del eje X).
-   - Si axis = ""Y"", U = Z y V = X (extrusión a lo largo del eje Y).
-   - Si axis = ""Z"", U = X y V = Y (extrusión a lo largo del eje Z).
+5. Para `custom_extrusion`, el `axis` define el plano de dibujo 2D (X, Y o Z). `start` y `end` definen el inicio y fin de la extrusión.
 6. {lodInstruction}
-7. Devuelve SOLO el bloque JSON envuelto en ```json ... ```. Prohibido escribir código Python o explicaciones de texto antes o después del JSON.
-
-```";
+7. Devuelve SOLO el bloque JSON. Prohibido escribir código Python o explicaciones de texto antes o después del JSON.";
 
             try
             {

@@ -101,6 +101,10 @@ namespace RevitToSupabasePlugin
         public bool IncludeLevels { get; set; } = true;
         public bool IncludeCategorySummary { get; set; } = true;
         public bool IncludeElementDetails { get; set; } = true;
+        public bool IncludeRooms { get; set; } = true;
+        public bool IncludeSchedules { get; set; } = true;
+        public bool IncludeSheetsAndViews { get; set; } = true;
+        public bool IncludeMaterials { get; set; } = true;
 
         private ExportadorMetadataWindow? _mainWindow;
 
@@ -130,6 +134,10 @@ namespace RevitToSupabasePlugin
                     IncludeSiteLocation,
                     IncludeLevels,
                     IncludeCategorySummary,
+                    IncludeRooms,
+                    IncludeSchedules,
+                    IncludeSheetsAndViews,
+                    IncludeMaterials,
                     (current, total, msg) => progressWin.UpdateProgress(current, total, msg),
                     () => progressWin.IsInterrupted
                 );

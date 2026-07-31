@@ -1,7 +1,7 @@
 <Window x:Class="RevitToSupabasePlugin.ExportadorMetadataWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Conexión Supabase - Exportador de Metadata (por ID)" Height="580" Width="680"
+        Title="Conexión Supabase - Exportador de Metadata (por ID)" Height="620" Width="680"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResize"
         Background="#181818" Foreground="#FFFFFF">
@@ -64,7 +64,11 @@
                         <CheckBox x:Name="chkSiteLocation" Content="Ubicación / Georreferenciación (SiteLocation)" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,20,8"/>
                         <CheckBox x:Name="chkLevels" Content="Niveles del Modelo" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,20,8"/>
                         <CheckBox x:Name="chkCategorySummary" Content="Resumen por Categorías" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,20,8"/>
-                        <CheckBox x:Name="chkElementDetails" Content="Detalle Paramétrico de Elementos por ElementId" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,0,8"/>
+                        <CheckBox x:Name="chkElementDetails" Content="Detalle Paramétrico de Elementos por ElementId" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,20,8"/>
+                        <CheckBox x:Name="chkRooms" Content="Habitaciones &amp; Espacios (Rooms)" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,20,8"/>
+                        <CheckBox x:Name="chkSchedules" Content="Tablas de Planificación / Datos (Schedules)" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,20,8"/>
+                        <CheckBox x:Name="chkSheetsViews" Content="Planos &amp; Vistas (Sheets/Views)" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,20,8"/>
+                        <CheckBox x:Name="chkMaterials" Content="Materiales del Modelo" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,0,8"/>
                     </WrapPanel>
                 </StackPanel>
             </GroupBox>

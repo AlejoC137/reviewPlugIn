@@ -37,8 +37,125 @@ namespace RevitToSupabasePlugin
         [JsonProperty("category_summary", NullValueHandling = NullValueHandling.Ignore)]
         public Dictionary<string, int>? CategorySummary { get; set; }
 
+        [JsonProperty("rooms", NullValueHandling = NullValueHandling.Ignore)]
+        public List<RoomData>? Rooms { get; set; }
+
+        [JsonProperty("schedules", NullValueHandling = NullValueHandling.Ignore)]
+        public List<ScheduleTableData>? Schedules { get; set; }
+
+        [JsonProperty("sheets_and_views", NullValueHandling = NullValueHandling.Ignore)]
+        public SheetsAndViewsData? SheetsAndViews { get; set; }
+
+        [JsonProperty("materials", NullValueHandling = NullValueHandling.Ignore)]
+        public List<MaterialData>? Materials { get; set; }
+
         [JsonProperty("elements_by_id", NullValueHandling = NullValueHandling.Ignore)]
         public Dictionary<string, ElementMetadataData>? ElementsById { get; set; }
+    }
+
+    public class RoomData
+    {
+        [JsonProperty("id")]
+        public long Id { get; set; }
+
+        [JsonProperty("number")]
+        public string Number { get; set; } = "";
+
+        [JsonProperty("name")]
+        public string Name { get; set; } = "";
+
+        [JsonProperty("area_m2")]
+        public double AreaM2 { get; set; }
+
+        [JsonProperty("perimeter_m")]
+        public double PerimeterM { get; set; }
+
+        [JsonProperty("volume_m3")]
+        public double VolumeM3 { get; set; }
+
+        [JsonProperty("level")]
+        public string Level { get; set; } = "";
+
+        [JsonProperty("department")]
+        public string Department { get; set; } = "";
+
+        [JsonProperty("comments")]
+        public string Comments { get; set; } = "";
+    }
+
+    public class ScheduleTableData
+    {
+        [JsonProperty("id")]
+        public long Id { get; set; }
+
+        [JsonProperty("name")]
+        public string Name { get; set; } = "";
+
+        [JsonProperty("headers")]
+        public List<string> Headers { get; set; } = new List<string>();
+
+        [JsonProperty("rows")]
+        public List<List<string>> Rows { get; set; } = new List<List<string>>();
+    }
+
+    public class SheetsAndViewsData
+    {
+        [JsonProperty("sheets")]
+        public List<SheetData> Sheets { get; set; } = new List<SheetData>();
+
+        [JsonProperty("views")]
+        public List<ViewData> Views { get; set; } = new List<ViewData>();
+    }
+
+    public class SheetData
+    {
+        [JsonProperty("id")]
+        public long Id { get; set; }
+
+        [JsonProperty("sheet_number")]
+        public string SheetNumber { get; set; } = "";
+
+        [JsonProperty("name")]
+        public string Name { get; set; } = "";
+
+        [JsonProperty("revision")]
+        public string Revision { get; set; } = "";
+
+        [JsonProperty("drawn_by")]
+        public string DrawnBy { get; set; } = "";
+    }
+
+    public class ViewData
+    {
+        [JsonProperty("id")]
+        public long Id { get; set; }
+
+        [JsonProperty("name")]
+        public string Name { get; set; } = "";
+
+        [JsonProperty("view_type")]
+        public string ViewType { get; set; } = "";
+
+        [JsonProperty("scale")]
+        public int Scale { get; set; }
+
+        [JsonProperty("is_template")]
+        public bool IsTemplate { get; set; }
+    }
+
+    public class MaterialData
+    {
+        [JsonProperty("id")]
+        public long Id { get; set; }
+
+        [JsonProperty("name")]
+        public string Name { get; set; } = "";
+
+        [JsonProperty("category")]
+        public string Category { get; set; } = "";
+
+        [JsonProperty("color_rgb")]
+        public string ColorRgb { get; set; } = "";
     }
 
     public class ProjectInfoData
@@ -146,6 +263,10 @@ namespace RevitToSupabasePlugin
             bool includeSiteLocation,
             bool includeLevels,
             bool includeCategorySummary,
+            bool includeRooms,
+            bool includeSchedules,
+            bool includeSheetsAndViews,
+            bool includeMaterials,
             Action<int, int, string>? progressCallback,
             Func<bool>? isInterruptedCheck)
         {
@@ -197,6 +318,151 @@ namespace RevitToSupabasePlugin
                         Id = lvl.Id.Value,
                         Name = lvl.Name,
                         ElevationMeters = lvl.Elevation * 0.3048
+                    });
+                }
+            }
+
+            // 3.5 Extraer Habitaciones (Rooms)
+            if (includeRooms)
+            {
+                package.Rooms = new List<RoomData>();
+                FilteredElementCollector roomCollector = new FilteredElementCollector(doc)
+                    .OfCategory(BuiltInCategory.OST_Rooms)
+                    .WhereElementIsNotElementType();
+
+                foreach (Element elem in roomCollector.ToElements())
+                {
+                    if (elem is Autodesk.Revit.DB.Architecture.Room room)
+                    {
+                        RoomData rd = new RoomData
+                        {
+                            Id = room.Id.Value,
+                            Number = room.Number ?? "",
+                            Name = room.Name ?? "",
+                            AreaM2 = Math.Round(room.Area * 0.092903, 2),
+                            PerimeterM = Math.Round(room.Perimeter * 0.3048, 2),
+                            VolumeM3 = Math.Round(room.Volume * 0.0283168, 2),
+                            Level = room.Level?.Name ?? "",
+                            Department = room.get_Parameter(BuiltInParameter.ROOM_DEPARTMENT)?.AsString() ?? "",
+                            Comments = room.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString() ?? ""
+                        };
+                        package.Rooms.Add(rd);
+                    }
+                }
+            }
+
+            // 3.6 Extraer Tablas de Planificación (Schedules / ViewSchedule)
+            if (includeSchedules)
+            {
+                package.Schedules = new List<ScheduleTableData>();
+                FilteredElementCollector schedCollector = new FilteredElementCollector(doc)
+                    .OfClass(typeof(ViewSchedule))
+                    .WhereElementIsNotElementType();
+
+                foreach (ViewSchedule vs in schedCollector.ToElements())
+                {
+                    if (vs.IsTemplate || vs.Title.StartsWith("<")) continue;
+
+                    ScheduleTableData std = new ScheduleTableData
+                    {
+                        Id = vs.Id.Value,
+                        Name = vs.Name ?? ""
+                    };
+
+                    try
+                    {
+                        TableData td = vs.GetTableData();
+                        TableSectionData? tsd = td?.GetSectionData(SectionType.Body);
+                        if (tsd != null)
+                        {
+                            int numRows = tsd.NumberOfRows;
+                            int numCols = tsd.NumberOfColumns;
+
+                            if (numRows > 0 && numCols > 0)
+                            {
+                                for (int col = 0; col < numCols; col++)
+                                {
+                                    string cellText = vs.GetCellText(SectionType.Body, 0, col);
+                                    std.Headers.Add(cellText ?? $"Col {col + 1}");
+                                }
+
+                                for (int row = 1; row < numRows; row++)
+                                {
+                                    List<string> rowData = new List<string>();
+                                    for (int col = 0; col < numCols; col++)
+                                    {
+                                        string cellText = vs.GetCellText(SectionType.Body, row, col);
+                                        rowData.Add(cellText ?? "");
+                                    }
+                                    std.Rows.Add(rowData);
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+
+                    package.Schedules.Add(std);
+                }
+            }
+
+            // 3.7 Extraer Planos y Vistas (Sheets & Views)
+            if (includeSheetsAndViews)
+            {
+                package.SheetsAndViews = new SheetsAndViewsData();
+
+                FilteredElementCollector sheetCollector = new FilteredElementCollector(doc)
+                    .OfClass(typeof(ViewSheet))
+                    .WhereElementIsNotElementType();
+
+                foreach (ViewSheet sheet in sheetCollector.ToElements())
+                {
+                    string drawnByVal = sheet.get_Parameter(BuiltInParameter.SHEET_DRAWN_BY)?.AsString() ?? "";
+                    string revVal = sheet.get_Parameter(BuiltInParameter.SHEET_CURRENT_REVISION)?.AsString() ?? "";
+                    package.SheetsAndViews.Sheets.Add(new SheetData
+                    {
+                        Id = sheet.Id.Value,
+                        SheetNumber = sheet.SheetNumber ?? "",
+                        Name = sheet.Name ?? "",
+                        Revision = revVal,
+                        DrawnBy = drawnByVal
+                    });
+                }
+
+                FilteredElementCollector viewCollector = new FilteredElementCollector(doc)
+                    .OfClass(typeof(Autodesk.Revit.DB.View))
+                    .WhereElementIsNotElementType();
+
+                foreach (Autodesk.Revit.DB.View v in viewCollector.ToElements())
+                {
+                    if (v.IsTemplate || v is ViewSchedule || v is ViewSheet) continue;
+
+                    package.SheetsAndViews.Views.Add(new ViewData
+                    {
+                        Id = v.Id.Value,
+                        Name = v.Name ?? "",
+                        ViewType = v.ViewType.ToString(),
+                        Scale = v.Scale,
+                        IsTemplate = v.IsTemplate
+                    });
+                }
+            }
+
+            // 3.8 Extraer Materiales del Modelo
+            if (includeMaterials)
+            {
+                package.Materials = new List<MaterialData>();
+                FilteredElementCollector matCollector = new FilteredElementCollector(doc)
+                    .OfClass(typeof(Material));
+
+                foreach (Material mat in matCollector.ToElements())
+                {
+                    string rgb = mat.Color != null ? $"{mat.Color.Red},{mat.Color.Green},{mat.Color.Blue}" : "";
+                    package.Materials.Add(new MaterialData
+                    {
+                        Id = mat.Id.Value,
+                        Name = mat.Name ?? "",
+                        Category = mat.MaterialCategory ?? "",
+                        ColorRgb = rgb
                     });
                 }
             }

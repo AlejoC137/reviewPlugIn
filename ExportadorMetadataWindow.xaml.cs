@@ -33,6 +33,10 @@ namespace RevitToSupabasePlugin
                     chkSiteLocation.IsChecked == true,
                     chkLevels.IsChecked == true,
                     chkCategorySummary.IsChecked == true,
+                    chkRooms.IsChecked == true,
+                    chkSchedules.IsChecked == true,
+                    chkSheetsViews.IsChecked == true,
+                    chkMaterials.IsChecked == true,
                     null, 
                     null
                 );
@@ -66,6 +70,10 @@ namespace RevitToSupabasePlugin
             _handler.IncludeLevels = chkLevels.IsChecked == true;
             _handler.IncludeCategorySummary = chkCategorySummary.IsChecked == true;
             _handler.IncludeElementDetails = chkElementDetails.IsChecked == true;
+            _handler.IncludeRooms = chkRooms.IsChecked == true;
+            _handler.IncludeSchedules = chkSchedules.IsChecked == true;
+            _handler.IncludeSheetsAndViews = chkSheetsViews.IsChecked == true;
+            _handler.IncludeMaterials = chkMaterials.IsChecked == true;
 
             // Ocultar ventana principal
             this.Hide();
