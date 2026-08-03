@@ -112,9 +112,9 @@ namespace RevitToSupabasePlugin
                 }
             }
 
-            AddOrUpdateBtn("cmdGen", "Generador\nEstructural", "CommandGenerador", "icon_generador.png");
-            AddOrUpdateBtn("cmdMCP", "Conexión\nSupabase", "Command", "icon_masivo.png");
-            AddOrUpdateBtn("cmdIA", "Dashboard\nGenerador IA", "CommandConfiguradorPlantilla", "icon_copilot.png");
+            AddOrUpdateBtn("cmdGen", "Generador\nFamilias IA", "CommandGenerador", "icon_generador.png");
+            AddOrUpdateBtn("cmdMCP", "Exportar\nMetadata", "Command", "icon_masivo.png");
+            AddOrUpdateBtn("cmdIA", "Configurador\nPlantillas", "CommandConfiguradorPlantilla", "icon_copilot.png");
         }
 
         public Result OnShutdown(UIControlledApplication application)
