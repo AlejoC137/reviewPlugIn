@@ -21,6 +21,9 @@ namespace RevitToSupabasePlugin
 
         /// <summary>tableName → fetched rows (pretty JSON string)</summary>
         private Dictionary<string, string> _fetchedData = new();
+        
+        private string _selectedProjectId = "";
+        private string _selectedProjectName = "";
 
         // ── Constructor ──────────────────────────────────────────────────────────
 
@@ -66,13 +69,95 @@ namespace RevitToSupabasePlugin
             TxtBadgeAuth.Text = $"✓ {email}";
             BadgeAuth.Visibility = WpfVisibility.Visible;
 
-            // Populate tables tab
-            PopulateTables();
-            TabTablas.IsEnabled = true;
-            TabPrompt.IsEnabled = true;
-            TabApply.IsEnabled = true;
-            MainTabControl.SelectedItem = TabTablas;
-            SetStatus($"Conectado. Selecciona las tablas a incluir.");
+            // Go automatically to tab 2
+            TabProyecto.IsEnabled = true;
+            TabProyecto.IsSelected = true;
+            MainTabControl.SelectedItem = TabProyecto;
+
+            SetBusy("Obteniendo proyectos del usuario...");
+            
+            try
+            {
+                string projectsRaw = await _supabase.FetchTableAsync("projects");
+                var array = Newtonsoft.Json.Linq.JArray.Parse(projectsRaw);
+                
+                // Filtramos asegurándonos de que CUALQUIER campo (email, user_email, autor, etc.) coincida.
+                // Si ningún proyecto coincide, la lista estará vacía, evitando que vea proyectos de otros.
+                var userProjects = new List<Newtonsoft.Json.Linq.JObject>();
+                foreach (var obj in array.OfType<Newtonsoft.Json.Linq.JObject>())
+                {
+                    bool belongsToUser = false;
+                    foreach (var property in obj.Properties())
+                    {
+                        if (property.Value.ToString().Equals(email, StringComparison.OrdinalIgnoreCase))
+                        {
+                            belongsToUser = true;
+                            break;
+                        }
+                    }
+                    if (belongsToUser)
+                    {
+                        userProjects.Add(obj);
+                    }
+                }
+
+                PanelProjectCards.Children.Clear();
+                foreach (var obj in userProjects)
+                {
+                    string id = obj["id"]?.ToString() ?? "";
+                    string name = obj["project_name"]?.ToString() ?? obj["name"]?.ToString() ?? $"Proyecto {id}";
+                    
+                    var btn = new System.Windows.Controls.Button
+                    {
+                        Content = name,
+                        Tag = new Tuple<string, string>(id, name),
+                        Width = 180,
+                        Height = 100,
+                        Margin = new Thickness(0, 0, 15, 15),
+                        Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(30, 58, 106)), // #1E3A6A
+                        Foreground = System.Windows.Media.Brushes.White,
+                        FontSize = 14,
+                        FontWeight = FontWeights.SemiBold,
+                        Cursor = System.Windows.Input.Cursors.Hand,
+                        BorderThickness = new Thickness(0)
+                    };
+                    btn.Click += ProjectCard_Click;
+                    
+                    PanelProjectCards.Children.Add(btn);
+                }
+
+                if (PanelProjectCards.Children.Count == 0)
+                {
+                    TxtLoginStatus.Text = $"No se encontraron proyectos para {email}.";
+                    TxtLoginStatus.Foreground = System.Windows.Media.Brushes.OrangeRed;
+                    SetIdle();
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                TxtLoginStatus.Text = $"Error al obtener proyectos: {ex.Message}";
+                TxtLoginStatus.Foreground = System.Windows.Media.Brushes.OrangeRed;
+                SetIdle();
+                return;
+            }
+
+            SetIdle();
+            SetStatus("Selecciona el proyecto a configurar.");
+        }
+
+        private void ProjectCard_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.Button btn && btn.Tag is Tuple<string, string> projectData)
+            {
+                _selectedProjectId = projectData.Item1;
+                _selectedProjectName = projectData.Item2;
+                
+                PopulateTables();
+                TabTablas.IsEnabled = true;
+                MainTabControl.SelectedItem = TabTablas;
+                SetStatus($"Proyecto '{_selectedProjectName}' seleccionado. Ahora selecciona las tablas a incluir.");
+            }
         }
 
         // ══════════════════════════════════════════════════════════════════════════
@@ -89,7 +174,9 @@ namespace RevitToSupabasePlugin
                 {
                     Content = t,
                     IsChecked = true,
-                    Tag = t
+                    Tag = t,
+                    Width = 180,
+                    Margin = new System.Windows.Thickness(0, 4, 10, 4)
                 };
                 if (t == "plugin_project_data")
                 {
@@ -137,7 +224,8 @@ namespace RevitToSupabasePlugin
             int errors = _fetchedData.Values.Count(v => v.StartsWith("[ERROR:"));
             SetStatus($"Datos descargados: {_fetchedData.Count} tablas ({errors} con error). Revisa el prompt.");
 
-            // Build prompt automatically and switch tab
+            TabPrompt.IsEnabled = true;
+            TabApply.IsEnabled = true;
             BuildPrompt();
             MainTabControl.SelectedItem = TabPrompt;
         }
@@ -173,10 +261,60 @@ namespace RevitToSupabasePlugin
                 sb.AppendLine("SECCIÓN A: DATOS DE LA BASE DE DATOS DEL PROYECTO (Supabase)");
                 sb.AppendLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                 sb.AppendLine();
+                
+                if (!string.IsNullOrEmpty(_selectedProjectId))
+                {
+                    sb.AppendLine($"[ATENCIÓN: El usuario ha seleccionado configurar específicamente el proyecto con ID: {_selectedProjectId} - {_selectedProjectName}]");
+                    sb.AppendLine();
+                }
+
                 foreach (var kv in _fetchedData)
                 {
                     sb.AppendLine($"=== Tabla: {kv.Key} ===");
-                    sb.AppendLine(kv.Value);
+                    
+                    // Filtrar la tabla de proyectos o cualquier tabla relacionada si hay un proyecto seleccionado
+                    if (!string.IsNullOrEmpty(_selectedProjectId) && !kv.Value.StartsWith("[ERROR"))
+                    {
+                        try
+                        {
+                            var array = Newtonsoft.Json.Linq.JArray.Parse(kv.Value);
+                            var filtered = new Newtonsoft.Json.Linq.JArray();
+                            
+                            foreach(var obj in array)
+                            {
+                                if (kv.Key == "projects")
+                                {
+                                    if (obj["id"]?.ToString() == _selectedProjectId)
+                                        filtered.Add(obj);
+                                }
+                                else
+                                {
+                                    // Para otras tablas, buscamos si tienen project_id. Si la tienen, filtramos.
+                                    // Si no tienen la propiedad project_id, dejamos todos los registros.
+                                    if (obj["project_id"] != null)
+                                    {
+                                        if (obj["project_id"]?.ToString() == _selectedProjectId)
+                                            filtered.Add(obj);
+                                    }
+                                    else
+                                    {
+                                        filtered.Add(obj);
+                                    }
+                                }
+                            }
+                            
+                            sb.AppendLine(filtered.ToString(Newtonsoft.Json.Formatting.Indented));
+                        }
+                        catch
+                        {
+                            sb.AppendLine(kv.Value);
+                        }
+                    }
+                    else
+                    {
+                        sb.AppendLine(kv.Value);
+                    }
+                    
                     sb.AppendLine();
                 }
             }

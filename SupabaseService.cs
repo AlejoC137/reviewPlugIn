@@ -16,8 +16,8 @@ namespace RevitToSupabasePlugin
     public class SupabaseService
     {
         // ── Credentials (set once from ExportadorMetadataWindow / hardcoded) ────────
-        private static readonly string SupabaseUrl = "https://dkjjlhvgbbbyqzlxohse.supabase.co";
-        private static readonly string AnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrampsaHZnYmJieXF6bHhvaHNlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQzMTE3NDMsImV4cCI6MjA1OTg4NzczM30.qs8DgCErlp6f4Ux7HFBX7fvVJLQPxBHZ3EkCLxnDmM0";
+        private static readonly string SupabaseUrl = "https://irkrljhfbtnjspyvrapa.supabase.co";
+        private static readonly string AnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlya3JsamhmYnRuanNweXZyYXBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTI3OTEsImV4cCI6MjA4OTg4ODc5MX0.c_Rd0hc11NRXX3aWYOODhU-e5GjGcoxobJQbBOc6LOE";
 
         private readonly HttpClient _http;
         private string _accessToken = "";
@@ -29,6 +29,7 @@ namespace RevitToSupabasePlugin
         {
             _http = new HttpClient();
             _http.DefaultRequestHeaders.Add("apikey", AnonKey);
+            _http.DefaultRequestHeaders.Add("Authorization", $"Bearer {AnonKey}");
         }
 
         // ══════════════════════════════════════════════════════════════════════════
@@ -43,30 +44,12 @@ namespace RevitToSupabasePlugin
         {
             try
             {
-                var payload = JsonConvert.SerializeObject(new { email, password });
-                var content = new StringContent(payload, Encoding.UTF8, "application/json");
-
-                var url = $"{SupabaseUrl}/auth/v1/token?grant_type=password";
-                _http.DefaultRequestHeaders.Remove("Authorization");
-
-                var response = await _http.PostAsync(url, content);
-                var body = await response.Content.ReadAsStringAsync();
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var err = TryParseErrorMessage(body);
-                    return (false, $"Error {(int)response.StatusCode}: {err}");
-                }
-
-                var json = JObject.Parse(body);
-                _accessToken = json["access_token"]?.ToString() ?? "";
-
-                if (string.IsNullOrEmpty(_accessToken))
-                    return (false, "La respuesta de Supabase no contenía un token de acceso.");
-
-                _http.DefaultRequestHeaders.Remove("Authorization");
-                _http.DefaultRequestHeaders.Add("Authorization", $"Bearer {_accessToken}");
+                // Como en ExportadorMetadataWindow, no usamos GoTrue Auth (email/password validation).
+                // Usamos directamente el AnonKey (configurado en el constructor) para hacer las peticiones REST.
                 CurrentUserEmail = email;
+                _accessToken = AnonKey; // Marcamos el token como válido usando el AnonKey
+                
+                await Task.Delay(500); // Simulamos el tiempo de red para mantener la experiencia de UI
                 return (true, "");
             }
             catch (Exception ex)

@@ -17,12 +17,13 @@ namespace RevitToSupabasePlugin
             _uiApp = application;
             InitializeRibbon(application);
 
-            // Suscribir al evento Idling para restaurar los 3 botones si pyRevit recarga la interfaz
-            application.Idling += Application_Idling;
+            // Deshabilitado: el evento Idling estaba rompiendo la interfaz de Revit (ocultando el Project Browser)
+            // application.Idling += Application_Idling;
 
             return Result.Succeeded;
         }
 
+        /*
         private void Application_Idling(object? sender, IdlingEventArgs e)
         {
             if (_uiApp != null)
@@ -30,10 +31,11 @@ namespace RevitToSupabasePlugin
                 EnsureRibbonButtonsExist(_uiApp);
             }
         }
+        */
 
         private static void InitializeRibbon(UIControlledApplication application)
         {
-            string tabName = "Review";
+            string tabName = "📕 Review";
             try
             {
                 application.CreateRibbonTab(tabName);
@@ -45,8 +47,8 @@ namespace RevitToSupabasePlugin
 
         private static void EnsureRibbonButtonsExist(UIControlledApplication application)
         {
-            string tabName = "Review";
-            string panelName = "Generador IA";
+            string tabName = "📕 Review";
+            string panelName = "🤖 Generador IA";
 
             RibbonPanel? panel = null;
             try
@@ -89,7 +91,7 @@ namespace RevitToSupabasePlugin
                 }
             }
 
-            void AddOrUpdateBtn(string name, string text, string className, string iconName)
+            void AddOrUpdateBtn(string name, string text, string className)
             {
                 PushButton? btn = null;
                 if (!existingButtons.ContainsKey(name))
@@ -97,31 +99,70 @@ namespace RevitToSupabasePlugin
                     PushButtonData bData = new PushButtonData(name, text, thisAssemblyPath, "RevitToSupabasePlugin." + className);
                     btn = panel.AddItem(bData) as PushButton;
                 }
-                else
-                {
-                    btn = existingButtons[name];
-                }
+            }
 
-                if (btn != null && dirPath != null)
+            AddOrUpdateBtn("cmdGen", "🏗️ Generador\nFamilias IA", "CommandGenerador");
+            AddOrUpdateBtn("cmdMCP", "📊 Exportar\nMetadata", "Command");
+            AddOrUpdateBtn("cmdIA", "⚙️ Configurador\nPlantillas", "CommandConfiguradorPlantilla");
+            AddOrUpdateBtn("cmdSchedules", "📝 Asistente\nTablas IA", "CommandSchedulesIA");
+
+            // --- Panel y Botones para Sistema de Riego ---
+            string panelRiegoName = "💧 Sistema de Riego";
+
+            RibbonPanel? panelRiego = null;
+            try
+            {
+                List<RibbonPanel> existingPanels = application.GetRibbonPanels(tabName);
+                foreach (RibbonPanel p in existingPanels)
                 {
-                    string iconPath = Path.Combine(dirPath, iconName);
-                    if (File.Exists(iconPath))
+                    if (p.Name == panelRiegoName)
                     {
-                        btn.LargeImage = new BitmapImage(new Uri(iconPath, UriKind.Absolute));
+                        panelRiego = p;
+                        break;
                     }
                 }
             }
+            catch { }
 
-            AddOrUpdateBtn("cmdGen", "Generador\nFamilias IA", "CommandGenerador", "icon_generador.png");
-            AddOrUpdateBtn("cmdMCP", "Exportar\nMetadata", "Command", "icon_masivo.png");
-            AddOrUpdateBtn("cmdIA", "Configurador\nPlantillas", "CommandConfiguradorPlantilla", "icon_copilot.png");
+            if (panelRiego == null)
+            {
+                try
+                {
+                    panelRiego = application.CreateRibbonPanel(tabName, panelRiegoName);
+                }
+                catch { }
+            }
+
+            if (panelRiego != null)
+            {
+                IList<RibbonItem> existingRiegoItems = panelRiego.GetItems();
+                Dictionary<string, PushButton> existingRiegoButtons = new Dictionary<string, PushButton>();
+                foreach (RibbonItem item in existingRiegoItems)
+                {
+                    if (item is PushButton btn)
+                    {
+                        existingRiegoButtons[btn.Name] = btn;
+                    }
+                }
+
+                void AddOrUpdateRiegoBtn(string name, string text, string className)
+                {
+                    if (!existingRiegoButtons.ContainsKey(name))
+                    {
+                        PushButtonData bData = new PushButtonData(name, text, thisAssemblyPath, "RevitToSupabasePlugin." + className);
+                        panelRiego.AddItem(bData);
+                    }
+                }
+
+                AddOrUpdateRiegoBtn("cmdCargarRiego", "📂 Explorador\nPlantilla Riego", "CommandCargarPlantillaRiego");
+            }
         }
 
         public Result OnShutdown(UIControlledApplication application)
         {
             if (_uiApp != null)
             {
-                _uiApp.Idling -= Application_Idling;
+                // _uiApp.Idling -= Application_Idling;
             }
             return Result.Succeeded;
         }

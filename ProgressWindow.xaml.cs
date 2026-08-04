@@ -4,14 +4,14 @@ using System.Windows.Threading;
 
 namespace RevitToSupabasePlugin
 {
-    public partial class NonicaProgressWindow : Window
+    public partial class ProgressWindow : Window
     {
         public bool IsInterrupted { get; private set; } = false;
 
-        public NonicaProgressWindow()
+        public ProgressWindow()
         {
             InitializeComponent();
-            Closing += NonicaProgressWindow_Closing;
+            Closing += ProgressWindow_Closing;
         }
 
         public void SetMaximum(int max)
@@ -44,7 +44,7 @@ namespace RevitToSupabasePlugin
             DoEvents();
         }
 
-        private void NonicaProgressWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+        private void ProgressWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
             IsInterrupted = true;
         }

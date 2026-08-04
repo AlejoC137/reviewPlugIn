@@ -2,6 +2,8 @@
 title Instalador del Plugin Review para Revit 2027
 color 0B
 
+if exist "%~dp0error.md" del "%~dp0error.md"
+
 echo.
 echo      .-----------------.
 echo      ^|                 ^|\
@@ -79,6 +81,8 @@ if exist "%~dp0RevitToSupabasePlugin.csproj" (
         color 0C
         echo.
         echo [ERROR] La compilacion fallo. Revisa el codigo en Visual Studio.
+        echo # Error de Instalacion > "%~dp0error.md"
+        echo La compilacion fallo al ejecutar dotnet build. >> "%~dp0error.md"
         pause
         exit /b
     )
@@ -123,6 +127,8 @@ if exist "%~dp0RevitToSupabasePlugin.dll" (
     echo   2. Asegurate de que el instalador este en la misma carpeta que
     echo      'RevitToSupabasePlugin.dll' (para distribucion sin codigo fuente).
     echo.
+    echo # Error de Instalacion > "%~dp0error.md"
+    echo No se encontraron los archivos compilados del plugin. >> "%~dp0error.md"
     pause
     exit /b
 )
@@ -150,6 +156,8 @@ if errorlevel 1 (
     color 0C
     echo   [ERROR CRITICO] No se pudo copiar la DLL principal. 
     echo   Probablemente Revit todavia tiene el archivo bloqueado.
+    echo # Error de Instalacion > "%~dp0error.md"
+    echo No se pudo copiar la DLL principal. Revit podria estar bloqueando el archivo. >> "%~dp0error.md"
     pause
     exit /b
 ) else (

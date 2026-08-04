@@ -37,6 +37,7 @@ namespace RevitToSupabasePlugin
                     chkSchedules.IsChecked == true,
                     chkSheetsViews.IsChecked == true,
                     chkMaterials.IsChecked == true,
+                    chkWeb3dModel.IsChecked == true,
                     null, 
                     null
                 );
@@ -74,6 +75,7 @@ namespace RevitToSupabasePlugin
             _handler.IncludeSchedules = chkSchedules.IsChecked == true;
             _handler.IncludeSheetsAndViews = chkSheetsViews.IsChecked == true;
             _handler.IncludeMaterials = chkMaterials.IsChecked == true;
+            _handler.IncludeWeb3dModel = chkWeb3dModel.IsChecked == true;
 
             // Ocultar ventana principal
             this.Hide();
@@ -115,6 +117,52 @@ namespace RevitToSupabasePlugin
             catch (Exception ex)
             {
                 System.Windows.MessageBox.Show("Error al exportar JSON: " + ex.Message, "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
+
+        private void BtnExport3D_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                ProjectMetadataPackage package = MetadataExporterService.CollectMetadata(
+                    _doc,
+                    false, // elementDetails
+                    false, // projectInfo
+                    false, // siteLocation
+                    false, // levels
+                    false, // categorySummary
+                    false, // rooms
+                    false, // schedules
+                    false, // sheetsViews
+                    false, // materials
+                    true,  // includeWeb3dModel
+                    null,
+                    null
+                );
+
+                if (package.Interactive3DScene == null || package.Interactive3DScene.Nodes.Count == 0)
+                {
+                    System.Windows.MessageBox.Show("No se encontraron elementos 3D válidos para la escena web.", "Exportación 3D Web", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                string json3D = JsonConvert.SerializeObject(package.Interactive3DScene, Formatting.Indented);
+
+                Microsoft.Win32.SaveFileDialog saveFileDialog = new Microsoft.Win32.SaveFileDialog();
+                saveFileDialog.Filter = "Modelo 3D Web JSON (*.json)|*.json|Todos los archivos (*.*)|*.*";
+                saveFileDialog.DefaultExt = "json";
+                saveFileDialog.FileName = "Web3D_Model_Stylized.json";
+
+                if (saveFileDialog.ShowDialog() == true)
+                {
+                    File.WriteAllText(saveFileDialog.FileName, json3D, System.Text.Encoding.UTF8);
+                    txtStatus.Text = $"Modelo 3D Web exportado ({package.Interactive3DScene.Nodes.Count} nodos 3D) en: {Path.GetFileName(saveFileDialog.FileName)}";
+                    System.Windows.MessageBox.Show($"¡El Modelo 3D Web Estilizado fue exportado con éxito!\nNodos procesados: {package.Interactive3DScene.Nodes.Count}\nListo para renderizar en React Three Fiber.", "Exportación 3D Completada", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show("Error al exportar Modelo 3D Web: " + ex.Message, "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
         }
 

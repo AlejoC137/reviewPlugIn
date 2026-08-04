@@ -1,7 +1,7 @@
 <Window x:Class="RevitToSupabasePlugin.ConfiguradorIAPlantillaWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Configurador IA de Plantillas — Nonica"
+        Title="Configurador IA de Plantillas"
         Width="780" Height="680"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResizeWithGrip"
@@ -162,7 +162,7 @@
             </TabControl.Resources>
 
             <!-- ─ PASO 1: LOGIN ─ -->
-            <TabItem Header="① Login Supabase" x:Name="TabLogin">
+            <TabItem Header="① Login" x:Name="TabLogin">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Background="Transparent">
                     <StackPanel Margin="30,20">
                         <TextBlock Text="Autenticación con Supabase" FontSize="18" FontWeight="Bold" Margin="0,0,0,6"/>
@@ -197,8 +197,21 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- ─ PASO 2: TABLAS ─ -->
-            <TabItem Header="② Tablas DB" x:Name="TabTablas" IsEnabled="False">
+            <!-- ─ PASO 2: PROYECTO ─ -->
+            <TabItem Header="② Proyecto" x:Name="TabProyecto" IsEnabled="False">
+                <StackPanel Margin="30,20">
+                    <TextBlock Text="Selecciona tu Proyecto" FontSize="18" FontWeight="Bold" Margin="0,0,0,6"/>
+                    <TextBlock Text="Elige el proyecto sobre el cual deseas generar la configuración."
+                               Foreground="#94A3B8" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,16"/>
+                    
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="450">
+                        <WrapPanel x:Name="PanelProjectCards" Orientation="Horizontal" Margin="0,0,0,10"/>
+                    </ScrollViewer>
+                </StackPanel>
+            </TabItem>
+
+            <!-- ─ PASO 3: TABLAS ─ -->
+            <TabItem Header="③ Tablas DB" x:Name="TabTablas" IsEnabled="False">
                 <Grid Margin="30,20">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -222,7 +235,7 @@
                     <Border Grid.Row="2" Background="#16213E" CornerRadius="10" Padding="16"
                             BorderBrush="#2D4A7A" BorderThickness="1">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel x:Name="PanelTablas"/>
+                            <WrapPanel x:Name="PanelTablas" Orientation="Horizontal"/>
                         </ScrollViewer>
                     </Border>
 
@@ -234,8 +247,8 @@
                 </Grid>
             </TabItem>
 
-            <!-- ─ PASO 3: MEGA-PROMPT ─ -->
-            <TabItem Header="③ Mega-Prompt" x:Name="TabPrompt" IsEnabled="False">
+            <!-- ─ PASO 4: MEGA-PROMPT ─ -->
+            <TabItem Header="④ Mega-Prompt" x:Name="TabPrompt" IsEnabled="False">
                 <Grid Margin="30,20">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -278,8 +291,8 @@
                 </Grid>
             </TabItem>
 
-            <!-- ─ PASO 4: APLICAR JSON ─ -->
-            <TabItem Header="④ Aplicar JSON" x:Name="TabApply" IsEnabled="False">
+            <!-- ─ PASO 5: APLICAR JSON ─ -->
+            <TabItem Header="⑤ Aplicar JSON" x:Name="TabApply" IsEnabled="False">
                 <Grid Margin="30,20">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>

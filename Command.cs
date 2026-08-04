@@ -123,7 +123,40 @@ namespace RevitToSupabasePlugin
     }
 
     // =========================================================================
-    // MANEJADOR DE EVENTO EXTERNO (IExternalEventHandler) - PLANTILLA NONICA V1.0
+    // 4. COMANDO: ASISTENTE TABLAS IA
+    // =========================================================================
+    [Transaction(TransactionMode.Manual)]
+    public class CommandSchedulesIA : IExternalCommand
+    {
+        public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
+        {
+            UIApplication uiapp = commandData.Application;
+            UIDocument uidoc = uiapp.ActiveUIDocument;
+            if (uidoc == null)
+            {
+                TaskDialog.Show("Error", "No hay ningún documento activo.");
+                return Result.Failed;
+            }
+
+            try
+            {
+                SchedulesIAWindow window = new SchedulesIAWindow(uidoc.Document);
+                System.Windows.Interop.WindowInteropHelper helper = new System.Windows.Interop.WindowInteropHelper(window);
+                helper.Owner = uiapp.MainWindowHandle;
+                window.ShowDialog();
+                return Result.Succeeded;
+            }
+            catch (Exception ex)
+            {
+                message = ex.Message;
+                TaskDialog.Show("Error", "No se pudo iniciar el Asistente de Tablas IA: " + ex.ToString());
+                return Result.Failed;
+            }
+        }
+    }
+
+    // =========================================================================
+    // MANEJADOR DE EVENTO EXTERNO (IExternalEventHandler) - PLANTILLA
     // =========================================================================
     public class ExportMetadataExternalEventHandler : IExternalEventHandler
     {
@@ -138,6 +171,7 @@ namespace RevitToSupabasePlugin
         public bool IncludeSchedules { get; set; } = true;
         public bool IncludeSheetsAndViews { get; set; } = true;
         public bool IncludeMaterials { get; set; } = true;
+        public bool IncludeWeb3dModel { get; set; } = true;
 
         private ExportadorMetadataWindow? _mainWindow;
 
@@ -148,15 +182,15 @@ namespace RevitToSupabasePlugin
 
         public void Execute(UIApplication uiapp)
         {
-            NonicaProgressWindow? progressWin = null;
+            ProgressWindow? progressWin = null;
             try
             {
                 UIDocument uidoc = uiapp.ActiveUIDocument;
                 if (uidoc == null) return;
                 Document doc = uidoc.Document;
 
-                // Crear y mostrar la ventana de progreso Nonica
-                progressWin = new NonicaProgressWindow();
+                // Crear y mostrar la ventana de progreso
+                progressWin = new ProgressWindow();
                 progressWin.Show();
 
                 // Recopilar metadata del modelo según los checkboxes activados
@@ -171,6 +205,7 @@ namespace RevitToSupabasePlugin
                     IncludeSchedules,
                     IncludeSheetsAndViews,
                     IncludeMaterials,
+                    IncludeWeb3dModel,
                     (current, total, msg) => progressWin.UpdateProgress(current, total, msg),
                     () => progressWin.IsInterrupted
                 );
@@ -234,7 +269,7 @@ namespace RevitToSupabasePlugin
 
         public string GetName()
         {
-            return "ExportMetadataNonicaEventHandler";
+            return "ExportMetadataEventHandler";
         }
     }
 }

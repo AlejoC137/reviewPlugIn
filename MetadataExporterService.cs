@@ -51,6 +51,183 @@ namespace RevitToSupabasePlugin
 
         [JsonProperty("elements_by_id", NullValueHandling = NullValueHandling.Ignore)]
         public Dictionary<string, ElementMetadataData>? ElementsById { get; set; }
+
+        [JsonProperty("interactive_3d_scene", NullValueHandling = NullValueHandling.Ignore)]
+        public Web3DSceneData? Interactive3DScene { get; set; }
+    }
+
+    public class Web3DSceneData
+    {
+        [JsonProperty("metadata")]
+        public Web3DSceneMetadata Metadata { get; set; } = new Web3DSceneMetadata();
+
+        [JsonProperty("camera", NullValueHandling = NullValueHandling.Ignore)]
+        public Web3DCameraData? Camera { get; set; }
+
+        [JsonProperty("section_box", NullValueHandling = NullValueHandling.Ignore)]
+        public Web3DSectionBoxData? SectionBox { get; set; }
+
+        [JsonProperty("layers", NullValueHandling = NullValueHandling.Ignore)]
+        public List<Web3DLayerGroup> Layers { get; set; } = new List<Web3DLayerGroup>();
+
+        [JsonProperty("annotations", NullValueHandling = NullValueHandling.Ignore)]
+        public List<Web3DAnnotationHotspot> Annotations { get; set; } = new List<Web3DAnnotationHotspot>();
+
+        [JsonProperty("nodes")]
+        public List<Web3DNodeData> Nodes { get; set; } = new List<Web3DNodeData>();
+    }
+
+    public class Web3DSceneMetadata
+    {
+        [JsonProperty("format_version")]
+        public string FormatVersion { get; set; } = "2.0-web3d-navisworks";
+
+        [JsonProperty("renderer_target")]
+        public string RendererTarget { get; set; } = "React Three Fiber / Three.js / Navisworks Viewer";
+
+        [JsonProperty("style")]
+        public string Style { get; set; } = "FlatShading / Stylized LowPoly & SectionCut Capable";
+
+        [JsonProperty("total_nodes")]
+        public int TotalNodes { get; set; }
+
+        [JsonProperty("total_layers")]
+        public int TotalLayers { get; set; }
+
+        [JsonProperty("total_annotations")]
+        public int TotalAnnotations { get; set; }
+
+        [JsonProperty("has_section_box")]
+        public bool HasSectionBox { get; set; }
+    }
+
+    public class Web3DCameraData
+    {
+        [JsonProperty("eye_position")]
+        public double[] EyePosition { get; set; } = new double[3];
+
+        [JsonProperty("target_position")]
+        public double[] TargetPosition { get; set; } = new double[3];
+
+        [JsonProperty("up_direction")]
+        public double[] UpDirection { get; set; } = new double[3];
+
+        [JsonProperty("is_perspective")]
+        public bool IsPerspective { get; set; } = true;
+
+        [JsonProperty("field_of_view_deg")]
+        public double FieldOfViewDeg { get; set; } = 50.0;
+    }
+
+    public class Web3DSectionBoxData
+    {
+        [JsonProperty("active")]
+        public bool Active { get; set; }
+
+        [JsonProperty("min")]
+        public double[] Min { get; set; } = new double[3];
+
+        [JsonProperty("max")]
+        public double[] Max { get; set; } = new double[3];
+
+        [JsonProperty("center")]
+        public double[] Center { get; set; } = new double[3];
+
+        [JsonProperty("size")]
+        public double[] Size { get; set; } = new double[3];
+    }
+
+    public class Web3DLayerGroup
+    {
+        [JsonProperty("id")]
+        public string Id { get; set; } = "";
+
+        [JsonProperty("name")]
+        public string Name { get; set; } = "";
+
+        [JsonProperty("type")]
+        public string Type { get; set; } = "category"; // "category" or "level"
+
+        [JsonProperty("color_hex")]
+        public string ColorHex { get; set; } = "#888888";
+
+        [JsonProperty("element_ids")]
+        public List<long> ElementIds { get; set; } = new List<long>();
+    }
+
+    public class Web3DAnnotationHotspot
+    {
+        [JsonProperty("id")]
+        public string Id { get; set; } = "";
+
+        [JsonProperty("title")]
+        public string Title { get; set; } = "";
+
+        [JsonProperty("description")]
+        public string Description { get; set; } = "";
+
+        [JsonProperty("category")]
+        public string Category { get; set; } = "";
+
+        [JsonProperty("position")]
+        public double[] Position { get; set; } = new double[3];
+
+        [JsonProperty("element_id")]
+        public long? ElementId { get; set; }
+    }
+
+    public class Web3DMeshData
+    {
+        [JsonProperty("vertices")]
+        public double[] Vertices { get; set; } = Array.Empty<double>();
+
+        [JsonProperty("indices")]
+        public int[] Indices { get; set; } = Array.Empty<int>();
+
+        [JsonProperty("normals")]
+        public double[] Normals { get; set; } = Array.Empty<double>();
+    }
+
+    public class Web3DNodeData
+    {
+        [JsonProperty("element_id")]
+        public long ElementId { get; set; }
+
+        [JsonProperty("unique_id")]
+        public string UniqueId { get; set; } = "";
+
+        [JsonProperty("name")]
+        public string Name { get; set; } = "";
+
+        [JsonProperty("category")]
+        public string Category { get; set; } = "";
+
+        [JsonProperty("level")]
+        public string Level { get; set; } = "";
+
+        [JsonProperty("geometry_type")]
+        public string GeometryType { get; set; } = "box";
+
+        [JsonProperty("position")]
+        public double[] Position { get; set; } = new double[3];
+
+        [JsonProperty("dimensions")]
+        public double[] Dimensions { get; set; } = new double[3];
+
+        [JsonProperty("rotation")]
+        public double[] Rotation { get; set; } = new double[3];
+
+        [JsonProperty("color_hex")]
+        public string ColorHex { get; set; } = "#888888";
+
+        [JsonProperty("flat_shading")]
+        public bool FlatShading { get; set; } = true;
+
+        [JsonProperty("mesh_data", NullValueHandling = NullValueHandling.Ignore)]
+        public Web3DMeshData? MeshData { get; set; }
+
+        [JsonProperty("quick_params", NullValueHandling = NullValueHandling.Ignore)]
+        public Dictionary<string, string>? QuickParams { get; set; }
     }
 
     public class RoomData
@@ -267,10 +444,115 @@ namespace RevitToSupabasePlugin
             bool includeSchedules,
             bool includeSheetsAndViews,
             bool includeMaterials,
+            bool includeWeb3dModel,
             Action<int, int, string>? progressCallback,
             Func<bool>? isInterruptedCheck)
         {
             ProjectMetadataPackage package = new ProjectMetadataPackage();
+            Dictionary<string, Web3DLayerGroup> layerGroupsDict = new Dictionary<string, Web3DLayerGroup>();
+
+            if (includeWeb3dModel)
+            {
+                package.Interactive3DScene = new Web3DSceneData();
+
+                // 0. Recopilar datos de Vista 3D activa (Cámara y Caja de Corte 3D / Section Box)
+                try
+                {
+                    View3D? activeView3D = doc.ActiveView as View3D;
+                    if (activeView3D == null)
+                    {
+                        FilteredElementCollector v3dCol = new FilteredElementCollector(doc)
+                            .OfClass(typeof(View3D))
+                            .WhereElementIsNotElementType();
+                        foreach (View3D v in v3dCol.ToElements())
+                        {
+                            if (!v.IsTemplate)
+                            {
+                                activeView3D = v;
+                                if (v.Name == "{3D}" || v.Name.Contains("3D")) break;
+                            }
+                        }
+                    }
+
+                    if (activeView3D != null)
+                    {
+                        // Extracción de Cámara vía ViewOrientation3D
+                        ViewOrientation3D orientation = activeView3D.GetOrientation();
+                        XYZ eye = orientation.EyePosition;
+                        XYZ viewDir = orientation.ForwardDirection;
+                        XYZ upDir = orientation.UpDirection;
+                        XYZ target = eye + viewDir * 10.0;
+
+                        package.Interactive3DScene.Camera = new Web3DCameraData
+                        {
+                            EyePosition = new double[] { Math.Round(eye.X * 0.3048, 3), Math.Round(eye.Z * 0.3048, 3), Math.Round(-eye.Y * 0.3048, 3) },
+                            TargetPosition = new double[] { Math.Round(target.X * 0.3048, 3), Math.Round(target.Z * 0.3048, 3), Math.Round(-target.Y * 0.3048, 3) },
+                            UpDirection = new double[] { Math.Round(upDir.X, 3), Math.Round(upDir.Z, 3), Math.Round(-upDir.Y, 3) },
+                            IsPerspective = activeView3D.IsPerspective,
+                            FieldOfViewDeg = 50.0
+                        };
+
+                        // Extracción de Caja de Corte 3D (Section Box)
+                        if (activeView3D.IsSectionBoxActive)
+                        {
+                            BoundingBoxXYZ sBox = activeView3D.GetSectionBox();
+                            if (sBox != null)
+                            {
+                                Transform tr = sBox.Transform;
+                                XYZ minWorld = tr.OfPoint(sBox.Min);
+                                XYZ maxWorld = tr.OfPoint(sBox.Max);
+
+                                double sMinX = Math.Min(minWorld.X, maxWorld.X) * 0.3048;
+                                double sMaxX = Math.Max(minWorld.X, maxWorld.X) * 0.3048;
+                                double sMinY = Math.Min(minWorld.Z, maxWorld.Z) * 0.3048;
+                                double sMaxY = Math.Max(minWorld.Z, maxWorld.Z) * 0.3048;
+                                double sMinZ = -Math.Max(minWorld.Y, maxWorld.Y) * 0.3048;
+                                double sMaxZ = -Math.Min(minWorld.Y, maxWorld.Y) * 0.3048;
+
+                                double cX = (sMinX + sMaxX) / 2.0;
+                                double cY = (sMinY + sMaxY) / 2.0;
+                                double cZ = (sMinZ + sMaxZ) / 2.0;
+
+                                package.Interactive3DScene.SectionBox = new Web3DSectionBoxData
+                                {
+                                    Active = true,
+                                    Min = new double[] { Math.Round(sMinX, 3), Math.Round(sMinY, 3), Math.Round(sMinZ, 3) },
+                                    Max = new double[] { Math.Round(sMaxX, 3), Math.Round(sMaxY, 3), Math.Round(sMaxZ, 3) },
+                                    Center = new double[] { Math.Round(cX, 3), Math.Round(cY, 3), Math.Round(cZ, 3) },
+                                    Size = new double[] { Math.Round(Math.Abs(sMaxX - sMinX), 3), Math.Round(Math.Abs(sMaxY - sMinY), 3), Math.Round(Math.Abs(sMaxZ - sMinZ), 3) }
+                                };
+                                package.Interactive3DScene.Metadata.HasSectionBox = true;
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                // Recopilar anotaciones y notas de texto en 3D
+                try
+                {
+                    FilteredElementCollector textCol = new FilteredElementCollector(doc)
+                        .OfClass(typeof(TextNote))
+                        .WhereElementIsNotElementType();
+
+                    foreach (TextNote note in textCol.ToElements())
+                    {
+                        XYZ pos = note.Coord;
+                        string text = note.Text ?? "";
+                        if (string.IsNullOrWhiteSpace(text)) continue;
+
+                        package.Interactive3DScene.Annotations.Add(new Web3DAnnotationHotspot
+                        {
+                            Id = note.Id.Value.ToString(),
+                            Title = text.Length > 35 ? text.Substring(0, 35) + "..." : text,
+                            Description = text,
+                            Category = "TextNote",
+                            Position = new double[] { Math.Round(pos.X * 0.3048, 3), Math.Round(pos.Z * 0.3048, 3), Math.Round(-pos.Y * 0.3048, 3) }
+                        });
+                    }
+                }
+                catch { }
+            }
 
             // 1. Extraer Project Information
             if (includeProjectInfo && doc.ProjectInformation != null)
@@ -554,13 +836,109 @@ namespace RevitToSupabasePlugin
                     package.ElementsById[strId] = metadata;
                 }
 
+                // 3D Model Web Extraction (Estilizado, FlatShading, Bajo Peso)
+                if (includeWeb3dModel && package.Interactive3DScene != null)
+                {
+                    BoundingBoxXYZ bbox = elem.get_BoundingBox(null);
+                    if (bbox != null)
+                    {
+                        XYZ min = bbox.Min;
+                        XYZ max = bbox.Max;
+
+                        double width = Math.Max(0.05, Math.Abs(max.X - min.X) * 0.3048);
+                        double depth = Math.Max(0.05, Math.Abs(max.Y - min.Y) * 0.3048);
+                        double height = Math.Max(0.05, Math.Abs(max.Z - min.Z) * 0.3048);
+
+                        // Coordenadas TresJS: X = X, Y = Z (arriba), Z = -Y
+                        double posX = (min.X + max.X) / 2.0 * 0.3048;
+                        double posY = (min.Z + max.Z) / 2.0 * 0.3048;
+                        double posZ = -((min.Y + max.Y) / 2.0 * 0.3048);
+
+                        string lvlName = "";
+                        if (elem.LevelId != ElementId.InvalidElementId)
+                        {
+                            Element? lvlElem = doc.GetElement(elem.LevelId);
+                            if (lvlElem != null) lvlName = lvlElem.Name;
+                        }
+
+                        Web3DNodeData node = new Web3DNodeData
+                        {
+                            ElementId = elem.Id.Value,
+                            UniqueId = elem.UniqueId,
+                            Name = elem.Name ?? "",
+                            Category = catName,
+                            Level = lvlName,
+                            GeometryType = "box",
+                            Position = new double[] { Math.Round(posX, 3), Math.Round(posY, 3), Math.Round(posZ, 3) },
+                            Dimensions = new double[] { Math.Round(width, 3), Math.Round(height, 3), Math.Round(depth, 3) },
+                            Rotation = new double[] { 0, 0, 0 },
+                            ColorHex = GetCategoryStylizedColor(catName),
+                            FlatShading = true,
+                            QuickParams = new Dictionary<string, string>()
+                        };
+
+                        Parameter pMark = elem.get_Parameter(BuiltInParameter.ALL_MODEL_MARK);
+                        if (pMark != null && pMark.HasValue && !string.IsNullOrEmpty(pMark.AsString())) node.QuickParams["Mark"] = pMark.AsString()!;
+
+                        Parameter pComments = elem.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                        if (pComments != null && pComments.HasValue && !string.IsNullOrEmpty(pComments.AsString())) node.QuickParams["Comments"] = pComments.AsString()!;
+
+                        ElementType? eType = doc.GetElement(elem.GetTypeId()) as ElementType;
+                        if (eType != null)
+                        {
+                            if (!string.IsNullOrEmpty(eType.FamilyName)) node.QuickParams["Family"] = eType.FamilyName;
+                            if (!string.IsNullOrEmpty(eType.Name)) node.QuickParams["Type"] = eType.Name;
+                        }
+
+                        package.Interactive3DScene.Nodes.Add(node);
+
+                        if (!layerGroupsDict.ContainsKey(catName))
+                        {
+                            layerGroupsDict[catName] = new Web3DLayerGroup
+                            {
+                                Id = "cat_" + catName.ToLower().Replace(" ", "_"),
+                                Name = catName,
+                                Type = "category",
+                                ColorHex = GetCategoryStylizedColor(catName)
+                            };
+                        }
+                        layerGroupsDict[catName].ElementIds.Add(elem.Id.Value);
+                    }
+                }
+
                 if (i % 50 == 0 || i == total - 1)
                 {
                     progressCallback?.Invoke(i + 1, total, $"{i + 1} / {total} Elementos Procesados");
                 }
             }
 
+            if (includeWeb3dModel && package.Interactive3DScene != null)
+            {
+                package.Interactive3DScene.Layers.AddRange(layerGroupsDict.Values);
+                package.Interactive3DScene.Metadata.TotalNodes = package.Interactive3DScene.Nodes.Count;
+                package.Interactive3DScene.Metadata.TotalLayers = package.Interactive3DScene.Layers.Count;
+                package.Interactive3DScene.Metadata.TotalAnnotations = package.Interactive3DScene.Annotations.Count;
+            }
+
             return package;
+        }
+
+        private static string GetCategoryStylizedColor(string categoryName)
+        {
+            if (string.IsNullOrEmpty(categoryName)) return "#888888";
+            string lower = categoryName.ToLower();
+
+            if (lower.Contains("wall") || lower.Contains("muro") || lower.Contains("pared")) return "#4A90E2";
+            if (lower.Contains("floor") || lower.Contains("suelo") || lower.Contains("piso")) return "#7ED321";
+            if (lower.Contains("roof") || lower.Contains("cubierta") || lower.Contains("techo")) return "#D0021B";
+            if (lower.Contains("window") || lower.Contains("ventana")) return "#50E3C2";
+            if (lower.Contains("door") || lower.Contains("puerta")) return "#F5A623";
+            if (lower.Contains("column") || lower.Contains("columna") || lower.Contains("structural") || lower.Contains("estruc")) return "#9013FE";
+            if (lower.Contains("furniture") || lower.Contains("mueble") || lower.Contains("mobiliario")) return "#F8E71C";
+            if (lower.Contains("pipe") || lower.Contains("tuber") || lower.Contains("duct") || lower.Contains("conducto")) return "#FF5722";
+            if (lower.Contains("stair") || lower.Contains("escalera") || lower.Contains("rail") || lower.Contains("baranda")) return "#E91E63";
+
+            return "#B8E986";
         }
 
         public static bool SendToSupabaseDirect(ProjectMetadataPackage package, out string responseMessage)
