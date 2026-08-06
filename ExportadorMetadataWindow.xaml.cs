@@ -166,6 +166,32 @@ namespace RevitToSupabasePlugin
             }
         }
 
+        private void BtnExportIfcJson_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var ifcJsonDoc = IfcJsonExporterService.ExportDocumentToIfcJson(_doc, txtEmail.Text.Trim());
+                string ifcJsonText = IfcJsonExporterService.ToJsonString(ifcJsonDoc);
+                txtPreview.Text = ifcJsonText;
+
+                Microsoft.Win32.SaveFileDialog saveFileDialog = new Microsoft.Win32.SaveFileDialog();
+                saveFileDialog.Filter = "Archivos ifcJSON (*.ifcjson;*.json)|*.ifcjson;*.json|Todos los archivos (*.*)|*.*";
+                saveFileDialog.DefaultExt = "ifcjson";
+                saveFileDialog.FileName = $"{_doc.Title}_Model.ifcjson";
+
+                if (saveFileDialog.ShowDialog() == true)
+                {
+                    File.WriteAllText(saveFileDialog.FileName, ifcJsonText, System.Text.Encoding.UTF8);
+                    txtStatus.Text = $"Modelo ifcJSON exportado ({ifcJsonDoc.Data.Count} objetos) en: {Path.GetFileName(saveFileDialog.FileName)}";
+                    System.Windows.MessageBox.Show($"¡El modelo fue exportado exitosamente en estándar ifcJSON-4!\nObjetos BIM procesados: {ifcJsonDoc.Data.Count}", "Exportación ifcJSON Completada", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show("Error al exportar en formato ifcJSON: " + ex.Message, "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
+
         public void UpdatePreviewText(string json)
         {
             txtPreview.Text = json;

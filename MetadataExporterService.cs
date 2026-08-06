@@ -839,17 +839,29 @@ namespace RevitToSupabasePlugin
                 // 3D Model Web Extraction (Estilizado, FlatShading, Bajo Peso)
                 if (includeWeb3dModel && package.Interactive3DScene != null)
                 {
+                    // Filtrar categorías no físicas / no tridimensionales
+                    string lowerCat = catName.ToLower();
+                    if (lowerCat.Contains("origin") || lowerCat.Contains("point") || lowerCat.Contains("scope") || 
+                        lowerCat.Contains("sheet") || lowerCat.Contains("view") || lowerCat.Contains("raster") ||
+                        lowerCat.Contains("grid") || lowerCat.Contains("camera"))
+                    {
+                        continue;
+                    }
+
                     BoundingBoxXYZ bbox = elem.get_BoundingBox(null);
                     if (bbox != null)
                     {
                         XYZ min = bbox.Min;
                         XYZ max = bbox.Max;
 
-                        double width = Math.Max(0.05, Math.Abs(max.X - min.X) * 0.3048);
-                        double depth = Math.Max(0.05, Math.Abs(max.Y - min.Y) * 0.3048);
-                        double height = Math.Max(0.05, Math.Abs(max.Z - min.Z) * 0.3048);
+                        double width = Math.Max(0.02, Math.Abs(max.X - min.X) * 0.3048);
+                        double depth = Math.Max(0.02, Math.Abs(max.Y - min.Y) * 0.3048);
+                        double height = Math.Max(0.02, Math.Abs(max.Z - min.Z) * 0.3048);
 
-                        // Coordenadas TresJS: X = X, Y = Z (arriba), Z = -Y
+                        // Omitir elementos con dimensiones insignificantes
+                        if (width * depth * height < 0.00001) continue;
+
+                        // Coordenadas ThreeJS: X = X, Y = Z (arriba), Z = -Y
                         double posX = (min.X + max.X) / 2.0 * 0.3048;
                         double posY = (min.Z + max.Z) / 2.0 * 0.3048;
                         double posZ = -((min.Y + max.Y) / 2.0 * 0.3048);
@@ -869,14 +881,27 @@ namespace RevitToSupabasePlugin
                             Category = catName,
                             Level = lvlName,
                             GeometryType = "box",
-                            Position = new double[] { Math.Round(posX, 3), Math.Round(posY, 3), Math.Round(posZ, 3) },
-                            Dimensions = new double[] { Math.Round(width, 3), Math.Round(height, 3), Math.Round(depth, 3) },
+                            Position = new double[] { Math.Round(posX, 4), Math.Round(posY, 4), Math.Round(posZ, 4) },
+                            Dimensions = new double[] { Math.Round(width, 4), Math.Round(height, 4), Math.Round(depth, 4) },
                             Rotation = new double[] { 0, 0, 0 },
                             ColorHex = GetCategoryStylizedColor(catName),
                             FlatShading = true,
                             QuickParams = new Dictionary<string, string>()
                         };
 
+                        // Intentar extracción de malla tridimensional real (Triangulación de Revit Solid/Face/Mesh)
+                        try
+                        {
+                            Web3DMeshData? mData = ExtractElementMeshGeometry(elem);
+                            if (mData != null)
+                            {
+                                node.MeshData = mData;
+                                node.GeometryType = "mesh";
+                            }
+                        }
+                        catch { }
+
+                        // Cargar todos los parámetros significativos en QuickParams
                         Parameter pMark = elem.get_Parameter(BuiltInParameter.ALL_MODEL_MARK);
                         if (pMark != null && pMark.HasValue && !string.IsNullOrEmpty(pMark.AsString())) node.QuickParams["Mark"] = pMark.AsString()!;
 
@@ -888,6 +913,20 @@ namespace RevitToSupabasePlugin
                         {
                             if (!string.IsNullOrEmpty(eType.FamilyName)) node.QuickParams["Family"] = eType.FamilyName;
                             if (!string.IsNullOrEmpty(eType.Name)) node.QuickParams["Type"] = eType.Name;
+                        }
+
+                        foreach (Parameter p in elem.Parameters)
+                        {
+                            if (p == null || !p.HasValue || string.IsNullOrEmpty(p.Definition?.Name)) continue;
+                            string pName = p.Definition.Name;
+                            if (!node.QuickParams.ContainsKey(pName))
+                            {
+                                string valStr = p.AsValueString() ?? p.AsString() ?? "";
+                                if (!string.IsNullOrEmpty(valStr))
+                                {
+                                    node.QuickParams[pName] = valStr;
+                                }
+                            }
                         }
 
                         package.Interactive3DScene.Nodes.Add(node);
@@ -921,6 +960,108 @@ namespace RevitToSupabasePlugin
             }
 
             return package;
+        }
+
+        private static Web3DMeshData? ExtractElementMeshGeometry(Element elem)
+        {
+            try
+            {
+                Options opt = new Options
+                {
+                    DetailLevel = ViewDetailLevel.Fine,
+                    ComputeReferences = true,
+                    IncludeNonVisibleObjects = true
+                };
+                GeometryElement geomElem = elem.get_Geometry(opt);
+                if (geomElem == null) return null;
+
+                List<double> vertices = new List<double>();
+                List<int> indices = new List<int>();
+                List<double> normals = new List<double>();
+                int vertIndexOffset = 0;
+
+                Action<Mesh, Transform?> processMesh = (Mesh mesh, Transform? xform) =>
+                {
+                    if (mesh == null || mesh.Vertices == null || mesh.Vertices.Count == 0) return;
+                    int baseIdx = vertIndexOffset;
+                    for (int i = 0; i < mesh.Vertices.Count; i++)
+                    {
+                        XYZ v = mesh.Vertices[i];
+                        if (xform != null) v = xform.OfPoint(v);
+                        vertices.Add(Math.Round(v.X * 0.3048, 5));
+                        vertices.Add(Math.Round(v.Z * 0.3048, 5));
+                        vertices.Add(Math.Round(-v.Y * 0.3048, 5));
+                    }
+                    for (int i = 0; i < mesh.NumTriangles; i++)
+                    {
+                        MeshTriangle triangle = mesh.get_Triangle(i);
+                        indices.Add(baseIdx + (int)triangle.get_Index(0));
+                        indices.Add(baseIdx + (int)triangle.get_Index(1));
+                        indices.Add(baseIdx + (int)triangle.get_Index(2));
+
+                        XYZ v0 = triangle.get_Vertex(0);
+                        XYZ v1 = triangle.get_Vertex(1);
+                        XYZ v2 = triangle.get_Vertex(2);
+                        XYZ n = (v1 - v0).CrossProduct(v2 - v0);
+                        if (n.GetLength() > 0.00001) n = n.Normalize();
+                        if (xform != null) n = xform.OfVector(n).Normalize();
+
+                        normals.Add(Math.Round(n.X, 4));
+                        normals.Add(Math.Round(n.Z, 4));
+                        normals.Add(Math.Round(-n.Y, 4));
+                    }
+                    vertIndexOffset += mesh.Vertices.Count;
+                };
+
+                Action<GeometryElement, Transform?>? processGeomElem = null;
+                processGeomElem = (GeometryElement gElem, Transform? xform) =>
+                {
+                    if (gElem == null) return;
+                    foreach (GeometryObject gObj in gElem)
+                    {
+                        if (gObj is Solid solid && solid.Faces != null && solid.Faces.Size > 0)
+                        {
+                            foreach (Face face in solid.Faces)
+                            {
+                                Mesh faceMesh = face.Triangulate();
+                                if (faceMesh != null) processMesh(faceMesh, xform);
+                            }
+                        }
+                        else if (gObj is Mesh m)
+                        {
+                            processMesh(m, xform);
+                        }
+                        else if (gObj is GeometryInstance gInst)
+                        {
+                            Transform instXform = gInst.Transform;
+                            Transform combinedXform = xform != null ? xform.Multiply(instXform) : instXform;
+
+                            GeometryElement instGeom = gInst.GetInstanceGeometry();
+                            int currCount = vertices.Count;
+                            if (instGeom != null) processGeomElem!(instGeom, xform);
+                            if (vertices.Count == currCount)
+                            {
+                                GeometryElement symGeom = gInst.GetSymbolGeometry();
+                                if (symGeom != null) processGeomElem!(symGeom, combinedXform);
+                            }
+                        }
+                    }
+                };
+
+                processGeomElem(geomElem, null);
+
+                if (vertices.Count > 0 && indices.Count > 0)
+                {
+                    return new Web3DMeshData
+                    {
+                        Vertices = vertices.ToArray(),
+                        Indices = indices.ToArray(),
+                        Normals = normals.ToArray()
+                    };
+                }
+            }
+            catch { }
+            return null;
         }
 
         private static string GetCategoryStylizedColor(string categoryName)

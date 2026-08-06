@@ -1,0 +1,173 @@
+<Window x:Class="RevitToSupabasePlugin.ConvertirMurosWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Editor Profesional de Patrones de Mampostería" 
+        Height="700" Width="1200" 
+        MinHeight="600" MinWidth="1000"
+        WindowStartupLocation="CenterScreen" 
+        Background="#121214"
+        Foreground="#E3E5E8"
+        ResizeMode="CanResize"
+        BorderThickness="1"
+        BorderBrush="#DD6B20"
+        Loaded="Window_Loaded">
+    <Window.Resources>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#1A1C20"/>
+            <Setter Property="Foreground" Value="#121214"/>
+            <Setter Property="BorderBrush" Value="#4A5568"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Margin" Value="0,0,0,15"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#2B2D31"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style x:Key="ToolButton" TargetType="RadioButton">
+            <Setter Property="Background" Value="#1A1C20"/>
+            <Setter Property="Foreground" Value="#E3E5E8"/>
+            <Setter Property="BorderBrush" Value="#4A5568"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="Margin" Value="0,0,0,5"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Background" Value="#DD6B20"/>
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="BorderBrush" Value="#DD6B20"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#2D3748"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="350"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Columna Izquierda: Formulario y Herramientas -->
+        <Grid Grid.Column="0" Margin="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <StackPanel Grid.Row="0" Margin="0,0,0,15">
+                <TextBlock Text="🧱 Editor de Patrones" FontSize="22" FontWeight="Bold">
+                    <TextBlock.Foreground>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#DD6B20" Offset="0.0"/>
+                            <GradientStop Color="#ED8936" Offset="1.0"/>
+                        </LinearGradientBrush>
+                    </TextBlock.Foreground>
+                </TextBlock>
+                <TextBlock x:Name="txtSummary" Text="Has seleccionado 0 muros." FontSize="12" Foreground="#A0AEC0" Margin="0,2,0,0"/>
+                <TextBlock x:Name="txtWallDims" Text="Dimensiones base: 0m x 0m" FontSize="11" Foreground="#718096" Margin="0,2,0,0"/>
+            </StackPanel>
+
+            <!-- Parámetros Generales -->
+            <TextBlock Text="Familia de Ladrillo:" Grid.Row="1" Foreground="#A0AEC0" Margin="0,0,0,5" FontSize="12"/>
+            <ComboBox x:Name="cmbLadrillos" Grid.Row="2" DisplayMemberPath="DisplayName" SelectionChanged="Input_SelectionChanged"/>
+
+            <TextBlock Text="Aparejo / Traba:" Grid.Row="3" Foreground="#A0AEC0" Margin="0,0,0,5" FontSize="12"/>
+            <ComboBox x:Name="cmbPattern" Grid.Row="4" SelectedIndex="0" SelectionChanged="Input_SelectionChanged">
+                <ComboBoxItem Content="Soga (1/2 Ladrillo)"/>
+                <ComboBoxItem Content="Tizón (Ladrillo Entero)"/>
+                <ComboBoxItem Content="Flamenco (Soga y Tizón Alternados)"/>
+                <ComboBoxItem Content="Inglés (Hiladas Alternadas)"/>
+            </ComboBox>
+
+            <StackPanel Grid.Row="5" Margin="0,0,0,15">
+                <TextBlock Text="Configuración de Pega:" Foreground="#A0AEC0" Margin="0,0,0,5" FontSize="12"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" Grid.Column="0">
+                        <TextBlock Text="Grosor (cm): " Foreground="#E3E5E8" VerticalAlignment="Center"/>
+                        <TextBox x:Name="txtPega" Text="1.5" Width="50" Margin="0,0,15,0" TextChanged="Input_TextChanged" Background="#1A1C20" Foreground="#F7FAFC" BorderBrush="#4A5568" BorderThickness="1"/>
+                    </StackPanel>
+                    <CheckBox x:Name="chkVerPega" Content="Modelar Pega 3D" Grid.Column="1" Foreground="#E2E8F0" VerticalAlignment="Center"/>
+                </Grid>
+            </StackPanel>
+
+            <!-- Herramientas de Edición -->
+            <StackPanel Grid.Row="6" Margin="0,10,0,15">
+                <TextBlock Text="Herramientas de Edición (Clic en Canvas):" Foreground="#DD6B20" FontWeight="Bold" Margin="0,0,0,10" FontSize="12"/>
+                <RadioButton x:Name="toolSelect" Content="🔍 Seleccionar / Info" Style="{StaticResource ToolButton}" IsChecked="True"/>
+                <RadioButton x:Name="toolDovela" Content="📍 Agregar/Quitar Dovela" Style="{StaticResource ToolButton}"/>
+                <RadioButton x:Name="toolCanchado" Content="🔨 Marcar como Canchado" Style="{StaticResource ToolButton}"/>
+                <RadioButton x:Name="toolTrimL" Content="✂️ Recortar Mitad Izquierda" Style="{StaticResource ToolButton}"/>
+                <RadioButton x:Name="toolTrimR" Content="✂️ Recortar Mitad Derecha" Style="{StaticResource ToolButton}"/>
+                <Button Content="🔄 Reiniciar Muro al Patrón Base" Margin="0,5,0,0" Click="BtnReset_Click" Background="#4A5568"/>
+            </StackPanel>
+
+            <!-- Botón Convertir -->
+            <Button x:Name="btnConvert" Grid.Row="7" Height="45" VerticalAlignment="Bottom" Click="BtnConvert_Click">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border CornerRadius="6" BorderThickness="0">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#DD6B20" Offset="0"/>
+                                    <GradientStop Color="#C05621" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Button.Template>
+                <TextBlock Text="⚒️ Instanciar Muros 3D" FontWeight="Bold" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
+            </Button>
+        </Grid>
+
+        <!-- Columna Derecha: Previsualizador de Patrón Avanzado -->
+        <Border Grid.Column="1" Background="#0D0D0F" BorderBrush="#2D3748" BorderThickness="1,0,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <Border Grid.Row="0" Background="#1A1C20" Padding="15,10" BorderBrush="#2D3748" BorderThickness="0,0,0,1">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Previsualizador Interactivo" FontWeight="SemiBold" FontSize="14" Foreground="#A0AEC0" VerticalAlignment="Center"/>
+                        <TextBlock Text=" (Usa Shift+Rueda para mover horizontalmente)" FontSize="11" Foreground="#718096" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                    </StackPanel>
+                </Border>
+                
+                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#121214">
+                    <Canvas x:Name="previewPatternCanvas" Background="Transparent" Margin="20" HorizontalAlignment="Left" VerticalAlignment="Top">
+                        <!-- Ladrillos dibujados dinámicamente -->
+                    </Canvas>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

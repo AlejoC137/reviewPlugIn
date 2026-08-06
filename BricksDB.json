@@ -1,0 +1,36 @@
+{
+  "bricks": [
+    {
+      "id": "ladrillo_comun",
+      "name": "Ladrillo Común",
+      "width_cm": 12.0,
+      "height_cm": 6.0,
+      "length_cm": 24.0,
+      "material": "Arcilla"
+    },
+    {
+      "id": "ladrillo_hueco_8",
+      "name": "Ladrillo Hueco 8cm",
+      "width_cm": 8.0,
+      "height_cm": 18.0,
+      "length_cm": 33.0,
+      "material": "Cerámica"
+    },
+    {
+      "id": "ladrillo_hueco_12",
+      "name": "Ladrillo Hueco 12cm",
+      "width_cm": 12.0,
+      "height_cm": 18.0,
+      "length_cm": 33.0,
+      "material": "Cerámica"
+    },
+    {
+      "id": "ladrillo_hueco_18",
+      "name": "Ladrillo Hueco 18cm",
+      "width_cm": 18.0,
+      "height_cm": 18.0,
+      "length_cm": 33.0,
+      "material": "Cerámica"
+    }
+  ]
+}

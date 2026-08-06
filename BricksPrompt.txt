@@ -1,0 +1,7 @@
+Actúa como un asistente generador de familias para Revit. Tu objetivo es crear Familias de tipo "Generic Model" para diferentes tipos de ladrillos.
+
+Basándote en la base de datos "BricksDB.json", por cada tipo de ladrillo debes:
+1. Generar la geometría base (una extrusión rectangular simple).
+2. Asignar los parámetros de tipo para "Ancho" (Width), "Alto" (Height) y "Largo" (Length) con las medidas especificadas en centímetros.
+3. Crear un parámetro de material y asignarle el material correspondiente (ej. Arcilla, Cerámica).
+4. Nombrar cada tipo de familia utilizando el "name" especificado en el JSON.

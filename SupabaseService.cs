@@ -176,6 +176,33 @@ namespace RevitToSupabasePlugin
             return result;
         }
 
+        /// <summary>
+        /// Fetches the latest project data for a given project name.
+        /// </summary>
+        public async Task<string> GetProjectDataAsync(string projectName, string userEmail = "")
+        {
+            var url = $"{SupabaseUrl}/rest/v1/plugin_project_data?project_name=eq.{Uri.EscapeDataString(projectName)}&order=exported_at.desc&limit=1";
+            if (!string.IsNullOrEmpty(userEmail))
+            {
+                url = $"{SupabaseUrl}/rest/v1/plugin_project_data?project_name=eq.{Uri.EscapeDataString(projectName)}&user_email=eq.{Uri.EscapeDataString(userEmail)}&order=exported_at.desc&limit=1";
+            }
+
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.Add("apikey", AnonKey);
+            req.Headers.Add("Prefer", "return=representation");
+            if (!string.IsNullOrEmpty(_accessToken))
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+
+            var response = await _http.SendAsync(req);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                throw new Exception($"Error fetching project data: {(int)response.StatusCode} - {TryParseErrorMessage(body)}");
+            }
+
+            return await response.Content.ReadAsStringAsync();
+        }
+
         // ══════════════════════════════════════════════════════════════════════════
         // HELPERS
         // ══════════════════════════════════════════════════════════════════════════

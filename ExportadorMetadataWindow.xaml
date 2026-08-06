@@ -82,8 +82,9 @@
                     </Grid.RowDefinitions>
                     <TextBox x:Name="txtPreview" Grid.Row="0" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Background="#141416" Foreground="#00FF88" FontFamily="Consolas" FontSize="11" Padding="6" Margin="0,0,0,8"/>
                     <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button x:Name="btnExport3D" Content="🎨 Exportar Modelo 3D Web (.json)" Width="210" Height="28" Margin="0,0,10,0" Background="#5235EF" Foreground="#FFFFFF" FontWeight="Bold" BorderBrush="#6B4EFF" Click="BtnExport3D_Click"/>
-                        <Button x:Name="btnSaveJson" Content="💾 Exportar JSON Completo" Width="180" Height="28" Background="#3E3E42" Foreground="#FFFFFF" BorderBrush="#555555" Click="BtnSaveJson_Click"/>
+                        <Button x:Name="btnExportIfcJson" Content="🏗️ Exportar ifcJSON Standard" Width="200" Height="28" Margin="0,0,10,0" Background="#0088FF" Foreground="#FFFFFF" FontWeight="Bold" BorderBrush="#00AAFF" Click="BtnExportIfcJson_Click"/>
+                        <Button x:Name="btnExport3D" Content="🎨 Exportar Modelo 3D Web (.json)" Width="200" Height="28" Margin="0,0,10,0" Background="#5235EF" Foreground="#FFFFFF" FontWeight="Bold" BorderBrush="#6B4EFF" Click="BtnExport3D_Click"/>
+                        <Button x:Name="btnSaveJson" Content="💾 Exportar JSON Completo" Width="170" Height="28" Background="#3E3E42" Foreground="#FFFFFF" BorderBrush="#555555" Click="BtnSaveJson_Click"/>
                     </StackPanel>
                 </Grid>
             </GroupBox>

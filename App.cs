@@ -105,6 +105,7 @@ namespace RevitToSupabasePlugin
             AddOrUpdateBtn("cmdMCP", "📊 Exportar\nMetadata", "Command");
             AddOrUpdateBtn("cmdIA", "⚙️ Configurador\nPlantillas", "CommandConfiguradorPlantilla");
             AddOrUpdateBtn("cmdSchedules", "📝 Asistente\nTablas IA", "CommandSchedulesIA");
+            AddOrUpdateBtn("cmdSyncMaterials", "🔄 Sincronizar\nMateriales", "CommandSyncMaterials");
 
             // --- Panel y Botones para Sistema de Riego ---
             string panelRiegoName = "💧 Sistema de Riego";
@@ -155,6 +156,57 @@ namespace RevitToSupabasePlugin
                 }
 
                 AddOrUpdateRiegoBtn("cmdCargarRiego", "📂 Explorador\nPlantilla Riego", "CommandCargarPlantillaRiego");
+            }
+
+            // --- Panel y Botones para Albañilería ---
+            string panelAlbaName = "🧱 Albañilería";
+            RibbonPanel? panelAlba = null;
+            try
+            {
+                List<RibbonPanel> existingPanels = application.GetRibbonPanels(tabName);
+                foreach (RibbonPanel p in existingPanels)
+                {
+                    if (p.Name == panelAlbaName)
+                    {
+                        panelAlba = p;
+                        break;
+                    }
+                }
+            }
+            catch { }
+
+            if (panelAlba == null)
+            {
+                try
+                {
+                    panelAlba = application.CreateRibbonPanel(tabName, panelAlbaName);
+                }
+                catch { }
+            }
+
+            if (panelAlba != null)
+            {
+                IList<RibbonItem> existingAlbaItems = panelAlba.GetItems();
+                Dictionary<string, PushButton> existingAlbaButtons = new Dictionary<string, PushButton>();
+                foreach (RibbonItem item in existingAlbaItems)
+                {
+                    if (item is PushButton btn)
+                    {
+                        existingAlbaButtons[btn.Name] = btn;
+                    }
+                }
+
+                void AddOrUpdateAlbaBtn(string name, string text, string className)
+                {
+                    if (!existingAlbaButtons.ContainsKey(name))
+                    {
+                        PushButtonData bData = new PushButtonData(name, text, thisAssemblyPath, "RevitToSupabasePlugin." + className);
+                        panelAlba.AddItem(bData);
+                    }
+                }
+
+                AddOrUpdateAlbaBtn("cmdGenLadrillos", "🏭 Generar Familias\nde Ladrillos", "CommandGenerarFamiliasLadrillos");
+                AddOrUpdateAlbaBtn("cmdConvMuros", "🧱 Convertir Muros\na Ladrillos", "CommandConvertirMurosALadrillos");
             }
         }
 
