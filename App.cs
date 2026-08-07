@@ -208,6 +208,59 @@ namespace RevitToSupabasePlugin
                 AddOrUpdateAlbaBtn("cmdGenLadrillos", "🏭 Generar Familias\nde Ladrillos", "CommandGenerarFamiliasLadrillos");
                 AddOrUpdateAlbaBtn("cmdConvMuros", "🧱 Convertir Muros\na Ladrillos", "CommandConvertirMurosALadrillos");
             }
+
+            // --- Panel y Botón para Ayuda y Documentación ---
+            string panelHelpName = "ℹ️ Ayuda & Docs";
+            RibbonPanel? panelHelp = null;
+            try
+            {
+                List<RibbonPanel> existingPanels = application.GetRibbonPanels(tabName);
+                foreach (RibbonPanel p in existingPanels)
+                {
+                    if (p.Name == panelHelpName)
+                    {
+                        panelHelp = p;
+                        break;
+                    }
+                }
+            }
+            catch { }
+
+            if (panelHelp == null)
+            {
+                try
+                {
+                    panelHelp = application.CreateRibbonPanel(tabName, panelHelpName);
+                }
+                catch { }
+            }
+
+            if (panelHelp != null)
+            {
+                IList<RibbonItem> existingHelpItems = panelHelp.GetItems();
+                Dictionary<string, PushButton> existingHelpButtons = new Dictionary<string, PushButton>();
+                foreach (RibbonItem item in existingHelpItems)
+                {
+                    if (item is PushButton btn)
+                    {
+                        existingHelpButtons[btn.Name] = btn;
+                    }
+                }
+
+                if (!existingHelpButtons.ContainsKey("cmdManual"))
+                {
+                    PushButtonData bData = new PushButtonData("cmdManual", "📘 Manual & Mapa\nde la App", thisAssemblyPath, "RevitToSupabasePlugin.CommandManualApp");
+                    if (!string.IsNullOrEmpty(dirPath))
+                    {
+                        string iconPath = Path.Combine(dirPath, "icon_doc.png");
+                        if (File.Exists(iconPath))
+                        {
+                            bData.LargeImage = new BitmapImage(new Uri(iconPath));
+                        }
+                    }
+                    panelHelp.AddItem(bData);
+                }
+            }
         }
 
         public Result OnShutdown(UIControlledApplication application)

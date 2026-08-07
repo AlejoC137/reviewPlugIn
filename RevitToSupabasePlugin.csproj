@@ -30,6 +30,7 @@
     <Exec Command="if not exist &quot;$(AppData)\Autodesk\Revit\Addins\2027&quot; mkdir &quot;$(AppData)\Autodesk\Revit\Addins\2027&quot;" />
     <Exec Command="xcopy &quot;$(TargetDir)*.dll&quot; &quot;$(AppData)\Autodesk\Revit\Addins\2027&quot; /Y /I" IgnoreExitCode="true" />
     <Exec Command="if exist &quot;$(ProjectDir)*.png&quot; xcopy &quot;$(ProjectDir)*.png&quot; &quot;$(AppData)\Autodesk\Revit\Addins\2027&quot; /Y /I" IgnoreExitCode="true" />
+    <Exec Command="if exist &quot;$(ProjectDir)*.rfa&quot; xcopy &quot;$(ProjectDir)*.rfa&quot; &quot;$(AppData)\Autodesk\Revit\Addins\2027&quot; /Y /I" IgnoreExitCode="true" />
     <Exec Command="copy &quot;$(ProjectDir)RevitToSupabasePlugin.addin&quot; &quot;$(AppData)\Autodesk\Revit\Addins\2027&quot; /Y" IgnoreExitCode="true" />
   </Target>
 </Project>
