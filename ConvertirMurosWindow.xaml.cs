@@ -274,6 +274,10 @@ namespace RevitToSupabasePlugin
         }
 
         private Dictionary<Model3D, BrickLayoutItem> _brickModels = new Dictionary<Model3D, BrickLayoutItem>();
+        private Dictionary<Model3D, BrickLayoutItem> _leftBrickModels = new Dictionary<Model3D, BrickLayoutItem>();
+        private Dictionary<Model3D, BrickLayoutItem> _rightBrickModels = new Dictionary<Model3D, BrickLayoutItem>();
+        private HashSet<GeometryModel3D> _pegaModels = new HashSet<GeometryModel3D>();
+        private bool _isCameraInitialized = false;
 
         private void DrawLayout()
         {
@@ -284,6 +288,9 @@ namespace RevitToSupabasePlugin
                 // Limpiar luces y modelos anteriores
                 modelGroup.Children.Clear();
                 _brickModels.Clear();
+                _leftBrickModels.Clear();
+                _rightBrickModels.Clear();
+                _pegaModels.Clear();
 
                 // Iluminación de estudio 3D con luces ambiental, principal y de relleno
                 modelGroup.Children.Add(new AmbientLight(System.Windows.Media.Color.FromRgb(120, 120, 130)));
@@ -295,81 +302,126 @@ namespace RevitToSupabasePlugin
 
                 foreach (var item in LayoutItems)
                 {
-                    // Ladrillos canchados destacados en Ámbar/Dorado cálido, Estándar en terracota cerámico
-                    System.Windows.Media.Color brickColor = item.IsCanchado 
-                        ? System.Windows.Media.Color.FromRgb(245, 158, 11)  // Vibrant Amber / Gold
-                        : System.Windows.Media.Color.FromRgb(217, 107, 39);  // Terracotta Orange
-
-                    System.Windows.Media.Color wireColor = item.IsCanchado
-                        ? System.Windows.Media.Color.FromRgb(251, 191, 36)  // Bright Gold Wireframe
-                        : System.Windows.Media.Color.FromRgb(30, 41, 59);    // Slate Dark Wireframe
-
                     double depthFt = (SelectedBrick?.WidthCm ?? 11.5) / 30.48;
+                    double halfLength = item.Length_Ft / 2.0;
 
-                    // Sólido del ladrillo con sombreado de caras nítido y especularidad
-                    GeometryModel3D brickModel = CreateBoxModel(item.Length_Ft, depthFt, item.Height_Ft, brickColor, 1.0);
-                    
-                    Transform3DGroup t = new Transform3DGroup();
-                    double cx = item.PosX_Ft + (item.Length_Ft / 2.0);
+                    // --- MITAD 1 (IZQUIERDA) ---
+                    System.Windows.Media.Color leftColor = item.HasDovela1
+                        ? System.Windows.Media.Color.FromRgb(168, 85, 247)   // Ultra-Vivid Neon Purple Dovela
+                        : (item.IsCanchado 
+                            ? System.Windows.Media.Color.FromRgb(245, 158, 11) // Amber Gold
+                            : System.Windows.Media.Color.FromRgb(217, 107, 39)); // Terracotta Orange
+
+                    System.Windows.Media.Color leftWire = item.HasDovela1
+                        ? System.Windows.Media.Color.FromRgb(232, 121, 249)  // Glowing Magenta Wireframe
+                        : (item.IsCanchado 
+                            ? System.Windows.Media.Color.FromRgb(251, 191, 36) 
+                            : System.Windows.Media.Color.FromRgb(30, 41, 59));
+
+                    double c1 = item.PosX_Ft + (item.Length_Ft / 4.0);
                     double cy = 0;
                     double cz = item.PosZ_Ft + (item.Height_Ft / 2.0);
-                    t.Children.Add(new TranslateTransform3D(cx, cy, cz));
-                    
-                    brickModel.Transform = t;
-                    modelGroup.Children.Add(brickModel);
-                    
-                    // Bordes finos y definidos (grosor 0.003 ft ~ 1mm)
-                    double wireThickness = item.IsCanchado ? 0.004 : 0.003;
-                    Model3DGroup edges = CreateWireframeModel(item.Length_Ft, depthFt, item.Height_Ft, wireColor, wireThickness);
-                    edges.Transform = t;
-                    modelGroup.Children.Add(edges);
 
-                    _brickModels[brickModel] = item;
+                    GeometryModel3D leftModel = CreateBoxModel(halfLength, depthFt, item.Height_Ft, leftColor, 1.0);
+                    Transform3DGroup t1 = new Transform3DGroup();
+                    t1.Children.Add(new TranslateTransform3D(c1, cy, cz));
+                    leftModel.Transform = t1;
+                    modelGroup.Children.Add(leftModel);
+
+                    double wireThickness1 = (item.HasDovela1 || item.IsCanchado) ? 0.006 : 0.003;
+                    Model3DGroup leftEdges = CreateWireframeModel(halfLength, depthFt, item.Height_Ft, leftWire, wireThickness1);
+                    leftEdges.Transform = t1;
+                    modelGroup.Children.Add(leftEdges);
+
+                    _brickModels[leftModel] = item;
+                    _leftBrickModels[leftModel] = item;
+                    foreach (var child in leftEdges.Children)
+                    {
+                        if (child is GeometryModel3D g)
+                        {
+                            _brickModels[g] = item;
+                            _leftBrickModels[g] = item;
+                        }
+                    }
+
+                    // Superpuesto destacado si tiene Dovela 1
+                    if (item.HasDovela1)
+                    {
+                        GeometryModel3D overlay1 = CreateBoxModel(halfLength + 0.02, depthFt + 0.02, item.Height_Ft + 0.02, System.Windows.Media.Color.FromRgb(147, 51, 234), 0.9);
+                        overlay1.Transform = t1;
+                        modelGroup.Children.Add(overlay1);
+                        _brickModels[overlay1] = item;
+                        _leftBrickModels[overlay1] = item;
+                    }
+
+                    // --- MITAD 2 (DERECHA) ---
+                    System.Windows.Media.Color rightColor = item.HasDovela2
+                        ? System.Windows.Media.Color.FromRgb(168, 85, 247)   // Ultra-Vivid Neon Purple Dovela
+                        : (item.IsCanchado 
+                            ? System.Windows.Media.Color.FromRgb(245, 158, 11) 
+                            : System.Windows.Media.Color.FromRgb(217, 107, 39));
+
+                    System.Windows.Media.Color rightWire = item.HasDovela2
+                        ? System.Windows.Media.Color.FromRgb(232, 121, 249)  // Glowing Magenta Wireframe
+                        : (item.IsCanchado 
+                            ? System.Windows.Media.Color.FromRgb(251, 191, 36) 
+                            : System.Windows.Media.Color.FromRgb(30, 41, 59));
+
+                    double c2 = item.PosX_Ft + (item.Length_Ft * 3.0 / 4.0);
+
+                    GeometryModel3D rightModel = CreateBoxModel(halfLength, depthFt, item.Height_Ft, rightColor, 1.0);
+                    Transform3DGroup t2 = new Transform3DGroup();
+                    t2.Children.Add(new TranslateTransform3D(c2, cy, cz));
+                    rightModel.Transform = t2;
+                    modelGroup.Children.Add(rightModel);
+
+                    double wireThickness2 = (item.HasDovela2 || item.IsCanchado) ? 0.006 : 0.003;
+                    Model3DGroup rightEdges = CreateWireframeModel(halfLength, depthFt, item.Height_Ft, rightWire, wireThickness2);
+                    rightEdges.Transform = t2;
+                    modelGroup.Children.Add(rightEdges);
+
+                    _brickModels[rightModel] = item;
+                    _rightBrickModels[rightModel] = item;
+                    foreach (var child in rightEdges.Children)
+                    {
+                        if (child is GeometryModel3D g)
+                        {
+                            _brickModels[g] = item;
+                            _rightBrickModels[g] = item;
+                        }
+                    }
+
+                    // Superpuesto destacado si tiene Dovela 2
+                    if (item.HasDovela2)
+                    {
+                        GeometryModel3D overlay2 = CreateBoxModel(halfLength + 0.02, depthFt + 0.02, item.Height_Ft + 0.02, System.Windows.Media.Color.FromRgb(147, 51, 234), 0.9);
+                        overlay2.Transform = t2;
+                        modelGroup.Children.Add(overlay2);
+                        _brickModels[overlay2] = item;
+                        _rightBrickModels[overlay2] = item;
+                    }
 
                     // Dibujar pega si aplica (semi-transparente elegante)
                     if (verPega3D)
                     {
+                        double cx = item.PosX_Ft + (item.Length_Ft / 2.0);
                         GeometryModel3D pegaModel = CreateBoxModel(item.Length_Ft + pegaThickFt, depthFt + pegaThickFt, item.Height_Ft + pegaThickFt, System.Windows.Media.Color.FromRgb(226, 232, 240), 0.25);
                         Transform3DGroup pt = new Transform3DGroup();
                         pt.Children.Add(new TranslateTransform3D(cx + pegaThickFt/2, cy + pegaThickFt/2, cz + pegaThickFt/2));
                         pegaModel.Transform = pt;
                         modelGroup.Children.Add(pegaModel);
-                    }
-
-                    double startDepthFt = (DovelaStartDepthCm > 0 ? DovelaStartDepthCm : 17.5) / 30.48;
-                    double dovelaW = (DovelaWidthCm > 0 ? DovelaWidthCm : 2.5) / 30.48;
-                    double dovelaL = (DovelaDepthCm > 0 ? DovelaDepthCm : 12.5) / 30.48;
-
-                    // Dovela Mitad 1 (Izquierda / Celda 1) - Azul cobalto destacado
-                    if (item.HasDovela1)
-                    {
-                        double c1 = item.PosX_Ft + startDepthFt;
-                        GeometryModel3D dovela1Model = CreateBoxModel(dovelaL, dovelaW, item.Height_Ft + 0.05, System.Windows.Media.Color.FromRgb(37, 99, 235), 1.0);
-                        Transform3DGroup dt1 = new Transform3DGroup();
-                        dt1.Children.Add(new TranslateTransform3D(c1, cy, cz));
-                        dovela1Model.Transform = dt1;
-                        modelGroup.Children.Add(dovela1Model);
-                    }
-
-                    // Dovela Mitad 2 (Derecha / Celda 2) - Azul cobalto destacado
-                    if (item.HasDovela2)
-                    {
-                        double c2 = item.PosX_Ft + item.Length_Ft - startDepthFt;
-                        GeometryModel3D dovela2Model = CreateBoxModel(dovelaL, dovelaW, item.Height_Ft + 0.05, System.Windows.Media.Color.FromRgb(37, 99, 235), 1.0);
-                        Transform3DGroup dt2 = new Transform3DGroup();
-                        dt2.Children.Add(new TranslateTransform3D(c2, cy, cz));
-                        dovela2Model.Transform = dt2;
-                        modelGroup.Children.Add(dovela2Model);
+                        _pegaModels.Add(pegaModel);
                     }
                 }
 
-                // Ajustar cámara para que vea todo el muro
-                if (!_isDragging && wallLengthFt > 0)
+                // Ajustar cámara para que vea todo el muro únicamente la primera vez
+                if (!_isCameraInitialized && wallLengthFt > 0)
                 {
                     _cameraDistance = Math.Max(wallLengthFt, wallHeightFt) * 1.5;
                     _cameraAngleX = 45;
                     _cameraAngleY = 60;
                     UpdateCamera();
+                    _isCameraInitialized = true;
                 }
             }
             catch { }
@@ -511,25 +563,60 @@ namespace RevitToSupabasePlugin
             }
         }
 
+        private System.Windows.Point _mouseDownPos;
+
         private void Viewport_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             _isDragging = true;
             _lastMousePosition = e.GetPosition(this);
+            _mouseDownPos = e.GetPosition(viewport3D);
             Mouse.Capture((IInputElement)sender);
-
-            // Hit Testing para edición
-            PointHitTestParameters hitParams = new PointHitTestParameters(e.GetPosition(viewport3D));
-            VisualTreeHelper.HitTest(viewport3D, null, HitTestCallback, hitParams);
         }
 
         private HitTestResultBehavior HitTestCallback(HitTestResult result)
         {
             if (result is RayMeshGeometry3DHitTestResult meshResult)
             {
-                if (meshResult.ModelHit is GeometryModel3D hitModel && _brickModels.ContainsKey(hitModel))
+                if (meshResult.ModelHit is GeometryModel3D hitModel)
                 {
-                    ApplyToolToBrick(_brickModels[hitModel], meshResult.PointHit);
-                    return HitTestResultBehavior.Stop;
+                    // Si el raycast golpea la pega/mortero, ignorar y dejar atravesar el rayo al ladrillo
+                    if (_pegaModels.Contains(hitModel))
+                    {
+                        return HitTestResultBehavior.Continue;
+                    }
+
+                    if (toolDovela.IsChecked == true)
+                    {
+                        if (_leftBrickModels.TryGetValue(hitModel, out var leftItem))
+                        {
+                            leftItem.HasDovela1 = !leftItem.HasDovela1;
+                            DrawLayout();
+                            return HitTestResultBehavior.Stop;
+                        }
+                        if (_rightBrickModels.TryGetValue(hitModel, out var rightItem))
+                        {
+                            rightItem.HasDovela2 = !rightItem.HasDovela2;
+                            DrawLayout();
+                            return HitTestResultBehavior.Stop;
+                        }
+                    }
+
+                    if (_brickModels.TryGetValue(hitModel, out var item))
+                    {
+                        ApplyToolToBrick(item, meshResult.PointHit);
+                        return HitTestResultBehavior.Stop;
+                    }
+
+                    // Fallback: Buscar la pieza de ladrillo más cercana al punto de clic
+                    var closestItem = LayoutItems
+                        .OrderBy(i => Math.Pow(i.PosX_Ft + (i.Length_Ft / 2.0) - meshResult.PointHit.X, 2) + Math.Pow(i.PosZ_Ft + (i.Height_Ft / 2.0) - meshResult.PointHit.Z, 2))
+                        .FirstOrDefault();
+
+                    if (closestItem != null)
+                    {
+                        ApplyToolToBrick(closestItem, meshResult.PointHit);
+                        return HitTestResultBehavior.Stop;
+                    }
                 }
             }
             return HitTestResultBehavior.Continue;
@@ -539,6 +626,13 @@ namespace RevitToSupabasePlugin
         {
             _isDragging = false;
             Mouse.Capture(null);
+
+            System.Windows.Point upPos = e.GetPosition(viewport3D);
+            if ((upPos - _mouseDownPos).Length < 5.0)
+            {
+                PointHitTestParameters hitParams = new PointHitTestParameters(upPos);
+                VisualTreeHelper.HitTest(viewport3D, null, HitTestCallback, hitParams);
+            }
         }
 
         private void Viewport_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
@@ -569,14 +663,11 @@ namespace RevitToSupabasePlugin
 
             if (toolDovela.IsChecked == true)
             {
-                double startDepthFt = (DovelaStartDepthCm > 0 ? DovelaStartDepthCm : 17.5) / 30.48;
-                double c1 = item.PosX_Ft + startDepthFt;
-                double c2 = item.PosX_Ft + item.Length_Ft - startDepthFt;
-                double midPoint = (c1 + c2) / 2.0;
+                double brickCenterX = item.PosX_Ft + (item.Length_Ft / 2.0);
 
                 if (hitPoint.HasValue)
                 {
-                    if (hitPoint.Value.X < midPoint)
+                    if (hitPoint.Value.X < brickCenterX)
                     {
                         item.HasDovela1 = !item.HasDovela1;
                     }

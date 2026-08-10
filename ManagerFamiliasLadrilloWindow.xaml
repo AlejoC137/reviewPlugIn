@@ -199,7 +199,8 @@
                     <Button x:Name="btnUpdate" Content="🔄 Actualizar RFA" Click="BtnUpdate_Click" Height="32" IsEnabled="False"/>
                     <Button x:Name="btnEdit" Content="✏️ Editar Familia" Click="BtnEdit_Click" Height="32" IsEnabled="False"/>
                     <Button x:Name="btnDuplicate" Content="📑 Duplicar Tipo" Click="BtnDuplicate_Click" Height="32" IsEnabled="False"/>
-                    <Button x:Name="btnDelete" Content="🗑️ Eliminar Familia" Click="BtnDelete_Click" Height="32" IsEnabled="False" Background="#E53E3E"/>
+                    <Button x:Name="btnDeleteType" Content="🗑️ Eliminar Tipo" Click="BtnDeleteType_Click" Height="32" IsEnabled="False" Background="#C53030"/>
+                    <Button x:Name="btnDelete" Content="🗑️ Eliminar Familia" Click="BtnDelete_Click" Height="32" IsEnabled="False" Background="#742A2A"/>
                 </StackPanel>
 
                 <TextBlock Grid.Row="2" Text="Propiedades del Tipo" FontWeight="SemiBold" FontSize="14" Foreground="#A0AEC0" Margin="0,0,0,10"/>

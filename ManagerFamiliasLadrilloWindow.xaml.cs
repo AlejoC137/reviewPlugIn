@@ -156,6 +156,7 @@ namespace RevitToSupabasePlugin
                 btnUpdate.IsEnabled = true;
                 btnEdit.IsEnabled = true;
                 btnDuplicate.IsEnabled = true;
+                if (btnDeleteType != null) btnDeleteType.IsEnabled = true;
                 btnDelete.IsEnabled = true;
                 pnlProperties.IsEnabled = true;
 
@@ -209,6 +210,7 @@ namespace RevitToSupabasePlugin
                 btnUpdate.IsEnabled = false;
                 btnEdit.IsEnabled = false;
                 btnDuplicate.IsEnabled = false;
+                if (btnDeleteType != null) btnDeleteType.IsEnabled = false;
                 btnDelete.IsEnabled = false;
                 pnlProperties.IsEnabled = false;
 
@@ -428,6 +430,40 @@ namespace RevitToSupabasePlugin
             }
         }
 
+        private void BtnDeleteType_Click(object sender, RoutedEventArgs e)
+        {
+            FamilySymbol selectedSymbol = GetSelectedSymbol();
+            if (selectedSymbol != null)
+            {
+                var result = System.Windows.MessageBox.Show(
+                    $"¿Estás seguro de que deseas eliminar el tipo '{selectedSymbol.Name}' de la familia '{selectedSymbol.Family.Name}'?",
+                    "Confirmar Eliminación de Tipo",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    try
+                    {
+                        using (Transaction t = new Transaction(_doc, "Eliminar Tipo Ladrillo"))
+                        {
+                            t.Start();
+                            _doc.Delete(selectedSymbol.Id);
+                            t.Commit();
+                        }
+
+                        LoadBricksFromDocument();
+                        LoadPegasFromDocument();
+                        System.Windows.MessageBox.Show($"Tipo '{selectedSymbol.Name}' eliminado exitosamente.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Windows.MessageBox.Show($"Error al eliminar el tipo: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+            }
+        }
+
         private void BtnDelete_Click(object sender, RoutedEventArgs e)
         {
             FamilySymbol selectedSymbol = GetSelectedSymbol();
@@ -446,11 +482,12 @@ namespace RevitToSupabasePlugin
                         }
                         
                         LoadBricksFromDocument();
-                        System.Windows.MessageBox.Show($"Familia {selectedSymbol.Family.Name} exportada exitosamente.", "Éxito");
+                        LoadPegasFromDocument();
+                        System.Windows.MessageBox.Show($"Familia '{selectedSymbol.Family.Name}' eliminada exitosamente.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
                     catch (Exception ex)
                     {
-                        System.Windows.MessageBox.Show($"Error exportando la familia: {ex.Message}", "Error");
+                        System.Windows.MessageBox.Show($"Error al eliminar la familia: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
             }

@@ -529,19 +529,59 @@ namespace RevitToSupabasePlugin
 
                                 if (item.HasDovela1 || item.HasDovela2)
                                 {
-                                    SetInstanceParameterOnly(inst, new[] { "Dovela_Width", "Dovela Width", "DovelaWidth", "Width Dovela", "WidthDovela", "Ancho Dovela", "AnchoDovela", "Dovela_Width (default)", "Pega Width", "Pega_Width", "PegaWidth", "Thickness", "Thickness (default)" }, dovelaWidthFt);
-                                    SetInstanceParameterOnly(inst, new[] { "Dovela_Depth", "Dovela Depth", "DovelaDepth", "Depth Dovela", "DepthDovela", "Largo Dovela", "LargoDovela", "Dovela_Depth (default)" }, dovelaDepthFt);
-                                    SetInstanceParameterOnly(inst, new[] { "Dovela_Start_Depth", "Dovela Start Depth", "DovelaStartDepth", "Start Depth Dovela", "StartDepthDovela", "Inicio Dovela", "InicioDovela", "Dovela_Start_Depth (default)" }, dovelaStartDepthFt);
+                                    SetInstanceParameterOnly(inst, new[] { "Dovela_Width", "Dovela Width", "DovelaWidth", "Width Dovela", "WidthDovela", "Ancho Dovela", "AnchoDovela", "Dovela_Width (default)", "Dobela_Width", "Dobela Width" }, dovelaWidthFt);
+                                    
+                                    // Cálculo exacto de Dobela_Depth y Dobela_Offset_Start (D = depth, T = thickness)
+                                    double brickDepthParam = itemLength; // Largo/Depth del ladrillo en pies
+                                    double thicknessParam = 0;
 
-                                    SetInstanceParameterOnly(inst, new[] { "Cut Dobela 1", "CutDobela1", "Cut Dobela1", "Cut Dobela 1 (default)", "Dovela 1", "Dovela1" }, item.HasDovela1 ? 1 : 0);
-                                    SetInstanceParameterOnly(inst, new[] { "Cut Dobela 2", "CutDobela2", "Cut Dobela2", "Cut Dobela 2 (default)", "Dovela 2", "Dovela2" }, item.HasDovela2 ? 1 : 0);
-                                    SetInstanceParameterOnly(inst, new[] { "Cut Dobela", "CutDobela", "Cut Dobela (default)", "Dovela" }, 1);
+                                    Parameter? pThick = inst.Symbol?.LookupParameter("Thickness") ?? inst.LookupParameter("Thickness");
+                                    if (pThick != null && pThick.AsDouble() > 0)
+                                    {
+                                        thicknessParam = pThick.AsDouble();
+                                    }
+                                    else
+                                    {
+                                        thicknessParam = (window.DovelaWidthCm > 0 ? window.DovelaWidthCm : 1.5) / 30.48;
+                                    }
+
+                                    // Dobela_Depth es constante para ambas mitades: (Depth - 3 * Thickness) / 2
+                                    dovelaDepthFt = (brickDepthParam - (thicknessParam * 3.0)) / 2.0;
+                                    if (dovelaDepthFt <= 0) dovelaDepthFt = (brickDepthParam / 2.0) - thicknessParam;
+
+                                    double offsetStartFt = thicknessParam;
+
+                                    if (item.HasDovela1 && !item.HasDovela2)
+                                    {
+                                        // Mitad Izquierda únicamente: Start = T
+                                        offsetStartFt = thicknessParam;
+                                    }
+                                    else if (!item.HasDovela1 && item.HasDovela2)
+                                    {
+                                        // Mitad Derecha únicamente: Start = (Depth / 2) + (Thickness / 2)
+                                        offsetStartFt = (brickDepthParam / 2.0) + (thicknessParam / 2.0);
+                                    }
+                                    else
+                                    {
+                                        // Ambas Mitades: Start = T
+                                        offsetStartFt = thicknessParam;
+                                    }
+
+                                    // Protección estricta de límites
+                                    if (offsetStartFt < 0.001) offsetStartFt = thicknessParam > 0 ? thicknessParam : 0.01;
+
+                                    SetInstanceParameterOnly(inst, new[] { "Dovela_Depth", "Dovela Depth", "DovelaDepth", "Depth Dovela", "DepthDovela", "Largo Dovela", "LargoDovela", "Dovela_Depth (default)", "Dobela_Depth", "Dobela Depth" }, dovelaDepthFt);
+                                    SetInstanceParameterOnly(inst, new[] { "Dobela_Offset_Start", "Dobela Offset Start", "DobelaOffsetStart", "Dovela_Offset_Start", "Dovela Offset Start", "DovelaOffsetStart", "Dovela_Start_Depth", "Dovela Start Depth", "DovelaStartDepth", "Start Depth Dovela", "StartDepthDovela", "Inicio Dovela", "InicioDovela", "Dovela_Start_Depth (default)" }, offsetStartFt);
+
+                                    SetInstanceParameterOnly(inst, new[] { "Cut Dobela 1", "CutDobela1", "Cut Dobela1", "Cut Dobela 1 (default)", "Cut Dovela 1", "CutDovela1", "Dovela 1", "Dovela1", "Dobela 1", "Dobela1" }, item.HasDovela1 ? 1 : 0);
+                                    SetInstanceParameterOnly(inst, new[] { "Cut Dobela 2", "CutDobela2", "Cut Dobela2", "Cut Dobela 2 (default)", "Cut Dovela 2", "CutDovela2", "Dovela 2", "Dovela2", "Dobela 2", "Dobela2" }, item.HasDovela2 ? 1 : 0);
+                                    SetInstanceParameterOnly(inst, new[] { "Cut Dobela", "CutDobela", "Cut Dobela (default)", "CutDovela", "Cut Dovela", "Dovela", "Dobela" }, 1);
                                 }
                                 else
                                 {
-                                    SetInstanceParameterOnly(inst, new[] { "Cut Dobela 1", "CutDobela1", "Cut Dobela1", "Cut Dobela 1 (default)", "Dovela 1", "Dovela1" }, 0);
-                                    SetInstanceParameterOnly(inst, new[] { "Cut Dobela 2", "CutDobela2", "Cut Dobela2", "Cut Dobela 2 (default)", "Dovela 2", "Dovela2" }, 0);
-                                    SetInstanceParameterOnly(inst, new[] { "Cut Dobela", "CutDobela", "Cut Dobela (default)", "Dovela" }, 0);
+                                    SetInstanceParameterOnly(inst, new[] { "Cut Dobela 1", "CutDobela1", "Cut Dobela1", "Cut Dobela 1 (default)", "Cut Dovela 1", "CutDovela1", "Dovela 1", "Dovela1", "Dobela 1", "Dobela1" }, 0);
+                                    SetInstanceParameterOnly(inst, new[] { "Cut Dobela 2", "CutDobela2", "Cut Dobela2", "Cut Dobela 2 (default)", "Cut Dovela 2", "CutDovela2", "Dovela 2", "Dovela2", "Dobela 2", "Dobela2" }, 0);
+                                    SetInstanceParameterOnly(inst, new[] { "Cut Dobela", "CutDobela", "Cut Dobela (default)", "CutDovela", "Cut Dovela", "Dovela", "Dobela" }, 0);
                                 }
 
                                 // Aplicar Pega (si la familia aún tiene el parámetro)
