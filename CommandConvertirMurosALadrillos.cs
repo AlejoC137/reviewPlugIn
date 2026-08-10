@@ -330,6 +330,31 @@ namespace RevitToSupabasePlugin
 
                         List<BrickLayoutItem> wallLayoutItems = GenerateLayoutForWall(totalLength, totalHeight, brick, pattern, window.PegaCm, window.VerPega);
 
+                        // Sincronizar configuraciones interactivas del usuario (Canchado, Dovelas, etc.) desde la ventana
+                        if (window.LayoutItems != null && window.LayoutItems.Count > 0)
+                        {
+                            foreach (var item in wallLayoutItems)
+                            {
+                                var match = window.LayoutItems.FirstOrDefault(w => w.ZIndex == item.ZIndex && w.XIndex == item.XIndex);
+                                if (match == null)
+                                {
+                                    match = window.LayoutItems.FirstOrDefault(w => Math.Abs(w.PosZ_Ft - item.PosZ_Ft) < 0.05 && Math.Abs(w.PosX_Ft - item.PosX_Ft) < 0.05);
+                                }
+
+                                if (match != null)
+                                {
+                                    item.IsCanchado = match.IsCanchado;
+                                    item.HasDovela1 = match.HasDovela1;
+                                    item.HasDovela2 = match.HasDovela2;
+                                    item.CutLeft_Ft = match.CutLeft_Ft;
+                                    item.CutRight_Ft = match.CutRight_Ft;
+                                    item.CutTop_Ft = match.CutTop_Ft;
+                                    if (match.Length_Ft > 0) item.Length_Ft = match.Length_Ft;
+                                    if (match.Height_Ft > 0) item.Height_Ft = match.Height_Ft;
+                                }
+                            }
+                        }
+
                         // Instanciar ladrillos por hilada aplicando alternancia de traba en esquinas L y T
                         foreach (var item in wallLayoutItems)
                         {
@@ -385,18 +410,20 @@ namespace RevitToSupabasePlugin
                                 }
                                 else if (node.NodeType == WallNodeType.T_Junction)
                                 {
-                                    if (!isWallA) // Muro Secundario (Pierna de la T)
+                                    bool isMainWall = (node.WallA.Id == wall.Id);
+
+                                    if (!isMainWall)
                                     {
                                         int myEndIndex = node.EndIndexB;
                                         if (myEndIndex == 0 && itemPosX < brickLFt)
                                         {
-                                            if (isOddRow) // Hilada Impar: Enjarje penetrante dentro del Muro Principal
+                                            if (isOddRow)
                                             {
                                                 itemPosX -= (otherWidth / 2.0);
                                                 itemLength += (otherWidth / 2.0);
                                                 brickRole = WallIntersectionRole.TieKey;
                                             }
-                                            else // Hilada Par: Muere de tope (a testa) contra la cara del Muro Principal
+                                            else
                                             {
                                                 itemPosX += (otherWidth / 2.0);
                                                 itemLength -= (otherWidth / 2.0);
@@ -405,26 +432,26 @@ namespace RevitToSupabasePlugin
                                         }
                                         else if (myEndIndex == 1 && itemPosX + itemLength > totalLength - brickLFt)
                                         {
-                                            if (isOddRow) // Hilada Impar: Enjarje penetrante
+                                            if (isOddRow)
                                             {
                                                 itemLength += (otherWidth / 2.0);
                                                 brickRole = WallIntersectionRole.TieKey;
                                             }
-                                            else // Hilada Par: Muere a testa
+                                            else
                                             {
                                                 itemLength -= (otherWidth / 2.0);
                                                 brickRole = WallIntersectionRole.CornerAbutment;
                                             }
                                         }
                                     }
-                                    else // Muro Principal (Longitudinal)
+                                    else
                                     {
                                         double nodeDistOnMain = (node.Point - startPoint).DotProduct(dir);
                                         double secWidth = node.WallB.Width;
                                         double gapStart = nodeDistOnMain - (secWidth / 2.0);
                                         double gapEnd = nodeDistOnMain + (secWidth / 2.0);
 
-                                        if (isOddRow) // Hilada Impar: Abrir ventana de enjarje para el Muro Secundario
+                                        if (isOddRow)
                                         {
                                             if (itemPosX >= gapStart - 0.001 && itemPosX + itemLength <= gapEnd + 0.001)
                                             {
@@ -446,7 +473,7 @@ namespace RevitToSupabasePlugin
                                 }
                             }
 
-                            if (skipBrick || itemLength <= 0.01) continue;
+                            if (skipBrick) continue;
 
                             var placedItem = new BrickLayoutItem
                             {
@@ -490,10 +517,14 @@ namespace RevitToSupabasePlugin
 
                                 if (item.IsCanchado)
                                 {
-                                    SetInstanceParameterOnly(inst, new[] { "Cut Cancha", "CutCancha", "Cut Cancha (default)", "Cancha", "Canchado" }, 1);
-                                    SetInstanceParameterOnly(inst, new[] { "Cancha_Start_Height", "Cancha Start Height", "CanchaStartHeight", "Start Height Cancha", "StartHeightCancha", "Cancha_Start_Height (default)" }, canchaStartHFt);
+                                    SetInstanceParameterOnly(inst, new[] { "Cut Cancha", "CutCancha", "Cut Cancha (default)", "Cancha", "Canchado", "CanchaCut", "Cut_Cancha" }, 1);
+                                    SetInstanceParameterOnly(inst, new[] { "Cancha_Start_Height", "Cancha Start Height", "CanchaStartHeight", "Start Height Cancha", "StartHeightCancha", "Cancha_Start_Height (default)", "Inicio Cancha", "InicioCancha" }, canchaStartHFt);
                                     SetInstanceParameterOnly(inst, new[] { "Cancha Height", "CanchaHeight", "Alto Cancha", "AltoCancha", "Height Cancha", "Cancha_Height", "Cancha Height (default)" }, canchaHFt);
                                     SetInstanceParameterOnly(inst, new[] { "Cancha Depth", "CanchaDepth", "Profundidad Cancha", "ProfundidadCancha", "Cancha_Depth", "Cancha Depth (default)" }, canchaDepthFt);
+                                }
+                                else
+                                {
+                                    SetInstanceParameterOnly(inst, new[] { "Cut Cancha", "CutCancha", "Cut Cancha (default)", "Cancha", "Canchado", "CanchaCut", "Cut_Cancha" }, 0);
                                 }
 
                                 if (item.HasDovela1 || item.HasDovela2)

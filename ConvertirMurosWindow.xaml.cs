@@ -285,44 +285,51 @@ namespace RevitToSupabasePlugin
                 modelGroup.Children.Clear();
                 _brickModels.Clear();
 
-                modelGroup.Children.Add(new AmbientLight(System.Windows.Media.Color.FromRgb(100, 100, 100)));
-                modelGroup.Children.Add(new DirectionalLight(System.Windows.Media.Colors.White, new Vector3D(-1, -1, -1)));
-                modelGroup.Children.Add(new DirectionalLight(System.Windows.Media.Color.FromRgb(80, 80, 80), new Vector3D(1, 1, 1)));
+                // Iluminación de estudio 3D con luces ambiental, principal y de relleno
+                modelGroup.Children.Add(new AmbientLight(System.Windows.Media.Color.FromRgb(120, 120, 130)));
+                modelGroup.Children.Add(new DirectionalLight(System.Windows.Media.Color.FromRgb(240, 240, 248), new Vector3D(-1, -2, -1.5)));
+                modelGroup.Children.Add(new DirectionalLight(System.Windows.Media.Color.FromRgb(140, 150, 170), new Vector3D(1, 1, 1)));
 
                 bool verPega3D = chkVerPega.IsChecked == true;
                 double pegaThickFt = (ParseDoubleSafe(txtPega.Text) > 0 ? ParseDoubleSafe(txtPega.Text) : 1.5) / 30.48;
 
                 foreach (var item in LayoutItems)
                 {
+                    // Ladrillos canchados destacados en Ámbar/Dorado cálido, Estándar en terracota cerámico
                     System.Windows.Media.Color brickColor = item.IsCanchado 
-                        ? System.Windows.Media.Color.FromRgb(180, 100, 50) 
-                        : System.Windows.Media.Color.FromRgb(221, 107, 32);
+                        ? System.Windows.Media.Color.FromRgb(245, 158, 11)  // Vibrant Amber / Gold
+                        : System.Windows.Media.Color.FromRgb(217, 107, 39);  // Terracotta Orange
+
+                    System.Windows.Media.Color wireColor = item.IsCanchado
+                        ? System.Windows.Media.Color.FromRgb(251, 191, 36)  // Bright Gold Wireframe
+                        : System.Windows.Media.Color.FromRgb(30, 41, 59);    // Slate Dark Wireframe
 
                     double depthFt = (SelectedBrick?.WidthCm ?? 11.5) / 30.48;
 
-                    // El cubo se crea centrado en 0,0,0, así que lo trasladamos a su posición
+                    // Sólido del ladrillo con sombreado de caras nítido y especularidad
                     GeometryModel3D brickModel = CreateBoxModel(item.Length_Ft, depthFt, item.Height_Ft, brickColor, 1.0);
                     
                     Transform3DGroup t = new Transform3DGroup();
-                    // Posicionamos usando el centro del ladrillo
                     double cx = item.PosX_Ft + (item.Length_Ft / 2.0);
-                    double cy = 0; // profundidad
+                    double cy = 0;
                     double cz = item.PosZ_Ft + (item.Height_Ft / 2.0);
                     t.Children.Add(new TranslateTransform3D(cx, cy, cz));
                     
                     brickModel.Transform = t;
                     modelGroup.Children.Add(brickModel);
                     
-                    Model3DGroup edges = CreateWireframeModel(item.Length_Ft, depthFt, item.Height_Ft, System.Windows.Media.Colors.LightBlue, 0.02);
+                    // Bordes finos y definidos (grosor 0.003 ft ~ 1mm)
+                    double wireThickness = item.IsCanchado ? 0.004 : 0.003;
+                    Model3DGroup edges = CreateWireframeModel(item.Length_Ft, depthFt, item.Height_Ft, wireColor, wireThickness);
                     edges.Transform = t;
                     modelGroup.Children.Add(edges);
 
                     _brickModels[brickModel] = item;
 
-                    // Dibujar pega si aplica
+                    // Dibujar pega si aplica (semi-transparente elegante)
                     if (verPega3D)
                     {
-                        GeometryModel3D pegaModel = CreateBoxModel(item.Length_Ft + pegaThickFt, depthFt + pegaThickFt, item.Height_Ft + pegaThickFt, System.Windows.Media.Colors.White, 0.3);
+                        GeometryModel3D pegaModel = CreateBoxModel(item.Length_Ft + pegaThickFt, depthFt + pegaThickFt, item.Height_Ft + pegaThickFt, System.Windows.Media.Color.FromRgb(226, 232, 240), 0.25);
                         Transform3DGroup pt = new Transform3DGroup();
                         pt.Children.Add(new TranslateTransform3D(cx + pegaThickFt/2, cy + pegaThickFt/2, cz + pegaThickFt/2));
                         pegaModel.Transform = pt;
@@ -333,22 +340,22 @@ namespace RevitToSupabasePlugin
                     double dovelaW = (DovelaWidthCm > 0 ? DovelaWidthCm : 2.5) / 30.48;
                     double dovelaL = (DovelaDepthCm > 0 ? DovelaDepthCm : 12.5) / 30.48;
 
-                    // Dovela Mitad 1 (Izquierda / Celda 1)
+                    // Dovela Mitad 1 (Izquierda / Celda 1) - Azul cobalto destacado
                     if (item.HasDovela1)
                     {
                         double c1 = item.PosX_Ft + startDepthFt;
-                        GeometryModel3D dovela1Model = CreateBoxModel(dovelaL, dovelaW, item.Height_Ft + 0.05, System.Windows.Media.Colors.DarkBlue, 1.0);
+                        GeometryModel3D dovela1Model = CreateBoxModel(dovelaL, dovelaW, item.Height_Ft + 0.05, System.Windows.Media.Color.FromRgb(37, 99, 235), 1.0);
                         Transform3DGroup dt1 = new Transform3DGroup();
                         dt1.Children.Add(new TranslateTransform3D(c1, cy, cz));
                         dovela1Model.Transform = dt1;
                         modelGroup.Children.Add(dovela1Model);
                     }
 
-                    // Dovela Mitad 2 (Derecha / Celda 2)
+                    // Dovela Mitad 2 (Derecha / Celda 2) - Azul cobalto destacado
                     if (item.HasDovela2)
                     {
                         double c2 = item.PosX_Ft + item.Length_Ft - startDepthFt;
-                        GeometryModel3D dovela2Model = CreateBoxModel(dovelaL, dovelaW, item.Height_Ft + 0.05, System.Windows.Media.Colors.DarkBlue, 1.0);
+                        GeometryModel3D dovela2Model = CreateBoxModel(dovelaL, dovelaW, item.Height_Ft + 0.05, System.Windows.Media.Color.FromRgb(37, 99, 235), 1.0);
                         Transform3DGroup dt2 = new Transform3DGroup();
                         dt2.Children.Add(new TranslateTransform3D(c2, cy, cz));
                         dovela2Model.Transform = dt2;
@@ -375,29 +382,67 @@ namespace RevitToSupabasePlugin
             double y = w / 2.0;
             double z = h / 2.0;
 
-            mesh.Positions.Add(new Point3D(-x, -y, -z)); // 0
-            mesh.Positions.Add(new Point3D( x, -y, -z)); // 1
-            mesh.Positions.Add(new Point3D( x,  y, -z)); // 2
-            mesh.Positions.Add(new Point3D(-x,  y, -z)); // 3
-            mesh.Positions.Add(new Point3D(-x, -y,  z)); // 4
-            mesh.Positions.Add(new Point3D( x, -y,  z)); // 5
-            mesh.Positions.Add(new Point3D( x,  y,  z)); // 6
-            mesh.Positions.Add(new Point3D(-x,  y,  z)); // 7
+            // 6 Caras con 4 vértices cada una para asegurar normales de cara planas e iluminadas limpiamente
+            // Cara Frontal (-Y)
+            mesh.Positions.Add(new Point3D(-x, -y, -z));
+            mesh.Positions.Add(new Point3D( x, -y, -z));
+            mesh.Positions.Add(new Point3D( x, -y,  z));
+            mesh.Positions.Add(new Point3D(-x, -y,  z));
+            for (int i = 0; i < 4; i++) mesh.Normals.Add(new Vector3D(0, -1, 0));
 
-            int[] indices = new int[]
+            // Cara Trasera (+Y)
+            mesh.Positions.Add(new Point3D( x,  y, -z));
+            mesh.Positions.Add(new Point3D(-x,  y, -z));
+            mesh.Positions.Add(new Point3D(-x,  y,  z));
+            mesh.Positions.Add(new Point3D( x,  y,  z));
+            for (int i = 0; i < 4; i++) mesh.Normals.Add(new Vector3D(0, 1, 0));
+
+            // Cara Superior (+Z)
+            mesh.Positions.Add(new Point3D(-x, -y,  z));
+            mesh.Positions.Add(new Point3D( x, -y,  z));
+            mesh.Positions.Add(new Point3D( x,  y,  z));
+            mesh.Positions.Add(new Point3D(-x,  y,  z));
+            for (int i = 0; i < 4; i++) mesh.Normals.Add(new Vector3D(0, 0, 1));
+
+            // Cara Inferior (-Z)
+            mesh.Positions.Add(new Point3D(-x,  y, -z));
+            mesh.Positions.Add(new Point3D( x,  y, -z));
+            mesh.Positions.Add(new Point3D( x, -y, -z));
+            mesh.Positions.Add(new Point3D(-x, -y, -z));
+            for (int i = 0; i < 4; i++) mesh.Normals.Add(new Vector3D(0, 0, -1));
+
+            // Cara Izquierda (-X)
+            mesh.Positions.Add(new Point3D(-x,  y, -z));
+            mesh.Positions.Add(new Point3D(-x, -y, -z));
+            mesh.Positions.Add(new Point3D(-x, -y,  z));
+            mesh.Positions.Add(new Point3D(-x,  y,  z));
+            for (int i = 0; i < 4; i++) mesh.Normals.Add(new Vector3D(-1, 0, 0));
+
+            // Cara Derecha (+X)
+            mesh.Positions.Add(new Point3D( x, -y, -z));
+            mesh.Positions.Add(new Point3D( x,  y, -z));
+            mesh.Positions.Add(new Point3D( x,  y,  z));
+            mesh.Positions.Add(new Point3D( x, -y,  z));
+            for (int i = 0; i < 4; i++) mesh.Normals.Add(new Vector3D(1, 0, 0));
+
+            for (int face = 0; face < 6; face++)
             {
-                0, 1, 2,  0, 2, 3, // Bottom
-                4, 6, 5,  4, 7, 6, // Top
-                0, 5, 1,  0, 4, 5, // Front
-                3, 2, 6,  3, 6, 7, // Back
-                0, 3, 7,  0, 7, 4, // Left
-                1, 5, 6,  1, 6, 2  // Right
-            };
+                int baseIdx = face * 4;
+                mesh.TriangleIndices.Add(baseIdx);
+                mesh.TriangleIndices.Add(baseIdx + 1);
+                mesh.TriangleIndices.Add(baseIdx + 2);
 
-            foreach (int i in indices) mesh.TriangleIndices.Add(i);
+                mesh.TriangleIndices.Add(baseIdx);
+                mesh.TriangleIndices.Add(baseIdx + 2);
+                mesh.TriangleIndices.Add(baseIdx + 3);
+            }
 
             SolidColorBrush brush = new SolidColorBrush(color) { Opacity = opacity };
-            return new GeometryModel3D(mesh, new DiffuseMaterial(brush));
+            MaterialGroup matGroup = new MaterialGroup();
+            matGroup.Children.Add(new DiffuseMaterial(brush));
+            matGroup.Children.Add(new SpecularMaterial(new SolidColorBrush(System.Windows.Media.Color.FromArgb(140, 255, 255, 255)), 60));
+
+            return new GeometryModel3D(mesh, matGroup);
         }
 
         private Model3DGroup CreateWireframeModel(double l, double w, double h, System.Windows.Media.Color color, double thickness)
@@ -408,19 +453,19 @@ namespace RevitToSupabasePlugin
             double y = w / 2.0;
             double z = h / 2.0;
 
-            // 4 edges parallel to X
+            // 4 bordes paralelos a X
             edgesGroup.Children.Add(CreateEdge(l, thickness, thickness, 0, y, z, color));
             edgesGroup.Children.Add(CreateEdge(l, thickness, thickness, 0, -y, z, color));
             edgesGroup.Children.Add(CreateEdge(l, thickness, thickness, 0, y, -z, color));
             edgesGroup.Children.Add(CreateEdge(l, thickness, thickness, 0, -y, -z, color));
 
-            // 4 edges parallel to Y
+            // 4 bordes paralelos a Y
             edgesGroup.Children.Add(CreateEdge(thickness, w, thickness, x, 0, z, color));
             edgesGroup.Children.Add(CreateEdge(thickness, w, thickness, -x, 0, z, color));
             edgesGroup.Children.Add(CreateEdge(thickness, w, thickness, x, 0, -z, color));
             edgesGroup.Children.Add(CreateEdge(thickness, w, thickness, -x, 0, -z, color));
 
-            // 4 edges parallel to Z
+            // 4 bordes paralelos a Z
             edgesGroup.Children.Add(CreateEdge(thickness, thickness, h, x, y, 0, color));
             edgesGroup.Children.Add(CreateEdge(thickness, thickness, h, -x, y, 0, color));
             edgesGroup.Children.Add(CreateEdge(thickness, thickness, h, x, -y, 0, color));
