@@ -207,6 +207,7 @@ namespace RevitToSupabasePlugin
 
                 AddOrUpdateAlbaBtn("cmdGenLadrillos", "🏭 Generar Familias\nde Ladrillos", "CommandGenerarFamiliasLadrillos");
                 AddOrUpdateAlbaBtn("cmdConvMuros", "🧱 Convertir Muros\na Ladrillos", "CommandConvertirMurosALadrillos");
+                AddOrUpdateAlbaBtn("cmdCrearTablas", "📊 Crear Tablas\nde Cómputos", "CommandCrearTablasAlbanileria");
             }
 
             // --- Panel y Botón para Ayuda y Documentación ---

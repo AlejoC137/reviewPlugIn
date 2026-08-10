@@ -46,7 +46,9 @@ namespace RevitToSupabasePlugin
         public double CutRight_Ft { get; set; }
         public double CutTop_Ft { get; set; }
         
-        public bool HasDovela { get; set; }
+        public bool HasDovela1 { get; set; } // Dovela en la Mitad 1 (Izquierda / Celda 1)
+        public bool HasDovela2 { get; set; } // Dovela en la Mitad 2 (Derecha / Celda 2)
+        public bool HasDovela => HasDovela1 || HasDovela2;
         public bool IsCanchado { get; set; }
 
         public WallIntersectionRole Role { get; set; } = WallIntersectionRole.Standard;
@@ -59,7 +61,10 @@ namespace RevitToSupabasePlugin
         public double PegaCm { get; private set; } = 1.5;
         public double ReviteCm { get; private set; } = 0;
         public double DesfaseCm { get; private set; } = 0;
-        public double DovelaDiamCm { get; private set; } = 5.0;
+        public double DovelaWidthCm { get; private set; } = 2.5;
+        public double DovelaDepthCm { get; private set; } = 12.5;
+        public double DovelaStartDepthCm { get; private set; } = 17.5;
+        public double CanchaStartHeightCm { get; private set; } = 0.0;
         public double CanchaAltoCm { get; private set; } = 12.0;
         public double CanchaProfCm { get; private set; } = 8.0;
         public string ReviteTipo { get; private set; } = "Plano";
@@ -73,6 +78,7 @@ namespace RevitToSupabasePlugin
         
         private double wallLengthFt;
         private double wallHeightFt;
+
         private Autodesk.Revit.DB.Document _doc;
         
         // 3D Camera variables
@@ -86,14 +92,25 @@ namespace RevitToSupabasePlugin
         {
             InitializeComponent();
             _doc = doc;
-            txtSummary.Text = $"Has seleccionado {wallCount} muro(s) para convertir.";
+
             wallLengthFt = wallLenFt;
             wallHeightFt = wallHgtFt;
-            
-            txtWallDims.Text = $"Dimensiones base: {(wallLenFt * 0.3048):F2}m x {(wallHgtFt * 0.3048):F2}m";
-            
+
+            if (txtSummary != null) txtSummary.Text = $"Has seleccionado {wallCount} muro(s) para convertir.";
+            if (txtWallDims != null) txtWallDims.Text = $"Dimensiones base: {(wallLenFt * 0.3048):F2}m x {(wallHgtFt * 0.3048):F2}m";
+
             LoadBricksFromList(availableBricks);
             LoadMaterials();
+
+            this.Loaded += (s, e) =>
+            {
+                RebuildLayout();
+            };
+        }
+
+        private void RebuildLayout()
+        {
+            GenerateBaseLayout();
         }
 
         private void LoadMaterials()
@@ -173,11 +190,15 @@ namespace RevitToSupabasePlugin
                 double stepZ = brickHFt + pegaFt;
 
                 int zIndex = 0;
-                double currentZ = 0;
+                bool hasPega = (chkVerPega?.IsChecked == true && pegaFt > 0);
+
+                double currentZ = hasPega ? pegaFt : 0;
+                double startXOffset = hasPega ? pegaFt : 0;
+                double maxWallX = hasPega ? (wallLengthFt - pegaFt) : wallLengthFt;
 
                 while (currentZ < wallHeightFt)
                 {
-                    double currentX = 0;
+                    double currentX = startXOffset;
                     int xIndex = 0;
 
                     double shift = 0;
@@ -206,13 +227,13 @@ namespace RevitToSupabasePlugin
                     {
                         double shiftBrickLen = shift - pegaFt;
                         if (shiftBrickLen > 0)
-                            AddBrickToLayout(0, currentZ, shiftBrickLen, brickHFt, zIndex, -1, true, false, (currentZ + brickHFt > wallHeightFt));
-                        currentX = shift;
+                            AddBrickToLayout(startXOffset, currentZ, shiftBrickLen, brickHFt, zIndex, -1, true, false, (currentZ + brickHFt > wallHeightFt));
+                        currentX = startXOffset + shift;
                     }
 
-                    while (currentX < wallLengthFt)
+                    while (currentX < maxWallX)
                     {
-                        double remainingX = wallLengthFt - currentX;
+                        double remainingX = maxWallX - currentX;
                         double len = remainingX < brickLFt ? remainingX : brickLFt;
                         
                         bool isCutR = remainingX < brickLFt;
@@ -245,7 +266,8 @@ namespace RevitToSupabasePlugin
                 CutTop_Ft = cutT ? (wallHeightFt - zFt) : 0,
                 ZIndex = zIdx,
                 XIndex = xIdx,
-                HasDovela = false,
+                HasDovela1 = false,
+                HasDovela2 = false,
                 IsCanchado = false
             };
             LayoutItems.Add(item);
@@ -307,14 +329,30 @@ namespace RevitToSupabasePlugin
                         modelGroup.Children.Add(pegaModel);
                     }
 
-                    // Dovela (marcador cilíndrico / hueco)
-                    if (item.HasDovela)
+                    double startDepthFt = (DovelaStartDepthCm > 0 ? DovelaStartDepthCm : 17.5) / 30.48;
+                    double dovelaW = (DovelaWidthCm > 0 ? DovelaWidthCm : 2.5) / 30.48;
+                    double dovelaL = (DovelaDepthCm > 0 ? DovelaDepthCm : 12.5) / 30.48;
+
+                    // Dovela Mitad 1 (Izquierda / Celda 1)
+                    if (item.HasDovela1)
                     {
-                        GeometryModel3D dovelaModel = CreateBoxModel(item.Length_Ft * 0.3, depthFt * 0.4, item.Height_Ft + 0.1, System.Windows.Media.Colors.DarkBlue, 1.0);
-                        Transform3DGroup dt = new Transform3DGroup();
-                        dt.Children.Add(new TranslateTransform3D(cx, cy, cz));
-                        dovelaModel.Transform = dt;
-                        modelGroup.Children.Add(dovelaModel);
+                        double c1 = item.PosX_Ft + startDepthFt;
+                        GeometryModel3D dovela1Model = CreateBoxModel(dovelaL, dovelaW, item.Height_Ft + 0.05, System.Windows.Media.Colors.DarkBlue, 1.0);
+                        Transform3DGroup dt1 = new Transform3DGroup();
+                        dt1.Children.Add(new TranslateTransform3D(c1, cy, cz));
+                        dovela1Model.Transform = dt1;
+                        modelGroup.Children.Add(dovela1Model);
+                    }
+
+                    // Dovela Mitad 2 (Derecha / Celda 2)
+                    if (item.HasDovela2)
+                    {
+                        double c2 = item.PosX_Ft + item.Length_Ft - startDepthFt;
+                        GeometryModel3D dovela2Model = CreateBoxModel(dovelaL, dovelaW, item.Height_Ft + 0.05, System.Windows.Media.Colors.DarkBlue, 1.0);
+                        Transform3DGroup dt2 = new Transform3DGroup();
+                        dt2.Children.Add(new TranslateTransform3D(c2, cy, cz));
+                        dovela2Model.Transform = dt2;
+                        modelGroup.Children.Add(dovela2Model);
                     }
                 }
 
@@ -445,7 +483,7 @@ namespace RevitToSupabasePlugin
             {
                 if (meshResult.ModelHit is GeometryModel3D hitModel && _brickModels.ContainsKey(hitModel))
                 {
-                    ApplyToolToBrick(_brickModels[hitModel]);
+                    ApplyToolToBrick(_brickModels[hitModel], meshResult.PointHit);
                     return HitTestResultBehavior.Stop;
                 }
             }
@@ -480,13 +518,35 @@ namespace RevitToSupabasePlugin
             UpdateCamera();
         }
 
-        private void ApplyToolToBrick(BrickLayoutItem item)
+        private void ApplyToolToBrick(BrickLayoutItem item, Point3D? hitPoint = null)
         {
             if (toolSelect.IsChecked == true) return;
 
             if (toolDovela.IsChecked == true)
             {
-                item.HasDovela = !item.HasDovela;
+                double startDepthFt = (DovelaStartDepthCm > 0 ? DovelaStartDepthCm : 17.5) / 30.48;
+                double c1 = item.PosX_Ft + startDepthFt;
+                double c2 = item.PosX_Ft + item.Length_Ft - startDepthFt;
+                double midPoint = (c1 + c2) / 2.0;
+
+                if (hitPoint.HasValue)
+                {
+                    if (hitPoint.Value.X < midPoint)
+                    {
+                        item.HasDovela1 = !item.HasDovela1;
+                    }
+                    else
+                    {
+                        item.HasDovela2 = !item.HasDovela2;
+                    }
+                }
+                else
+                {
+                    if (!item.HasDovela1 && !item.HasDovela2) { item.HasDovela1 = true; }
+                    else if (item.HasDovela1 && !item.HasDovela2) { item.HasDovela1 = false; item.HasDovela2 = true; }
+                    else if (!item.HasDovela1 && item.HasDovela2) { item.HasDovela1 = true; }
+                    else { item.HasDovela1 = false; item.HasDovela2 = false; }
+                }
             }
             else if (toolCanchado.IsChecked == true)
             {
@@ -518,8 +578,11 @@ namespace RevitToSupabasePlugin
                 
                 PegaCm = ParseDoubleSafe(txtPega.Text);
                 ReviteCm = ParseDoubleSafe(txtRevite.Text);
-                DesfaseCm = ParseDoubleSafe(txtPegaOffset.Text);
-                DovelaDiamCm = ParseDoubleSafe(txtDovelaDiam.Text);
+                DesfaseCm = 0;
+                DovelaWidthCm = ParseDoubleSafe(txtDovelaWidth.Text);
+                DovelaDepthCm = ParseDoubleSafe(txtDovelaDepth.Text);
+                DovelaStartDepthCm = ParseDoubleSafe(txtDovelaStartDepth.Text);
+                CanchaStartHeightCm = ParseDoubleSafe(txtCanchaStartHeight.Text);
                 CanchaAltoCm = ParseDoubleSafe(txtCanchaAlto.Text);
                 CanchaProfCm = ParseDoubleSafe(txtCanchaProf.Text);
                 

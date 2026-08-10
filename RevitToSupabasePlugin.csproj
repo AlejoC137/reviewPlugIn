@@ -7,6 +7,12 @@
     <Nullable>enable</Nullable>
     <Platforms>x64</Platforms>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <AssemblyTitle>ARCA REVIEW</AssemblyTitle>
+    <Company>ARCA REVIEW</Company>
+    <Product>ARCA REVIEW</Product>
+    <Authors>ALEJANDRO</Authors>
+    <Copyright>Copyright © 2026 ARCA REVIEW - ALEJANDRO</Copyright>
+    <Description>ARCA REVIEW Plugin para Revit 2027</Description>
   </PropertyGroup>
 
   <ItemGroup>

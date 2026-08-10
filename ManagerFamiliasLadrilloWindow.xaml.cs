@@ -38,10 +38,14 @@ namespace RevitToSupabasePlugin
 
         private List<Autodesk.Revit.DB.Material> _materials = new List<Autodesk.Revit.DB.Material>();
 
+        private List<FamilySymbol> _loadedPegas = new List<FamilySymbol>();
+
         private FamilySymbol GetSelectedSymbol()
         {
-            if (lstBricks.SelectedItem is BrickTypeItem item) return item.Symbol;
-            if (lstBricks.SelectedItem is FamilySymbol symbol) return symbol;
+            if (lstBricks?.SelectedItem is BrickTypeItem item) return item.Symbol;
+            if (lstBricks?.SelectedItem is FamilySymbol symbol) return symbol;
+            if (lstPegas?.SelectedItem is BrickTypeItem pegaItem) return pegaItem.Symbol;
+            if (lstPegas?.SelectedItem is FamilySymbol pegaSymbol) return pegaSymbol;
             return null;
         }
 
@@ -58,6 +62,33 @@ namespace RevitToSupabasePlugin
                 cmbMaterial.ItemsSource = _materials;
             }
             catch { }
+        }
+
+        private void LoadPegasFromDocument()
+        {
+            try
+            {
+                if (_doc == null) return;
+
+                FilteredElementCollector collector = new FilteredElementCollector(_doc);
+                var pegas = collector.OfClass(typeof(FamilySymbol))
+                                     .Cast<FamilySymbol>()
+                                     .Where(s => s.Family.Name.IndexOf("Pega", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                 s.Family.Name.IndexOf("Mortero", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                 s.Name.IndexOf("Pega", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                 s.Name.IndexOf("Mortero", StringComparison.OrdinalIgnoreCase) >= 0)
+                                     .OrderBy(s => s.Family.Name)
+                                     .ThenBy(s => s.Name)
+                                     .ToList();
+
+                _loadedPegas = pegas;
+                var displayPegas = pegas.Select(s => new BrickTypeItem(s)).ToList();
+                lstPegas.ItemsSource = displayPegas;
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show("Error cargando familias de pega: " + ex.Message);
+            }
         }
 
         private void LoadBricksFromDocument()
@@ -92,15 +123,35 @@ namespace RevitToSupabasePlugin
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             LoadMaterials();
+            LoadPegasFromDocument();
             UpdatePreview();
+        }
+
+        private void LstPegas_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (lstPegas.SelectedItem != null)
+            {
+                lstBricks.UnselectAll();
+            }
+            OnSymbolSelected();
         }
 
         private void LstBricks_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (lstBricks.SelectedItem != null)
+            {
+                lstPegas.UnselectAll();
+            }
+            OnSymbolSelected();
+        }
+
+        private void OnSymbolSelected()
+        {
             FamilySymbol selectedSymbol = GetSelectedSymbol();
             if (selectedSymbol != null)
             {
-                btnExportBrick.IsEnabled = true;
+                if (btnExportBrick != null) btnExportBrick.IsEnabled = true;
+                if (btnExportPega != null) btnExportPega.IsEnabled = true;
                 btnLocate.IsEnabled = true;
                 btnUpdate.IsEnabled = true;
                 btnEdit.IsEnabled = true;
@@ -112,16 +163,16 @@ namespace RevitToSupabasePlugin
                 txtTypeName.Text = selectedSymbol.Name;
 
                 // Load dimensions (Depth, Width, Height, Thickness) in cm
-                Parameter pDepth = selectedSymbol.LookupParameter("Depth");
+                Parameter pDepth = selectedSymbol.LookupParameter("Depth") ?? selectedSymbol.LookupParameter("Largo");
                 txtDepth.Text = pDepth != null ? (pDepth.AsDouble() * 30.48).ToString("0.0") : "";
 
-                Parameter pWidth = selectedSymbol.LookupParameter("Width");
+                Parameter pWidth = selectedSymbol.LookupParameter("Width") ?? selectedSymbol.LookupParameter("Ancho");
                 txtWidth.Text = pWidth != null ? (pWidth.AsDouble() * 30.48).ToString("0.0") : "";
 
-                Parameter pHeight = selectedSymbol.LookupParameter("Height");
+                Parameter pHeight = selectedSymbol.LookupParameter("Height") ?? selectedSymbol.LookupParameter("Alto");
                 txtHeight.Text = pHeight != null ? (pHeight.AsDouble() * 30.48).ToString("0.0") : "";
 
-                Parameter pThickness = selectedSymbol.LookupParameter("Thickness");
+                Parameter pThickness = selectedSymbol.LookupParameter("Thickness") ?? selectedSymbol.LookupParameter("GrosorPega");
                 txtThickness.Text = pThickness != null ? (pThickness.AsDouble() * 30.48).ToString("0.0") : "";
 
                 // Load properties
@@ -134,7 +185,8 @@ namespace RevitToSupabasePlugin
                 Parameter pManuf = selectedSymbol.get_Parameter(BuiltInParameter.ALL_MODEL_MANUFACTURER);
                 txtManufacturer.Text = pManuf != null ? pManuf.AsString() : "";
 
-                Parameter pMat = selectedSymbol.get_Parameter(BuiltInParameter.STRUCTURAL_MATERIAL_PARAM)
+                Parameter pMat = selectedSymbol.LookupParameter("Mat")
+                               ?? selectedSymbol.get_Parameter(BuiltInParameter.STRUCTURAL_MATERIAL_PARAM)
                                ?? selectedSymbol.LookupParameter("Material")
                                ?? selectedSymbol.LookupParameter("Material Estructural");
                 if (pMat != null && pMat.HasValue)
@@ -151,7 +203,8 @@ namespace RevitToSupabasePlugin
             }
             else
             {
-                btnExportBrick.IsEnabled = false;
+                if (btnExportBrick != null) btnExportBrick.IsEnabled = false;
+                if (btnExportPega != null) btnExportPega.IsEnabled = false;
                 btnLocate.IsEnabled = false;
                 btnUpdate.IsEnabled = false;
                 btnEdit.IsEnabled = false;
@@ -168,7 +221,7 @@ namespace RevitToSupabasePlugin
                 txtManufacturer.Text = "";
                 
                 modelGroup.Children.Clear();
-                lblBrickSize.Text = "Selecciona un ladrillo";
+                lblBrickSize.Text = "Selecciona un elemento";
             }
         }
 
@@ -393,14 +446,25 @@ namespace RevitToSupabasePlugin
                         }
                         
                         LoadBricksFromDocument();
-                        System.Windows.MessageBox.Show("Familia eliminada exitosamente.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
+                        System.Windows.MessageBox.Show($"Familia {selectedSymbol.Family.Name} exportada exitosamente.", "Éxito");
                     }
                     catch (Exception ex)
                     {
-                        System.Windows.MessageBox.Show($"Error al eliminar la familia: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        System.Windows.MessageBox.Show($"Error exportando la familia: {ex.Message}", "Error");
                     }
                 }
             }
+        }
+
+        private void BtnAddPega_Click(object sender, RoutedEventArgs e)
+        {
+            BtnAddBrick_Click(sender, e);
+            LoadPegasFromDocument();
+        }
+
+        private void BtnExportPega_Click(object sender, RoutedEventArgs e)
+        {
+            BtnExportBrick_Click(sender, e);
         }
 
         private void BtnSaveProperties_Click(object sender, RoutedEventArgs e)

@@ -107,32 +107,76 @@
             <ColumnDefinition Width="*" MinWidth="300"/>
         </Grid.ColumnDefinitions>
 
-        <!-- COLUMNA 1: Selección (Ladrillos) -->
+        <!-- COLUMNA 1: Selección (Ladrillos y Pegas) -->
         <Grid Grid.Column="0" Margin="0,0,10,0">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="6"/>
+                <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Margin="0,0,0,15">
-                <TextBlock Text="🧱 Familias de Ladrillo" FontSize="18" FontWeight="Bold">
-                    <TextBlock.Foreground>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                            <GradientStop Color="#38A169" Offset="0.0"/>
-                            <GradientStop Color="#4FD1C5" Offset="1.0"/>
-                        </LinearGradientBrush>
-                    </TextBlock.Foreground>
-                </TextBlock>
-                <TextBlock Text="Selecciona un ladrillo del proyecto" FontSize="11" Foreground="#A0AEC0" Margin="0,2,0,0"/>
-            </StackPanel>
+            <!-- CARD SUPERIOR: Familias de Ladrillo -->
+            <Border Grid.Row="0" Background="#1A202C" CornerRadius="8" Padding="10" BorderBrush="#2D3748" BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-            <ListBox x:Name="lstBricks" Grid.Row="1" SelectionChanged="LstBricks_SelectionChanged" DisplayMemberPath="FullName" Margin="0,0,0,15"/>
+                    <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                        <TextBlock Text="🧱 Familias de Ladrillo" FontSize="14" FontWeight="Bold">
+                            <TextBlock.Foreground>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#38A169" Offset="0.0"/>
+                                    <GradientStop Color="#4FD1C5" Offset="1.0"/>
+                                </LinearGradientBrush>
+                            </TextBlock.Foreground>
+                        </TextBlock>
+                        <TextBlock Text="Ladrillos y bloques del proyecto" FontSize="10" Foreground="#A0AEC0" Margin="0,2,0,0"/>
+                    </StackPanel>
 
-            <StackPanel Grid.Row="2">
-                <Button x:Name="btnAddBrick" Content="➕ Agregar Nuevo Ladrillo" Click="BtnAddBrick_Click" Background="#2B6CB0"/>
-                <Button x:Name="btnExportBrick" Content="📤 Exportar Seleccionado" Click="BtnExportBrick_Click"/>
-            </StackPanel>
+                    <ListBox x:Name="lstBricks" Grid.Row="1" SelectionChanged="LstBricks_SelectionChanged" DisplayMemberPath="FullName" Margin="0,0,0,8"/>
+
+                    <StackPanel Grid.Row="2">
+                        <Button x:Name="btnAddBrick" Content="➕ Agregar Nuevo Ladrillo" Click="BtnAddBrick_Click" Background="#2B6CB0" Margin="0,0,0,4"/>
+                        <Button x:Name="btnExportBrick" Content="📤 Exportar Ladrillo" Click="BtnExportBrick_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- SPLITTER INTERNO -->
+            <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch" Background="#2D3748" Cursor="SizeNS"/>
+
+            <!-- CARD INFERIOR: Familias de Pega (Mortero) -->
+            <Border Grid.Row="2" Background="#1A202C" CornerRadius="8" Padding="10" BorderBrush="#2D3748" BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                        <TextBlock Text="🧈 Familias de Pega (Mortero)" FontSize="14" FontWeight="Bold">
+                            <TextBlock.Foreground>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#DD6B20" Offset="0.0"/>
+                                    <GradientStop Color="#F6AD55" Offset="1.0"/>
+                                </LinearGradientBrush>
+                            </TextBlock.Foreground>
+                        </TextBlock>
+                        <TextBlock Text="Pegas horizontales (PegaH) y verticales (PegaV)" FontSize="10" Foreground="#A0AEC0" Margin="0,2,0,0"/>
+                    </StackPanel>
+
+                    <ListBox x:Name="lstPegas" Grid.Row="1" SelectionChanged="LstPegas_SelectionChanged" DisplayMemberPath="FullName" Margin="0,0,0,8"/>
+
+                    <StackPanel Grid.Row="2">
+                        <Button x:Name="btnAddPega" Content="➕ Agregar Nueva Pega" Click="BtnAddPega_Click" Background="#D69E2E" Margin="0,0,0,4"/>
+                        <Button x:Name="btnExportPega" Content="📤 Exportar Pega" Click="BtnExportPega_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
         </Grid>
 
         <!-- BARRA 1: Modificar Tamaño Columna 1 vs 2 -->

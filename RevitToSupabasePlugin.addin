@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RevitAddIns>
   <AddIn Type="Application">
-    <Name>Review Plugin</Name>
+    <Name>ARCA REVIEW</Name>
     <Assembly>RevitToSupabasePlugin.dll</Assembly>
     <FullClassName>RevitToSupabasePlugin.App</FullClassName>
     <ClientId>A1B2C3D4-E5F6-4A5B-8C9D-E0F1A2B3C4D5</ClientId>
-    <VendorId>ANTIGRAVITY</VendorId>
-    <VendorDescription>Herramientas de Integración BIM</VendorDescription>
+    <VendorId>ARCA</VendorId>
+    <VendorDescription>ARCA REVIEW - ALEJANDRO</VendorDescription>
   </AddIn>
 </RevitAddIns>
