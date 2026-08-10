@@ -568,7 +568,7 @@ namespace RevitToSupabasePlugin
                                         // A1. Pega Perimetral Base Inferior (Sin cancha en PegaH)
                                         if (rowGroups.Count > 0)
                                         {
-                                            PlacePegaJointsWithDovelas(doc, pegaSymbol, wallLevel, adjustedStartPoint, dir, normal, wallAngle, 0, totalLength, 0, pegaFt, depthFt, originalDepth, reviteFt, desfaseFt, window.PegaMaterial, window.PegaCosto, window.PegaDescripcion, false, 0, 0, 0, dovelaXCenters, dovelaRadius, dobelaVoidSymbol, dovelaVoidWidthFt, dovelaVoidLengthFt);
+                                            PlacePegaJointsWithDovelas(doc, pegaSymbol, wallLevel, adjustedStartPoint, dir, extNormal, wallAngle, 0, totalLength, 0, pegaFt, depthFt, originalDepth, reviteFt, desfaseFt, window.PegaMaterial, window.PegaCosto, window.PegaDescripcion, false, 0, 0, 0, dovelaXCenters, dovelaRadius, dobelaVoidSymbol, dovelaVoidWidthFt, dovelaVoidLengthFt);
                                         }
 
                                         // A2. Juntas Horizontales y Verticales por Hilada
