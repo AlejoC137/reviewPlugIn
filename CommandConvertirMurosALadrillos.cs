@@ -639,7 +639,8 @@ namespace RevitToSupabasePlugin
                                         // A1. Pega Perimetral Base Inferior (Sin cancha en PegaH)
                                         if (rowGroups.Count > 0)
                                         {
-                                            PlacePegaJointsWithDovelas(doc, pegaSymbol, wallLevel, adjustedStartPoint, dir, extNormal, wallAngle, 0, totalLength, 0, pegaFt, depthFt, originalDepth, reviteFt, desfaseFt, window.PegaMaterial, window.PegaCosto, window.PegaDescripcion, false, 0, 0, 0, dovelaXCenters, dovelaRadius, dobelaVoidSymbol, dovelaVoidWidthFt, dovelaVoidLengthFt);
+                                            var firstRowItems = rowGroups[0].OrderBy(i => i.PosX_Ft).ToList();
+                                            PlaceHorizontalPegaJointWithDovelaStrips(doc, pegaSymbol, wallLevel, adjustedStartPoint, dir, extNormal, wallAngle, 0, totalLength, pegaFt, depthFt, originalDepth, reviteFt, desfaseFt, window.PegaMaterial, window.PegaCosto, window.PegaDescripcion, firstRowItems, window, brickSymbol);
                                         }
 
                                         // A2. Juntas Horizontales y Verticales por Hilada
@@ -653,7 +654,7 @@ namespace RevitToSupabasePlugin
                                             double rowHeight = rowItems[0].Height_Ft; // Altura real de los ladrillos de esta hilada
 
                                             // Junta Horizontal sobre la hilada (Sin cancha en PegaH)
-                                            PlacePegaJointsWithDovelas(doc, pegaSymbol, wallLevel, adjustedStartPoint, dir, extNormal, wallAngle, 0, totalLength, rowZMax, pegaFt, depthFt, originalDepth, reviteFt, desfaseFt, window.PegaMaterial, window.PegaCosto, window.PegaDescripcion, false, 0, 0, 0, dovelaXCenters, dovelaRadius, dobelaVoidSymbol, dovelaVoidWidthFt, dovelaVoidLengthFt);
+                                            PlaceHorizontalPegaJointWithDovelaStrips(doc, pegaSymbol, wallLevel, adjustedStartPoint, dir, extNormal, wallAngle, rowZMax, totalLength, pegaFt, depthFt, originalDepth, reviteFt, desfaseFt, window.PegaMaterial, window.PegaCosto, window.PegaDescripcion, rowItems, window, brickSymbol);
 
                                             // C1. Pega Vertical Perimetral Inicial de la Hilada (X = 0)
                                             if (pegaFt > 0.0001)
@@ -885,7 +886,15 @@ namespace RevitToSupabasePlugin
             }
         }
 
-        private static void PlacePegaJointsWithDovelas(
+        private struct DovelaInterval
+        {
+            public double StartX;
+            public double EndX;
+            public double DovelaDepthFt;
+            public double BrickThicknessFt;
+        }
+
+        private static void PlaceHorizontalPegaJointWithDovelaStrips(
             Document doc,
             FamilySymbol pegaSymbol,
             Level? level,
@@ -893,52 +902,176 @@ namespace RevitToSupabasePlugin
             XYZ dir,
             XYZ normal,
             double angle,
-            double xMin,
-            double xMax,
-            double posZ,
-            double heightFt,
+            double rowZ,
+            double totalLength,
+            double pegaFt,
             double depthFt,
-            double originalWidthFt,
+            double originalDepth,
             double reviteFt,
             double desfaseFt,
             Material? material,
             double cost,
             string description,
-            bool cutCancha,
-            double canchaStartHFt,
-            double canchaHFt,
-            double canchaDepthFt,
-            List<double> dovelaXCenters,
-            double dovelaRadius,
-            FamilySymbol? dobelaVoidSymbol,
-            double dovelaVoidWidthFt,
-            double dovelaVoidLengthFt)
+            List<BrickLayoutItem> rowItems,
+            ConvertirMurosWindow window,
+            FamilySymbol? brickSymbol)
         {
-            var activeDovelas = dovelaXCenters.Where(x => x > xMin + dovelaRadius && x < xMax - dovelaRadius)
-                                              .OrderBy(x => x)
-                                              .ToList();
+            if (totalLength <= 0.0005 || pegaFt <= 0.0005) return;
 
-            if (activeDovelas.Count == 0)
+            List<DovelaInterval> intervals = new List<DovelaInterval>();
+
+            double defaultThicknessFt = (window.DovelaWidthCm > 0 ? window.DovelaWidthCm : 1.5) / 30.48;
+            Parameter? pThick = brickSymbol?.LookupParameter("Thickness") ?? brickSymbol?.LookupParameter("Pared");
+            if (pThick != null && pThick.AsDouble() > 0)
             {
-                PlacePegaFamilyInstance(doc, pegaSymbol, level, startPoint, dir, normal, angle, xMin, posZ, xMax - xMin, heightFt, depthFt, originalWidthFt, reviteFt, desfaseFt, material, cost, description, cutCancha, canchaStartHFt, canchaHFt, canchaDepthFt, false, dobelaVoidSymbol, dovelaXCenters, dovelaVoidWidthFt, dovelaVoidLengthFt);
-                return;
+                defaultThicknessFt = pThick.AsDouble();
             }
 
-            double currentX = xMin;
-            foreach (double dovX in activeDovelas)
+            if (rowItems != null && rowItems.Count > 0)
             {
-                double segXMax = dovX - dovelaRadius;
-                if (segXMax > currentX + 0.0001)
+                foreach (var item in rowItems)
                 {
-                    PlacePegaFamilyInstance(doc, pegaSymbol, level, startPoint, dir, normal, angle, currentX, posZ, segXMax - currentX, heightFt, depthFt, originalWidthFt, reviteFt, desfaseFt, material, cost, description, cutCancha, canchaStartHFt, canchaHFt, canchaDepthFt, true, dobelaVoidSymbol, dovelaXCenters, dovelaVoidWidthFt, dovelaVoidLengthFt);
+                    if (!item.HasDovela1 && !item.HasDovela2) continue;
+
+                    double brickL = item.Length_Ft;
+                    double thicknessFt = defaultThicknessFt;
+
+                    double dovelaDepthFt = (brickL - (thicknessFt * 3.0)) / 2.0;
+                    if (dovelaDepthFt <= 0) dovelaDepthFt = (brickL / 2.0) - thicknessFt;
+
+                    if (item.HasDovela1)
+                    {
+                        double start1 = item.PosX_Ft + thicknessFt;
+                        double end1 = start1 + dovelaDepthFt;
+
+                        start1 = Math.Max(0, Math.Min(totalLength, start1));
+                        end1 = Math.Max(0, Math.Min(totalLength, end1));
+
+                        if (end1 > start1 + 0.0005)
+                        {
+                            intervals.Add(new DovelaInterval
+                            {
+                                StartX = start1,
+                                EndX = end1,
+                                DovelaDepthFt = dovelaDepthFt,
+                                BrickThicknessFt = thicknessFt
+                            });
+                        }
+                    }
+
+                    if (item.HasDovela2)
+                    {
+                        double start2 = item.PosX_Ft + (brickL / 2.0) + (thicknessFt / 2.0);
+                        double end2 = start2 + dovelaDepthFt;
+
+                        start2 = Math.Max(0, Math.Min(totalLength, start2));
+                        end2 = Math.Max(0, Math.Min(totalLength, end2));
+
+                        if (end2 > start2 + 0.0005)
+                        {
+                            intervals.Add(new DovelaInterval
+                            {
+                                StartX = start2,
+                                EndX = end2,
+                                DovelaDepthFt = dovelaDepthFt,
+                                BrickThicknessFt = thicknessFt
+                            });
+                        }
+                    }
                 }
-                currentX = dovX + dovelaRadius;
             }
 
-            if (xMax > currentX + 0.0001)
+            intervals = intervals.OrderBy(i => i.StartX).ToList();
+
+            double currentX = 0;
+
+            foreach (var dov in intervals)
             {
-                PlacePegaFamilyInstance(doc, pegaSymbol, level, startPoint, dir, normal, angle, currentX, posZ, xMax - currentX, heightFt, depthFt, originalWidthFt, reviteFt, desfaseFt, material, cost, description, cutCancha, canchaStartHFt, canchaHFt, canchaDepthFt, true, dobelaVoidSymbol, dovelaXCenters, dovelaVoidWidthFt, dovelaVoidLengthFt);
+                // Tramo Sólido previo
+                if (dov.StartX > currentX + 0.0005)
+                {
+                    double segLen = dov.StartX - currentX;
+                    PlacePegaFamilyInstance(doc, pegaSymbol, level, startPoint, dir, normal, angle, currentX, rowZ, segLen, pegaFt, depthFt, originalDepth, reviteFt, desfaseFt, material, cost, description, false, 0, 0, 0, false);
+                }
+
+                // Tramo con Dobela: Generar 2 Pegas Paralelas (Frontal y Posterior)
+                if (dov.EndX > dov.StartX + 0.0005)
+                {
+                    double dobLen = dov.EndX - dov.StartX;
+                    double tFt = dov.BrickThicknessFt;
+
+                    double yOffsetFront = -(originalDepth / 2.0) + reviteFt;
+                    double yOffsetBack = (originalDepth / 2.0) - reviteFt - tFt;
+
+                    PlaceShiftedPegaFamilyInstance(doc, pegaSymbol, level, startPoint, dir, normal, angle, dov.StartX, rowZ, yOffsetFront, dobLen, pegaFt, tFt, originalDepth, reviteFt, material, cost, description);
+                    PlaceShiftedPegaFamilyInstance(doc, pegaSymbol, level, startPoint, dir, normal, angle, dov.StartX, rowZ, yOffsetBack, dobLen, pegaFt, tFt, originalDepth, reviteFt, material, cost, description);
+                }
+
+                currentX = Math.Max(currentX, dov.EndX);
             }
+
+            // Tramo Sólido Final
+            if (totalLength > currentX + 0.0005)
+            {
+                double segLen = totalLength - currentX;
+                PlacePegaFamilyInstance(doc, pegaSymbol, level, startPoint, dir, normal, angle, currentX, rowZ, segLen, pegaFt, depthFt, originalDepth, reviteFt, desfaseFt, material, cost, description, false, 0, 0, 0, false);
+            }
+        }
+
+        private static FamilyInstance? PlaceShiftedPegaFamilyInstance(
+            Document doc,
+            FamilySymbol pegaSymbol,
+            Level? level,
+            XYZ startPoint,
+            XYZ dir,
+            XYZ normal,
+            double angle,
+            double posX,
+            double posZ,
+            double offsetY_Ft,
+            double lengthFt,
+            double pegaFt,
+            double stripWidthFt,
+            double originalWidthFt,
+            double reviteFt,
+            Material? material,
+            double cost,
+            string description)
+        {
+            if (lengthFt <= 0.0005 || pegaFt <= 0.0005 || stripWidthFt <= 0.0005) return null;
+
+            XYZ location = startPoint + normal * offsetY_Ft + dir * posX + XYZ.BasisZ * posZ;
+            FamilyInstance inst = doc.Create.NewFamilyInstance(location, pegaSymbol, level, Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+
+            Line axisZ = Line.CreateBound(location, location + XYZ.BasisZ);
+            ElementTransformUtils.RotateElement(doc, inst.Id, axisZ, angle);
+
+            SetInstanceParameterOnly(inst, new[] { "GrosorPega", "Grosor Pega", "Grosor", "Height", "Alto", "Height (default)", "Alto (default)" }, pegaFt);
+            SetInstanceParameterOnly(inst, new[] { "Depth", "Largo", "Length", "Longitud", "Depth (default)", "Largo (default)" }, lengthFt);
+            SetInstanceParameterOnly(inst, new[] { "Width", "Ancho", "Width (default)", "Ancho (default)", "Thickness", "Thickness (default)", "Profundidad", "Profundidad (default)", "GrosorMortero", "NetWidth" }, stripWidthFt);
+            SetInstanceParameterOnly(inst, new[] { "Cut Dobela", "CutDobela", "Cut Dobela (default)", "CutDovela", "Cut Dovela", "Dovela", "Tunnel", "Tunel" }, 1);
+
+            Parameter pCommentsH = inst.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+            if (pCommentsH != null && !pCommentsH.IsReadOnly) pCommentsH.Set("PEGA-HORIZ-DOBELA");
+
+            if (material != null)
+            {
+                SetElementMaterial(inst, material);
+            }
+
+            if (cost > 0)
+            {
+                Parameter pCost = inst.get_Parameter(BuiltInParameter.ALL_MODEL_COST);
+                if (pCost != null && !pCost.IsReadOnly) pCost.Set(cost);
+            }
+
+            if (!string.IsNullOrWhiteSpace(description))
+            {
+                Parameter pDesc = inst.get_Parameter(BuiltInParameter.ALL_MODEL_DESCRIPTION);
+                if (pDesc != null && !pDesc.IsReadOnly) pDesc.Set(description);
+            }
+
+            return inst;
         }
 
         private static FamilyInstance? PlacePegaFamilyInstance(
