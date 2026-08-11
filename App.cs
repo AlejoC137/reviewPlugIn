@@ -156,6 +156,7 @@ namespace RevitToSupabasePlugin
                 }
 
                 AddOrUpdateRiegoBtn("cmdCargarRiego", "📂 Explorador\nPlantilla Riego", "CommandCargarPlantillaRiego");
+                AddOrUpdateRiegoBtn("cmdPlumbingSheet", "🚰 Plumbing\nSheet", "CommandPlumbingSheet");
             }
 
             // --- Panel y Botones para Albañilería ---

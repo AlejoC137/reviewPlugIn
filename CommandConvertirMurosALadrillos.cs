@@ -29,28 +29,50 @@ namespace RevitToSupabasePlugin
                     return Result.Cancelled;
                 }
 
-                // 2. Extraer dimensiones del primer muro para previsualización
-                double firstWallLength = 10.0; // default 10 ft
-                double firstWallHeight = 10.0;
-
-                Element firstElem = doc.GetElement(selectedRefs.First());
-                if (firstElem is Wall firstWall)
+                // 2. Extraer dimensiones y geometría de todos los muros seleccionados
+                List<WallInfo> selectedWallInfos = new List<WallInfo>();
+                foreach (Reference r in selectedRefs)
                 {
-                    if (firstWall.Location as LocationCurve is LocationCurve locCurve && locCurve.Curve is Line line)
+                    Element elem = doc.GetElement(r);
+                    if (elem is Wall wall)
                     {
-                        firstWallLength = line.Length;
+                        if (wall.Location as LocationCurve is LocationCurve locCurve && locCurve.Curve is Line line)
+                        {
+                            XYZ startPoint = line.GetEndPoint(0);
+                            XYZ endPoint = line.GetEndPoint(1);
+                            XYZ dir = (endPoint - startPoint).Normalize();
+                            XYZ normal = wall.Orientation;
+
+                            double angle = XYZ.BasisX.AngleTo(dir);
+                            if (dir.Y < 0) angle = 2 * Math.PI - angle;
+
+                            double hVal = 0;
+                            Parameter hp = wall.get_Parameter(BuiltInParameter.WALL_USER_HEIGHT_PARAM);
+                            if (hp != null && hp.AsDouble() > 0) hVal = hp.AsDouble();
+                            
+                            BoundingBoxXYZ wallBBox = wall.get_BoundingBox(null);
+                            if (wallBBox != null)
+                            {
+                                double bboxHeight = wallBBox.Max.Z - wallBBox.Min.Z;
+                                if (bboxHeight > hVal) hVal = bboxHeight;
+                            }
+                            if (hVal <= 0) hVal = 10.0;
+
+                            selectedWallInfos.Add(new WallInfo
+                            {
+                                WallId = wall.Id,
+                                Name = wall.Name,
+                                LengthFt = line.Length,
+                                HeightFt = hVal,
+                                WidthFt = wall.Width,
+                                StartPoint = startPoint,
+                                EndPoint = endPoint,
+                                Direction = dir,
+                                Normal = normal,
+                                Angle = angle
+                            });
+                        }
                     }
-                    double hVal = 0;
-                    Parameter hp = firstWall.get_Parameter(BuiltInParameter.WALL_USER_HEIGHT_PARAM);
-                    if (hp != null && hp.AsDouble() > 0) hVal = hp.AsDouble();
-                    
-                    BoundingBoxXYZ wallBBox = firstWall.get_BoundingBox(null);
-                    if (wallBBox != null)
-                    {
-                        double bboxHeight = wallBBox.Max.Z - wallBBox.Min.Z;
-                        if (bboxHeight > hVal) hVal = bboxHeight;
-                    }
-                    if (hVal > 0) firstWallHeight = hVal;
                 }
 
                 // 3. Obtener familias directamente de Revit (ignorar BricksDB.json)
@@ -108,7 +130,7 @@ namespace RevitToSupabasePlugin
                 }
 
                 // 4. Mostrar la ventana de configuración
-                var window = new ConvertirMurosWindow(selectedRefs.Count, firstWallLength, firstWallHeight, availableBricks, doc);
+                var window = new ConvertirMurosWindow(selectedWallInfos, availableBricks, doc);
                 window.ShowDialog();
 
                 if (!window.IsConfirmed || window.SelectedBrick == null)
@@ -271,6 +293,7 @@ namespace RevitToSupabasePlugin
 
                     List<WallNodeInfo> allNodes = WallNodeGraph.AnalyzeWallNodes(selectedWalls);
                     int wallsProcessed = 0;
+                    List<ElementId> wallsToDelete = new List<ElementId>();
 
                     foreach (Wall wall in selectedWalls)
                     {
@@ -284,7 +307,7 @@ namespace RevitToSupabasePlugin
                         double wallWidth = wall.Width;
 
                         // Obtener Nodos conectados a este muro
-                        var wallNodes = allNodes.Where(n => n.WallA.Id == wall.Id || n.WallB.Id == wall.Id).ToList();
+                        var wallNodes = allNodes.Where(n => n.WallIdA == wall.Id || n.WallIdB == wall.Id).ToList();
 
                         // Obtener Altura real del muro (considerando restricciones de nivel superior, offsets y geometry bbox)
                         double totalHeight = 0;
@@ -328,17 +351,22 @@ namespace RevitToSupabasePlugin
                         double dovelaDepthFt = (window.DovelaDepthCm > 0 ? window.DovelaDepthCm : 12.5) / 30.48;
                         double dovelaStartDepthFt = (window.DovelaStartDepthCm > 0 ? window.DovelaStartDepthCm : 17.5) / 30.48;
 
+                        WallInfo? wInfo = window.SelectedWalls.FirstOrDefault(w => w.WallId == wall.Id);
+                        int wallIdx = wInfo != null ? window.SelectedWalls.IndexOf(wInfo) : 0;
+
                         List<BrickLayoutItem> wallLayoutItems = GenerateLayoutForWall(totalLength, totalHeight, brick, pattern, window.PegaCm, window.VerPega);
 
                         // Sincronizar configuraciones interactivas del usuario (Canchado, Dovelas, etc.) desde la ventana
                         if (window.LayoutItems != null && window.LayoutItems.Count > 0)
                         {
+                            var windowWallItems = window.LayoutItems.Where(w => w.WallIndex == wallIdx).ToList();
+
                             foreach (var item in wallLayoutItems)
                             {
-                                var match = window.LayoutItems.FirstOrDefault(w => w.ZIndex == item.ZIndex && w.XIndex == item.XIndex);
+                                var match = windowWallItems.FirstOrDefault(w => w.ZIndex == item.ZIndex && w.XIndex == item.XIndex);
                                 if (match == null)
                                 {
-                                    match = window.LayoutItems.FirstOrDefault(w => Math.Abs(w.PosZ_Ft - item.PosZ_Ft) < 0.05 && Math.Abs(w.PosX_Ft - item.PosX_Ft) < 0.05);
+                                    match = windowWallItems.FirstOrDefault(w => Math.Abs(w.PosZ_Ft - item.PosZ_Ft) < 0.05 && Math.Abs(w.PosX_Ft - item.PosX_Ft) < 0.05);
                                 }
 
                                 if (match != null)
@@ -370,9 +398,8 @@ namespace RevitToSupabasePlugin
                             // Ajustar posiciones según los nodos de intersección L y T
                             foreach (var node in wallNodes)
                             {
-                                bool isWallA = (node.WallA.Id == wall.Id);
-                                Wall otherWall = isWallA ? node.WallB : node.WallA;
-                                double otherWidth = otherWall.Width;
+                                bool isWallA = (node.WallIdA == wall.Id);
+                                double otherWidth = isWallA ? node.WallWidthB : node.WallWidthA;
 
                                 if (node.NodeType == WallNodeType.L_Corner)
                                 {
@@ -410,7 +437,7 @@ namespace RevitToSupabasePlugin
                                 }
                                 else if (node.NodeType == WallNodeType.T_Junction)
                                 {
-                                    bool isMainWall = (node.WallA.Id == wall.Id);
+                                    bool isMainWall = (node.WallIdA == wall.Id);
 
                                     if (!isMainWall)
                                     {
@@ -447,7 +474,7 @@ namespace RevitToSupabasePlugin
                                     else
                                     {
                                         double nodeDistOnMain = (node.Point - startPoint).DotProduct(dir);
-                                        double secWidth = node.WallB.Width;
+                                        double secWidth = node.WallWidthB;
                                         double gapStart = nodeDistOnMain - (secWidth / 2.0);
                                         double gapEnd = nodeDistOnMain + (secWidth / 2.0);
 
@@ -653,8 +680,11 @@ namespace RevitToSupabasePlugin
                                             double rowZMax = rowItems.Max(i => i.PosZ_Ft + i.Height_Ft);
                                             double rowHeight = rowItems[0].Height_Ft; // Altura real de los ladrillos de esta hilada
 
-                                            // Junta Horizontal sobre la hilada (Sin cancha en PegaH)
-                                            PlaceHorizontalPegaJointWithDovelaStrips(doc, pegaSymbol, wallLevel, adjustedStartPoint, dir, extNormal, wallAngle, rowZMax, totalLength, pegaFt, depthFt, originalDepth, reviteFt, desfaseFt, window.PegaMaterial, window.PegaCosto, window.PegaDescripcion, rowItems, window, brickSymbol);
+                                            // Junta Horizontal sobre la hilada (Sin cancha en PegaH) - Solo entre hiladas (no sobre la última hilada)
+                                            if (r < rowGroups.Count - 1)
+                                            {
+                                                PlaceHorizontalPegaJointWithDovelaStrips(doc, pegaSymbol, wallLevel, adjustedStartPoint, dir, extNormal, wallAngle, rowZMax, totalLength, pegaFt, depthFt, originalDepth, reviteFt, desfaseFt, window.PegaMaterial, window.PegaCosto, window.PegaDescripcion, rowItems, window, brickSymbol);
+                                            }
 
                                             // C1. Pega Vertical Perimetral Inicial de la Hilada (X = 0)
                                             if (pegaFt > 0.0001)
@@ -708,7 +738,10 @@ namespace RevitToSupabasePlugin
 
                                             double rowZMax = rowItems.Max(i => i.PosZ_Ft + i.Height_Ft);
 
-                                            AddMortarJointWithDovelaCutouts(mortarSolids, adjustedStartPoint, dir, normal, 0, totalLength, rowZMax, rowZMax + pegaFt, depthFt, translationDist, dovelaXCenters, dovelaRadius);
+                                            if (r < rowGroups.Count - 1)
+                                            {
+                                                AddMortarJointWithDovelaCutouts(mortarSolids, adjustedStartPoint, dir, normal, 0, totalLength, rowZMax, rowZMax + pegaFt, depthFt, translationDist, dovelaXCenters, dovelaRadius);
+                                            }
 
                                             double firstPosX = rowItems[0].PosX_Ft;
                                             if (firstPosX > 0.001)
@@ -792,9 +825,18 @@ namespace RevitToSupabasePlugin
                                 }
                             }
 
-                            // 4. Eliminar el muro original
-                            doc.Delete(wall.Id);
-                            wallsProcessed++;
+                            wallsToDelete.Add(wall.Id);
+                        }
+
+                        // 4. Eliminar los muros originales al final del proceso de todos los muros
+                        foreach (ElementId wId in wallsToDelete)
+                        {
+                            try
+                            {
+                                doc.Delete(wId);
+                                wallsProcessed++;
+                            }
+                            catch { }
                         }
 
                     tx.Commit();

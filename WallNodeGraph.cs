@@ -36,22 +36,22 @@ namespace RevitToSupabasePlugin
                     // 1. Verificar Esquinas en L (coincidencia de extremos)
                     if (a0.DistanceTo(b0) < Tolerance)
                     {
-                        nodes.Add(new WallNodeInfo { NodeType = WallNodeType.L_Corner, Point = (a0 + b0) * 0.5, WallA = wA, WallB = wB, EndIndexA = 0, EndIndexB = 0 });
+                        nodes.Add(new WallNodeInfo { NodeType = WallNodeType.L_Corner, Point = (a0 + b0) * 0.5, WallIdA = wA.Id, WallIdB = wB.Id, WallWidthA = wA.Width, WallWidthB = wB.Width, WallA = wA, WallB = wB, EndIndexA = 0, EndIndexB = 0 });
                         continue;
                     }
                     if (a0.DistanceTo(b1) < Tolerance)
                     {
-                        nodes.Add(new WallNodeInfo { NodeType = WallNodeType.L_Corner, Point = (a0 + b1) * 0.5, WallA = wA, WallB = wB, EndIndexA = 0, EndIndexB = 1 });
+                        nodes.Add(new WallNodeInfo { NodeType = WallNodeType.L_Corner, Point = (a0 + b1) * 0.5, WallIdA = wA.Id, WallIdB = wB.Id, WallWidthA = wA.Width, WallWidthB = wB.Width, WallA = wA, WallB = wB, EndIndexA = 0, EndIndexB = 1 });
                         continue;
                     }
                     if (a1.DistanceTo(b0) < Tolerance)
                     {
-                        nodes.Add(new WallNodeInfo { NodeType = WallNodeType.L_Corner, Point = (a1 + b0) * 0.5, WallA = wA, WallB = wB, EndIndexA = 1, EndIndexB = 0 });
+                        nodes.Add(new WallNodeInfo { NodeType = WallNodeType.L_Corner, Point = (a1 + b0) * 0.5, WallIdA = wA.Id, WallIdB = wB.Id, WallWidthA = wA.Width, WallWidthB = wB.Width, WallA = wA, WallB = wB, EndIndexA = 1, EndIndexB = 0 });
                         continue;
                     }
                     if (a1.DistanceTo(b1) < Tolerance)
                     {
-                        nodes.Add(new WallNodeInfo { NodeType = WallNodeType.L_Corner, Point = (a1 + b1) * 0.5, WallA = wA, WallB = wB, EndIndexA = 1, EndIndexB = 1 });
+                        nodes.Add(new WallNodeInfo { NodeType = WallNodeType.L_Corner, Point = (a1 + b1) * 0.5, WallIdA = wA.Id, WallIdB = wB.Id, WallWidthA = wA.Width, WallWidthB = wB.Width, WallA = wA, WallB = wB, EndIndexA = 1, EndIndexB = 1 });
                         continue;
                     }
 
@@ -62,7 +62,7 @@ namespace RevitToSupabasePlugin
                         double param = resB0OnA.Parameter;
                         if (param > cA.GetEndParameter(0) + Tolerance && param < cA.GetEndParameter(1) - Tolerance)
                         {
-                            nodes.Add(new WallNodeInfo { NodeType = WallNodeType.T_Junction, Point = b0, WallA = wA, WallB = wB, EndIndexA = -1, EndIndexB = 0 });
+                            nodes.Add(new WallNodeInfo { NodeType = WallNodeType.T_Junction, Point = b0, WallIdA = wA.Id, WallIdB = wB.Id, WallWidthA = wA.Width, WallWidthB = wB.Width, WallA = wA, WallB = wB, EndIndexA = -1, EndIndexB = 0 });
                             continue;
                         }
                     }
@@ -73,7 +73,7 @@ namespace RevitToSupabasePlugin
                         double param = resB1OnA.Parameter;
                         if (param > cA.GetEndParameter(0) + Tolerance && param < cA.GetEndParameter(1) - Tolerance)
                         {
-                            nodes.Add(new WallNodeInfo { NodeType = WallNodeType.T_Junction, Point = b1, WallA = wA, WallB = wB, EndIndexA = -1, EndIndexB = 1 });
+                            nodes.Add(new WallNodeInfo { NodeType = WallNodeType.T_Junction, Point = b1, WallIdA = wA.Id, WallIdB = wB.Id, WallWidthA = wA.Width, WallWidthB = wB.Width, WallA = wA, WallB = wB, EndIndexA = -1, EndIndexB = 1 });
                             continue;
                         }
                     }
@@ -85,7 +85,7 @@ namespace RevitToSupabasePlugin
                         double param = resA0OnB.Parameter;
                         if (param > cB.GetEndParameter(0) + Tolerance && param < cB.GetEndParameter(1) - Tolerance)
                         {
-                            nodes.Add(new WallNodeInfo { NodeType = WallNodeType.T_Junction, Point = a0, WallA = wB, WallB = wA, EndIndexA = -1, EndIndexB = 0 });
+                            nodes.Add(new WallNodeInfo { NodeType = WallNodeType.T_Junction, Point = a0, WallIdA = wB.Id, WallIdB = wA.Id, WallWidthA = wB.Width, WallWidthB = wA.Width, WallA = wB, WallB = wA, EndIndexA = -1, EndIndexB = 0 });
                             continue;
                         }
                     }
@@ -96,7 +96,7 @@ namespace RevitToSupabasePlugin
                         double param = resA1OnB.Parameter;
                         if (param > cB.GetEndParameter(0) + Tolerance && param < cB.GetEndParameter(1) - Tolerance)
                         {
-                            nodes.Add(new WallNodeInfo { NodeType = WallNodeType.T_Junction, Point = a1, WallA = wB, WallB = wA, EndIndexA = -1, EndIndexB = 1 });
+                            nodes.Add(new WallNodeInfo { NodeType = WallNodeType.T_Junction, Point = a1, WallIdA = wB.Id, WallIdB = wA.Id, WallWidthA = wB.Width, WallWidthB = wA.Width, WallA = wB, WallB = wA, EndIndexA = -1, EndIndexB = 1 });
                             continue;
                         }
                     }

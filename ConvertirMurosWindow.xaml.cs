@@ -35,6 +35,7 @@ namespace RevitToSupabasePlugin
 
     public class BrickLayoutItem
     {
+        public int WallIndex { get; set; } = 0;
         public int ZIndex { get; set; }
         public int XIndex { get; set; }
         public double PosX_Ft { get; set; }
@@ -88,16 +89,33 @@ namespace RevitToSupabasePlugin
         private double _cameraDistance = 100;
         private bool _isDragging = false;
 
-        public ConvertirMurosWindow(int wallCount, double wallLenFt, double wallHgtFt, List<BrickType> availableBricks, Autodesk.Revit.DB.Document doc = null)
+        public List<WallInfo> SelectedWalls { get; private set; } = new List<WallInfo>();
+
+        public ConvertirMurosWindow(List<WallInfo> selectedWalls, List<BrickType> availableBricks, Autodesk.Revit.DB.Document doc = null)
         {
             InitializeComponent();
             _doc = doc;
+            SelectedWalls = selectedWalls ?? new List<WallInfo>();
 
-            wallLengthFt = wallLenFt;
-            wallHeightFt = wallHgtFt;
+            if (SelectedWalls.Count > 0)
+            {
+                wallLengthFt = SelectedWalls[0].LengthFt;
+                wallHeightFt = SelectedWalls[0].HeightFt;
+            }
+            else
+            {
+                wallLengthFt = 10.0;
+                wallHeightFt = 10.0;
+            }
 
-            if (txtSummary != null) txtSummary.Text = $"Has seleccionado {wallCount} muro(s) para convertir.";
-            if (txtWallDims != null) txtWallDims.Text = $"Dimensiones base: {(wallLenFt * 0.3048):F2}m x {(wallHgtFt * 0.3048):F2}m";
+            if (txtSummary != null) txtSummary.Text = $"Has seleccionado {SelectedWalls.Count} muro(s) para convertir.";
+            if (txtWallDims != null)
+            {
+                if (SelectedWalls.Count == 1)
+                    txtWallDims.Text = $"Dimensiones base: {(wallLengthFt * 0.3048):F2}m x {(wallHeightFt * 0.3048):F2}m";
+                else
+                    txtWallDims.Text = $"{SelectedWalls.Count} Muros seleccionados para convertir";
+            }
 
             LoadBricksFromList(availableBricks);
             LoadMaterials();
@@ -106,6 +124,12 @@ namespace RevitToSupabasePlugin
             {
                 RebuildLayout();
             };
+        }
+
+        public ConvertirMurosWindow(int wallCount, double wallLenFt, double wallHgtFt, List<BrickType> availableBricks, Autodesk.Revit.DB.Document doc = null)
+            : this(new List<WallInfo> { new WallInfo { LengthFt = wallLenFt, HeightFt = wallHgtFt } }, availableBricks, doc)
+        {
+            if (txtSummary != null) txtSummary.Text = $"Has seleccionado {wallCount} muro(s) para convertir.";
         }
 
         private void RebuildLayout()
@@ -183,69 +207,80 @@ namespace RevitToSupabasePlugin
                 double pegaFt = 1.5 / 30.48;
                 if (txtPega != null) pegaFt = ParseDoubleSafe(txtPega.Text) / 30.48;
 
-                double brickLFt = pattern.Contains("Soga") ? (brick.LengthCm / 30.48) : (brick.WidthCm / 30.48);
-                double brickHFt = brick.HeightCm / 30.48;
-
-                double stepX = brickLFt + pegaFt;
-                double stepZ = brickHFt + pegaFt;
-
-                int zIndex = 0;
                 bool hasPega = (chkVerPega?.IsChecked == true && pegaFt > 0);
 
-                double currentZ = hasPega ? pegaFt : 0;
-                double startXOffset = hasPega ? pegaFt : 0;
-                double maxWallX = hasPega ? (wallLengthFt - pegaFt) : wallLengthFt;
+                var wallsToProcess = (SelectedWalls != null && SelectedWalls.Count > 0)
+                    ? SelectedWalls
+                    : new List<WallInfo> { new WallInfo { LengthFt = wallLengthFt, HeightFt = wallHeightFt } };
 
-                while (currentZ < wallHeightFt)
+                for (int wallIdx = 0; wallIdx < wallsToProcess.Count; wallIdx++)
                 {
-                    double currentX = startXOffset;
-                    int xIndex = 0;
+                    WallInfo wInfo = wallsToProcess[wallIdx];
+                    double wLenFt = wInfo.LengthFt;
+                    double wHgtFt = wInfo.HeightFt;
 
-                    double shift = 0;
-                    if (pattern.Contains("Soga") || pattern.Contains("Tizón"))
+                    double brickLFt = pattern.Contains("Soga") ? (brick.LengthCm / 30.48) : (brick.WidthCm / 30.48);
+                    double brickHFt = brick.HeightCm / 30.48;
+
+                    double stepX = brickLFt + pegaFt;
+                    double stepZ = brickHFt + pegaFt;
+
+                    int zIndex = 0;
+                    double currentZ = hasPega ? pegaFt : 0;
+                    double startXOffset = hasPega ? pegaFt : 0;
+                    double maxWallX = hasPega ? (wLenFt - pegaFt) : wLenFt;
+
+                    while (currentZ < wHgtFt)
                     {
-                        if (zIndex % 2 != 0) shift = stepX / 2.0;
-                    }
-                    else if (pattern.Contains("Inglés"))
-                    {
-                        if (zIndex % 2 != 0)
+                        double currentX = startXOffset;
+                        int xIndex = 0;
+
+                        double shift = 0;
+                        if (pattern.Contains("Soga") || pattern.Contains("Tizón"))
                         {
-                            brickLFt = brick.WidthCm / 30.48;
-                            stepX = brickLFt + pegaFt;
-                            shift = stepX / 2.0;
+                            if (zIndex % 2 != 0) shift = stepX / 2.0;
                         }
-                        else
+                        else if (pattern.Contains("Inglés"))
                         {
-                            brickLFt = brick.LengthCm / 30.48;
-                            stepX = brickLFt + pegaFt;
-                            shift = 0;
+                            if (zIndex % 2 != 0)
+                            {
+                                brickLFt = brick.WidthCm / 30.48;
+                                stepX = brickLFt + pegaFt;
+                                shift = stepX / 2.0;
+                            }
+                            else
+                            {
+                                brickLFt = brick.LengthCm / 30.48;
+                                stepX = brickLFt + pegaFt;
+                                shift = 0;
+                            }
                         }
-                    }
 
-                    // Primer medio ladrillo si hay shift
-                    if (shift > 0)
-                    {
-                        double shiftBrickLen = shift - pegaFt;
-                        if (shiftBrickLen > 0)
-                            AddBrickToLayout(startXOffset, currentZ, shiftBrickLen, brickHFt, zIndex, -1, true, false, (currentZ + brickHFt > wallHeightFt));
-                        currentX = startXOffset + shift;
-                    }
+                        // Primer medio ladrillo si hay shift
+                        if (shift > 0)
+                        {
+                            double shiftBrickLen = shift - pegaFt;
+                            if (shiftBrickLen > 0)
+                                AddBrickToLayoutForWall(wallIdx, startXOffset, currentZ, shiftBrickLen, brickHFt, zIndex, -1, true, false, (currentZ + brickHFt > wHgtFt), wHgtFt);
+                            currentX = startXOffset + shift;
+                        }
 
-                    while (currentX < maxWallX)
-                    {
-                        double remainingX = maxWallX - currentX;
-                        double len = remainingX < brickLFt ? remainingX : brickLFt;
-                        
-                        bool isCutR = remainingX < brickLFt;
-                        
-                        AddBrickToLayout(currentX, currentZ, len, brickHFt, zIndex, xIndex, false, isCutR, (currentZ + brickHFt > wallHeightFt));
-                        
-                        currentX += stepX;
-                        xIndex++;
-                    }
+                        while (currentX < maxWallX)
+                        {
+                            double remainingX = maxWallX - currentX;
+                            double len = remainingX < brickLFt ? remainingX : brickLFt;
+                            
+                            bool isCutR = remainingX < brickLFt;
+                            
+                            AddBrickToLayoutForWall(wallIdx, currentX, currentZ, len, brickHFt, zIndex, xIndex, false, isCutR, (currentZ + brickHFt > wHgtFt), wHgtFt);
+                            
+                            currentX += stepX;
+                            xIndex++;
+                        }
 
-                    currentZ += stepZ;
-                    zIndex++;
+                        currentZ += stepZ;
+                        zIndex++;
+                    }
                 }
 
                 DrawLayout();
@@ -253,17 +288,18 @@ namespace RevitToSupabasePlugin
             catch { }
         }
 
-        private void AddBrickToLayout(double xFt, double zFt, double lenFt, double hFt, int zIdx, int xIdx, bool cutL, bool cutR, bool cutT)
+        private void AddBrickToLayoutForWall(int wallIdx, double xFt, double zFt, double lenFt, double hFt, int zIdx, int xIdx, bool cutL, bool cutR, bool cutT, double maxHgtFt)
         {
             var item = new BrickLayoutItem
             {
+                WallIndex = wallIdx,
                 PosX_Ft = xFt,
                 PosZ_Ft = zFt,
                 Length_Ft = lenFt,
-                Height_Ft = cutT ? (wallHeightFt - zFt) : hFt,
+                Height_Ft = cutT ? (maxHgtFt - zFt) : hFt,
                 CutLeft_Ft = cutL ? lenFt : 0, 
                 CutRight_Ft = cutR ? lenFt : 0,
-                CutTop_Ft = cutT ? (wallHeightFt - zFt) : 0,
+                CutTop_Ft = cutT ? (maxHgtFt - zFt) : 0,
                 ZIndex = zIdx,
                 XIndex = xIdx,
                 HasDovela1 = false,
@@ -300,31 +336,59 @@ namespace RevitToSupabasePlugin
                 bool verPega3D = chkVerPega.IsChecked == true;
                 double pegaThickFt = (ParseDoubleSafe(txtPega.Text) > 0 ? ParseDoubleSafe(txtPega.Text) : 1.5) / 30.48;
 
+                var wallsToProcess = (SelectedWalls != null && SelectedWalls.Count > 0)
+                    ? SelectedWalls
+                    : new List<WallInfo> { new WallInfo { LengthFt = wallLengthFt, HeightFt = wallHeightFt } };
+
+                // Calcular centro global del conjunto de muros para centrar el visor 3D
+                Autodesk.Revit.DB.XYZ sceneCenter = Autodesk.Revit.DB.XYZ.Zero;
+                if (wallsToProcess.Count > 0)
+                {
+                    double minX = wallsToProcess.Min(w => Math.Min(w.StartPoint.X, w.EndPoint.X));
+                    double maxX = wallsToProcess.Max(w => Math.Max(w.StartPoint.X, w.EndPoint.X));
+                    double minY = wallsToProcess.Min(w => Math.Min(w.StartPoint.Y, w.EndPoint.Y));
+                    double maxY = wallsToProcess.Max(w => Math.Max(w.StartPoint.Y, w.EndPoint.Y));
+                    double minZ = wallsToProcess.Min(w => w.StartPoint.Z);
+                    double maxZ = wallsToProcess.Max(w => w.StartPoint.Z + w.HeightFt);
+
+                    sceneCenter = new Autodesk.Revit.DB.XYZ((minX + maxX) / 2.0, (minY + maxY) / 2.0, (minZ + maxZ) / 2.0);
+                }
+
                 foreach (var item in LayoutItems)
                 {
+                    WallInfo wInfo = (item.WallIndex >= 0 && item.WallIndex < wallsToProcess.Count)
+                        ? wallsToProcess[item.WallIndex]
+                        : wallsToProcess[0];
+
                     double depthFt = (SelectedBrick?.WidthCm ?? 11.5) / 30.48;
                     double halfLength = item.Length_Ft / 2.0;
 
                     // --- MITAD 1 (IZQUIERDA) ---
                     System.Windows.Media.Color leftColor = item.HasDovela1
-                        ? System.Windows.Media.Color.FromRgb(168, 85, 247)   // Ultra-Vivid Neon Purple Dovela
+                        ? System.Windows.Media.Color.FromRgb(168, 85, 247)
                         : (item.IsCanchado 
-                            ? System.Windows.Media.Color.FromRgb(245, 158, 11) // Amber Gold
-                            : System.Windows.Media.Color.FromRgb(217, 107, 39)); // Terracotta Orange
+                            ? System.Windows.Media.Color.FromRgb(245, 158, 11) 
+                            : System.Windows.Media.Color.FromRgb(217, 107, 39));
 
                     System.Windows.Media.Color leftWire = item.HasDovela1
-                        ? System.Windows.Media.Color.FromRgb(232, 121, 249)  // Glowing Magenta Wireframe
+                        ? System.Windows.Media.Color.FromRgb(232, 121, 249)
                         : (item.IsCanchado 
                             ? System.Windows.Media.Color.FromRgb(251, 191, 36) 
                             : System.Windows.Media.Color.FromRgb(30, 41, 59));
 
                     double c1 = item.PosX_Ft + (item.Length_Ft / 4.0);
-                    double cy = 0;
                     double cz = item.PosZ_Ft + (item.Height_Ft / 2.0);
+
+                    // Coordenadas relativas en 3D
+                    Autodesk.Revit.DB.XYZ relPos1 = (wInfo.StartPoint + wInfo.Direction * c1 + Autodesk.Revit.DB.XYZ.BasisZ * cz) - sceneCenter;
 
                     GeometryModel3D leftModel = CreateBoxModel(halfLength, depthFt, item.Height_Ft, leftColor, 1.0);
                     Transform3DGroup t1 = new Transform3DGroup();
-                    t1.Children.Add(new TranslateTransform3D(c1, cy, cz));
+                    if (Math.Abs(wInfo.Angle) > 0.0001)
+                    {
+                        t1.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(0, 0, 1), wInfo.Angle * 180.0 / Math.PI)));
+                    }
+                    t1.Children.Add(new TranslateTransform3D(relPos1.X, relPos1.Y, relPos1.Z));
                     leftModel.Transform = t1;
                     modelGroup.Children.Add(leftModel);
 
@@ -344,7 +408,6 @@ namespace RevitToSupabasePlugin
                         }
                     }
 
-                    // Superpuesto destacado si tiene Dovela 1
                     if (item.HasDovela1)
                     {
                         GeometryModel3D overlay1 = CreateBoxModel(halfLength + 0.02, depthFt + 0.02, item.Height_Ft + 0.02, System.Windows.Media.Color.FromRgb(147, 51, 234), 0.9);
@@ -356,22 +419,27 @@ namespace RevitToSupabasePlugin
 
                     // --- MITAD 2 (DERECHA) ---
                     System.Windows.Media.Color rightColor = item.HasDovela2
-                        ? System.Windows.Media.Color.FromRgb(168, 85, 247)   // Ultra-Vivid Neon Purple Dovela
+                        ? System.Windows.Media.Color.FromRgb(168, 85, 247)
                         : (item.IsCanchado 
                             ? System.Windows.Media.Color.FromRgb(245, 158, 11) 
                             : System.Windows.Media.Color.FromRgb(217, 107, 39));
 
                     System.Windows.Media.Color rightWire = item.HasDovela2
-                        ? System.Windows.Media.Color.FromRgb(232, 121, 249)  // Glowing Magenta Wireframe
+                        ? System.Windows.Media.Color.FromRgb(232, 121, 249)
                         : (item.IsCanchado 
                             ? System.Windows.Media.Color.FromRgb(251, 191, 36) 
                             : System.Windows.Media.Color.FromRgb(30, 41, 59));
 
                     double c2 = item.PosX_Ft + (item.Length_Ft * 3.0 / 4.0);
+                    Autodesk.Revit.DB.XYZ relPos2 = (wInfo.StartPoint + wInfo.Direction * c2 + Autodesk.Revit.DB.XYZ.BasisZ * cz) - sceneCenter;
 
                     GeometryModel3D rightModel = CreateBoxModel(halfLength, depthFt, item.Height_Ft, rightColor, 1.0);
                     Transform3DGroup t2 = new Transform3DGroup();
-                    t2.Children.Add(new TranslateTransform3D(c2, cy, cz));
+                    if (Math.Abs(wInfo.Angle) > 0.0001)
+                    {
+                        t2.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(0, 0, 1), wInfo.Angle * 180.0 / Math.PI)));
+                    }
+                    t2.Children.Add(new TranslateTransform3D(relPos2.X, relPos2.Y, relPos2.Z));
                     rightModel.Transform = t2;
                     modelGroup.Children.Add(rightModel);
 
@@ -391,7 +459,6 @@ namespace RevitToSupabasePlugin
                         }
                     }
 
-                    // Superpuesto destacado si tiene Dovela 2
                     if (item.HasDovela2)
                     {
                         GeometryModel3D overlay2 = CreateBoxModel(halfLength + 0.02, depthFt + 0.02, item.Height_Ft + 0.02, System.Windows.Media.Color.FromRgb(147, 51, 234), 0.9);
@@ -401,23 +468,38 @@ namespace RevitToSupabasePlugin
                         _rightBrickModels[overlay2] = item;
                     }
 
-                    // Dibujar pega si aplica (semi-transparente elegante)
                     if (verPega3D)
                     {
                         double cx = item.PosX_Ft + (item.Length_Ft / 2.0);
+                        Autodesk.Revit.DB.XYZ relPosPega = (wInfo.StartPoint + wInfo.Direction * cx + Autodesk.Revit.DB.XYZ.BasisZ * cz) - sceneCenter;
                         GeometryModel3D pegaModel = CreateBoxModel(item.Length_Ft + pegaThickFt, depthFt + pegaThickFt, item.Height_Ft + pegaThickFt, System.Windows.Media.Color.FromRgb(226, 232, 240), 0.25);
                         Transform3DGroup pt = new Transform3DGroup();
-                        pt.Children.Add(new TranslateTransform3D(cx + pegaThickFt/2, cy + pegaThickFt/2, cz + pegaThickFt/2));
+                        if (Math.Abs(wInfo.Angle) > 0.0001)
+                        {
+                            pt.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(0, 0, 1), wInfo.Angle * 180.0 / Math.PI)));
+                        }
+                        pt.Children.Add(new TranslateTransform3D(relPosPega.X, relPosPega.Y, relPosPega.Z));
                         pegaModel.Transform = pt;
                         modelGroup.Children.Add(pegaModel);
                         _pegaModels.Add(pegaModel);
                     }
                 }
 
-                // Ajustar cámara para que vea todo el muro únicamente la primera vez
-                if (!_isCameraInitialized && wallLengthFt > 0)
+                if (!_isCameraInitialized)
                 {
-                    _cameraDistance = Math.Max(wallLengthFt, wallHeightFt) * 1.5;
+                    double maxExtent = 10.0;
+                    if (wallsToProcess.Count > 0)
+                    {
+                        double minX = wallsToProcess.Min(w => Math.Min(w.StartPoint.X, w.EndPoint.X));
+                        double maxX = wallsToProcess.Max(w => Math.Max(w.StartPoint.X, w.EndPoint.X));
+                        double minY = wallsToProcess.Min(w => Math.Min(w.StartPoint.Y, w.EndPoint.Y));
+                        double maxY = wallsToProcess.Max(w => Math.Max(w.StartPoint.Y, w.EndPoint.Y));
+                        double spanX = maxX - minX;
+                        double spanY = maxY - minY;
+                        double spanZ = wallsToProcess.Max(w => w.HeightFt);
+                        maxExtent = Math.Max(spanX, Math.Max(spanY, spanZ));
+                    }
+                    _cameraDistance = Math.Max(10.0, maxExtent * 1.5);
                     _cameraAngleX = 45;
                     _cameraAngleY = 60;
                     UpdateCamera();
