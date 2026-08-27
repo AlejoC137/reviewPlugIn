@@ -3,6 +3,10 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Collections.Generic;
+using System.Net.Http;
+using System.Text;
+using System.Threading.Tasks;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
@@ -12,12 +16,17 @@ namespace RevitToSupabasePlugin
     public partial class GeneradorIAWindow : System.Windows.Window
     {
         private Document _doc;
+        private static readonly HttpClient _httpClient = new HttpClient();
+        private string? _selectedMediaPath = null;
 
         public GeneradorIAWindow(Document doc)
         {
             InitializeComponent();
             _doc = doc;
 
+            btnGenerateLive.Click += GenerateLive_Click;
+            btnSelectMedia.Click += SelectMedia_Click;
+            btnClearMedia.Click += ClearMedia_Click;
             btnCopyPrompt.Click += CopyPrompt_Click;
             btnPaste.Click += Paste_Click;
             btnBuild.Click += Build_Click;
@@ -39,7 +48,7 @@ namespace RevitToSupabasePlugin
             return null;
         }
 
-        private void CopyPrompt_Click(object sender, RoutedEventArgs e)
+        private string GetSystemInstructions()
         {
             var selectedLOD = cmbLOD.SelectedItem as ComboBoxItem;
             string lodText = selectedLOD?.Content?.ToString() ?? "";
@@ -67,12 +76,11 @@ namespace RevitToSupabasePlugin
                 loiInstruction = "{\"name\": \"Garantia_Meses\", \"type\": \"Number\", \"value\": 12.0}, {\"name\": \"Fecha_Fabricacion\", \"type\": \"Text\", \"value\": \"2024\"}";
             }
 
-            string prompt = $@"Eres un experto modelador BIM 3D e Ingeniero de Diseño Paramétrico especializado en la reconstrucción tridimensional de familias para Autodesk Revit.
+            return $@"Eres un experto modelador BIM 3D e Ingeniero de Diseño Paramétrico especializado en la reconstrucción tridimensional de familias para Autodesk Revit.
 
-Tu tarea crítica es generar una reconstrucción geométrica LO MÁS FIDEDIGNA Y DETALLADA POSIBLE basada en la imagen o manual técnico adjunto. Analiza minuciosamente las proporciones, alineaciones, escalas relativas y características morfológicas, utilizando absolutamente TODA la información visual disponible.
+Tu tarea crítica es generar una reconstrucción geométrica LO MÁS FIDEDIGNA Y DETALLADA POSIBLE basada en la descripción e imágenes/frames solicitados. Analiza minuciosamente las proporciones, alineaciones, escalas relativas y características morfológicas.
 
 Debes traducir la máquina o equipo a un ensamblaje paramétrico tridimensional descomponiendo la geometría de forma sistemática en tres niveles de detalle:
-
 * Macro-geometría: Chasis principal, bastidor, gabinete exterior y estructuras envolventes.
 * Meso-geometría: Paneles inclinados, cubiertas, biseles, tolvas, puertas, marcos, ductos y viseras.
 * Micro-geometría: Patas niveladoras, botones, perillas, pantallas, rejillas de ventilación, bisagras, conectores, dispensadores y relieves.
@@ -125,11 +133,513 @@ Reglas Obligatorias:
 5. Para `custom_extrusion`, el `axis` define el plano de dibujo 2D (X, Y o Z). `start` y `end` definen el inicio y fin de la extrusión.
 6. {lodInstruction}
 7. Devuelve SOLO el bloque JSON. Prohibido escribir código Python o explicaciones de texto antes o después del JSON.";
+        }
+
+        private void SelectMedia_Click(object sender, RoutedEventArgs e)
+        {
+            var openFileDialog = new Microsoft.Win32.OpenFileDialog();
+            openFileDialog.Filter = "Todos los Formatos (*.png;*.jpg;*.pdf;*.ifc;*.dwg;*.dxf;*.mp4)|*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.pdf;*.ifc;*.ifcjson;*.dwg;*.dxf;*.mp4;*.mov;*.avi|Documentos y Modelos (*.pdf;*.ifc;*.dwg)|*.pdf;*.ifc;*.ifcjson;*.dwg;*.dxf|Imágenes (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg;*.webp;*.bmp|Videos (*.mp4;*.mov)|*.mp4;*.mov;*.avi";
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                _selectedMediaPath = openFileDialog.FileName;
+                lblMediaStatus.Text = Path.GetFileName(_selectedMediaPath);
+                btnClearMedia.Visibility = System.Windows.Visibility.Visible;
+
+                string ext = Path.GetExtension(_selectedMediaPath).ToLower();
+                if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".webp")
+                {
+                    try
+                    {
+                        var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+                        bitmap.BeginInit();
+                        bitmap.UriSource = new Uri(_selectedMediaPath);
+                        bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                        bitmap.EndInit();
+
+                        imgPreview.Source = bitmap;
+                        imgPreview.Visibility = System.Windows.Visibility.Visible;
+                        txtMediaIcon.Visibility = System.Windows.Visibility.Collapsed;
+                    }
+                    catch
+                    {
+                        imgPreview.Visibility = System.Windows.Visibility.Collapsed;
+                        txtMediaIcon.Visibility = System.Windows.Visibility.Visible;
+                        txtMediaIcon.Text = "📷 Imagen";
+                    }
+                }
+                else if (ext == ".pdf")
+                {
+                    imgPreview.Visibility = System.Windows.Visibility.Collapsed;
+                    txtMediaIcon.Visibility = System.Windows.Visibility.Visible;
+                    txtMediaIcon.Text = "📄 PDF";
+                }
+                else if (ext == ".ifc" || ext == ".ifcjson")
+                {
+                    imgPreview.Visibility = System.Windows.Visibility.Collapsed;
+                    txtMediaIcon.Visibility = System.Windows.Visibility.Visible;
+                    txtMediaIcon.Text = "🏗️ IFC";
+                }
+                else if (ext == ".dwg" || ext == ".dxf")
+                {
+                    imgPreview.Visibility = System.Windows.Visibility.Collapsed;
+                    txtMediaIcon.Visibility = System.Windows.Visibility.Visible;
+                    txtMediaIcon.Text = "📐 DWG";
+                }
+                else
+                {
+                    imgPreview.Visibility = System.Windows.Visibility.Collapsed;
+                    txtMediaIcon.Visibility = System.Windows.Visibility.Visible;
+                    txtMediaIcon.Text = "🎥 Video";
+                }
+            }
+        }
+
+        private void ClearMedia_Click(object sender, RoutedEventArgs e)
+        {
+            _selectedMediaPath = null;
+            lblMediaStatus.Text = "Sin archivo adjunto";
+            btnClearMedia.Visibility = System.Windows.Visibility.Collapsed;
+            imgPreview.Source = null;
+            imgPreview.Visibility = System.Windows.Visibility.Collapsed;
+            txtMediaIcon.Visibility = System.Windows.Visibility.Visible;
+            txtMediaIcon.Text = "📄/📐";
+        }
+
+        private async Task<(List<string> base64Images, string extraText)> ProcessAttachedFileAsync(string filePath)
+        {
+            List<string> images = new List<string>();
+            string textData = "";
+            string ext = Path.GetExtension(filePath).ToLower();
+
+            if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".webp")
+            {
+                byte[] bytes = await File.ReadAllBytesAsync(filePath);
+                string mime = ext == ".png" ? "image/png" : (ext == ".webp" ? "image/webp" : "image/jpeg");
+                images.Add($"data:{mime};base64,{Convert.ToBase64String(bytes)}");
+            }
+            else if (ext == ".mp4" || ext == ".mov" || ext == ".avi" || ext == ".wmv" || ext == ".mkv")
+            {
+                List<string> videoFrames = await ExtractFramesFromVideoAsync(filePath, 3);
+                images.AddRange(videoFrames);
+            }
+            else if (ext == ".pdf")
+            {
+                textData = await ProcessPdfFileAsync(filePath);
+            }
+            else if (ext == ".ifc" || ext == ".ifcjson")
+            {
+                textData = await ProcessIfcFileAsync(filePath);
+            }
+            else if (ext == ".dwg" || ext == ".dxf")
+            {
+                textData = await ProcessDwgFileAsync(filePath);
+            }
+
+            return (images, textData);
+        }
+        private async Task<string> ProcessPdfFileAsync(string pdfPath)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("\n[INFORMACIÓN Y TEXTO EXTRAÍDO DEL DOCUMENTO PDF ADJUNTO]");
+            sb.AppendLine($"Nombre de archivo: {Path.GetFileName(pdfPath)}");
 
             try
             {
+                byte[] bytes = await File.ReadAllBytesAsync(pdfPath);
+                string rawText = Encoding.ASCII.GetString(bytes);
+
+                var mediaBoxMatch = System.Text.RegularExpressions.Regex.Match(rawText, @"/MediaBox\s*\[\s*([0-9\.\-]+)\s+([0-9\.\-]+)\s+([0-9\.\-]+)\s+([0-9\.\-]+)\s*\]");
+                if (mediaBoxMatch.Success)
+                {
+                    sb.AppendLine($"Dimensiones de página PDF: {mediaBoxMatch.Groups[3].Value} x {mediaBoxMatch.Groups[4].Value} pt");
+                }
+
+                List<string> textSnippets = new List<string>();
+                var matches = System.Text.RegularExpressions.Regex.Matches(rawText, @"\(([^()]{3,100})\)\s*Tj");
+                foreach (System.Text.RegularExpressions.Match m in matches)
+                {
+                    string val = m.Groups[1].Value.Trim();
+                    if (!string.IsNullOrEmpty(val) && !textSnippets.Contains(val) && textSnippets.Count < 30)
+                    {
+                        textSnippets.Add(val);
+                    }
+                }
+
+                if (textSnippets.Count == 0)
+                {
+                    var arrayMatches = System.Text.RegularExpressions.Regex.Matches(rawText, @"\[\s*\(([^()]{2,100})\)");
+                    foreach (System.Text.RegularExpressions.Match m in arrayMatches)
+                    {
+                        string val = m.Groups[1].Value.Trim();
+                        if (!string.IsNullOrEmpty(val) && !textSnippets.Contains(val) && textSnippets.Count < 30)
+                        {
+                            textSnippets.Add(val);
+                        }
+                    }
+                }
+
+                if (textSnippets.Count > 0)
+                {
+                    sb.AppendLine("Textos y especificaciones extraídas del PDF:");
+                    foreach (var t in textSnippets) sb.AppendLine(" - " + t);
+                }
+                else
+                {
+                    sb.AppendLine("Documento PDF analizado (Metadatos y estructura extraída).");
+                }
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine("Error al leer el archivo PDF: " + ex.Message);
+            }
+
+            return sb.ToString();
+        }
+
+        private async Task<string> ProcessIfcFileAsync(string ifcPath)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("\n[DESCRIPCIÓN Y ESTRUCTURA EXTRAÍDA DEL ARCHIVO IFC ADJUNTO]");
+            sb.AppendLine($"Nombre de archivo IFC: {Path.GetFileName(ifcPath)}");
+
+            try
+            {
+                string content = await File.ReadAllTextAsync(ifcPath);
+                var lines = content.Split('\n');
+
+                List<string> entities = new List<string>();
+                List<string> properties = new List<string>();
+
+                foreach (var l in lines)
+                {
+                    string trimmed = l.Trim();
+                    if (trimmed.StartsWith("IFC", StringComparison.OrdinalIgnoreCase) || trimmed.Contains("= IFC", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (entities.Count < 25)
+                        {
+                            entities.Add(trimmed);
+                        }
+                    }
+                    if (trimmed.Contains("IFCPROPERTY", StringComparison.OrdinalIgnoreCase) || trimmed.Contains("IFCVALUEMEASURE", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (properties.Count < 20)
+                        {
+                            properties.Add(trimmed);
+                        }
+                    }
+                }
+
+                sb.AppendLine("Entidades del modelo IFC:");
+                foreach (var e in entities) sb.AppendLine(" - " + e);
+                sb.AppendLine("Propiedades del modelo IFC:");
+                foreach (var p in properties) sb.AppendLine(" - " + p);
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine("Error al leer el archivo IFC: " + ex.Message);
+            }
+
+            return sb.ToString();
+        }
+
+        private async Task<string> ProcessDwgFileAsync(string dwgPath)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("\n[DESCRIPCIÓN Y ESTRUCTURA EXTRAÍDA DEL PLANO DWG/DXF ADJUNTO]");
+            sb.AppendLine($"Nombre de archivo CAD: {Path.GetFileName(dwgPath)}");
+
+            try
+            {
+                string ext = Path.GetExtension(dwgPath).ToLower();
+                if (ext == ".dxf")
+                {
+                    string text = await File.ReadAllTextAsync(dwgPath);
+                    var lines = text.Split('\n');
+                    List<string> layers = new List<string>();
+                    List<string> texts = new List<string>();
+
+                    for (int i = 0; i < lines.Length; i++)
+                    {
+                        string line = lines[i].Trim();
+                        if (line == "8" && i + 1 < lines.Length)
+                        {
+                            string layerName = lines[i + 1].Trim();
+                            if (!layers.Contains(layerName) && layers.Count < 15)
+                                layers.Add(layerName);
+                        }
+                        if ((line == "TEXT" || line == "MTEXT") && i + 2 < lines.Length)
+                        {
+                            string val = lines[i + 2].Trim();
+                            if (val.Length > 1 && !texts.Contains(val) && texts.Count < 20)
+                                texts.Add(val);
+                        }
+                    }
+
+                    sb.AppendLine("Capas del archivo CAD:");
+                    foreach (var l in layers) sb.AppendLine(" - Capa: " + l);
+                    sb.AppendLine("Textos y cotas del plano CAD:");
+                    foreach (var t in texts) sb.AppendLine(" - Texto: " + t);
+                }
+                else
+                {
+                    byte[] rawBytes = await File.ReadAllBytesAsync(dwgPath);
+                    List<string> stringsFound = new List<string>();
+                    StringBuilder currentStr = new StringBuilder();
+
+                    foreach (byte b in rawBytes)
+                    {
+                        if (b >= 32 && b <= 126)
+                        {
+                            currentStr.Append((char)b);
+                        }
+                        else
+                        {
+                            if (currentStr.Length >= 4)
+                            {
+                                string s = currentStr.ToString();
+                                if (!s.StartsWith("AC10") && !s.Contains("AutoCAD") && stringsFound.Count < 20)
+                                {
+                                    stringsFound.Add(s);
+                                }
+                            }
+                            currentStr.Clear();
+                        }
+                    }
+
+                    sb.AppendLine("Metadatos y textos extraídos del DWG:");
+                    foreach (var s in stringsFound) sb.AppendLine(" - " + s);
+                }
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine("Error al procesar archivo DWG: " + ex.Message);
+            }
+
+            return sb.ToString();
+        }
+
+        private Task<List<string>> ExtractFramesFromVideoAsync(string videoPath, int maxFrames)
+        {
+            var tcs = new TaskCompletionSource<List<string>>();
+
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                try
+                {
+                    List<string> frames = new List<string>();
+                    var mediaPlayer = new System.Windows.Media.MediaPlayer();
+                    mediaPlayer.ScrubbingEnabled = true;
+
+                    mediaPlayer.MediaOpened += (s, e) =>
+                    {
+                        try
+                        {
+                            double totalSeconds = mediaPlayer.NaturalDuration.HasTimeSpan ? mediaPlayer.NaturalDuration.TimeSpan.TotalSeconds : 2.0;
+                            int videoWidth = mediaPlayer.NaturalVideoWidth > 0 ? mediaPlayer.NaturalVideoWidth : 640;
+                            int videoHeight = mediaPlayer.NaturalVideoHeight > 0 ? mediaPlayer.NaturalVideoHeight : 480;
+
+                            double[] samplePoints = totalSeconds > 1.0 ? new double[] { 0.2, totalSeconds / 2.0, totalSeconds * 0.8 } : new double[] { 0.1 };
+
+                            foreach (double sec in samplePoints)
+                            {
+                                mediaPlayer.Position = TimeSpan.FromSeconds(sec);
+
+                                var visual = new System.Windows.Media.DrawingVisual();
+                                using (var dc = visual.RenderOpen())
+                                {
+                                    dc.DrawVideo(mediaPlayer, new Rect(0, 0, videoWidth, videoHeight));
+                                }
+
+                                var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(videoWidth, videoHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+                                rtb.Render(visual);
+
+                                var encoder = new System.Windows.Media.Imaging.JpegBitmapEncoder();
+                                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+
+                                using (MemoryStream ms = new MemoryStream())
+                                {
+                                    encoder.Save(ms);
+                                    byte[] frameBytes = ms.ToArray();
+                                    frames.Add($"data:image/jpeg;base64,{Convert.ToBase64String(frameBytes)}");
+                                }
+                            }
+
+                            mediaPlayer.Close();
+                            tcs.SetResult(frames);
+                        }
+                        catch (Exception ex)
+                        {
+                            mediaPlayer.Close();
+                            tcs.SetException(ex);
+                        }
+                    };
+
+                    mediaPlayer.MediaFailed += (s, e) =>
+                    {
+                        mediaPlayer.Close();
+                        tcs.SetException(new Exception("Error al cargar video: " + e.ErrorException?.Message));
+                    };
+
+                    mediaPlayer.Open(new Uri(videoPath));
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            });
+
+            return tcs.Task;
+        }
+
+        private async void GenerateLive_Click(object sender, RoutedEventArgs e)
+        {
+            string apiKey = txtApiKey.Text.Trim();
+            string userPrompt = txtUserPrompt.Text.Trim();
+
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                System.Windows.MessageBox.Show("Por favor ingresa tu API Key.", "API Key Requerida", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(userPrompt) && string.IsNullOrEmpty(_selectedMediaPath))
+            {
+                System.Windows.MessageBox.Show("Por favor escribe una descripción o adjunta un archivo (PDF, IFC, DWG, Foto o Video).", "Entrada Requerida", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            btnGenerateLive.IsEnabled = false;
+            txtStatus.Text = "⏳ Procesando archivo adjunto...";
+
+            try
+            {
+                string selectedModel = "gpt-4o-mini";
+                string apiEndpoint = "https://api.openai.com/v1/chat/completions";
+
+                var itemModel = cmbModel.SelectedItem as ComboBoxItem;
+                string modelNameStr = itemModel?.Content?.ToString() ?? "";
+
+                if (modelNameStr.Contains("gpt-4o-mini"))
+                {
+                    selectedModel = "gpt-4o-mini";
+                    apiEndpoint = "https://api.openai.com/v1/chat/completions";
+                }
+                else if (modelNameStr.Contains("gpt-4o"))
+                {
+                    selectedModel = "gpt-4o";
+                    apiEndpoint = "https://api.openai.com/v1/chat/completions";
+                }
+                else if (modelNameStr.Contains("gemini"))
+                {
+                    selectedModel = "gemini-2.0-flash";
+                    apiEndpoint = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+                }
+
+                List<string> mediaBase64List = new List<string>();
+                string extraDocText = "";
+
+                if (!string.IsNullOrEmpty(_selectedMediaPath))
+                {
+                    txtStatus.Text = "📷 Analizando y procesando archivo adjunto...";
+                    var processed = await ProcessAttachedFileAsync(_selectedMediaPath);
+                    mediaBase64List = processed.base64Images;
+                    extraDocText = processed.extraText;
+                }
+
+                string systemPrompt = GetSystemInstructions();
+
+                string fullPromptText = userPrompt;
+                if (!string.IsNullOrEmpty(extraDocText))
+                {
+                    fullPromptText += "\n" + extraDocText;
+                }
+
+                object userMessageContent;
+                if (mediaBase64List.Count > 0)
+                {
+                    List<object> contentList = new List<object>();
+                    contentList.Add(new { type = "text", text = $"Genera la geometría en JSON para la siguiente familia o máquina analizando el archivo adjunto: {fullPromptText}" });
+
+                    foreach (var base64Img in mediaBase64List)
+                    {
+                        contentList.Add(new
+                        {
+                            type = "image_url",
+                            image_url = new { url = base64Img }
+                        });
+                    }
+                    userMessageContent = contentList;
+                }
+                else
+                {
+                    userMessageContent = $"Genera la geometría en JSON para la siguiente familia o máquina: {fullPromptText}";
+                }
+
+                var payload = new
+                {
+                    model = selectedModel,
+                    messages = new object[]
+                    {
+                        new { role = "system", content = systemPrompt },
+                        new { role = "user", content = userMessageContent }
+                    },
+                    response_format = new { type = "json_object" },
+                    temperature = 0.2
+                };
+
+                txtStatus.Text = $"⏳ Enviando a Agente IA ({selectedModel})...";
+                string jsonBody = JsonConvert.SerializeObject(payload);
+                var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+
+                using (var req = new HttpRequestMessage(HttpMethod.Post, apiEndpoint))
+                {
+                    req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+                    req.Content = content;
+
+                    HttpResponseMessage response = await _httpClient.SendAsync(req);
+                    string responseString = await response.Content.ReadAsStringAsync();
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        txtStatus.Text = "❌ Error en API Key o servidor IA (" + response.StatusCode + ")";
+                        System.Windows.MessageBox.Show($"Error al conectar con la API ({response.StatusCode}):\n{responseString}", "Error de Conexión IA");
+                        return;
+                    }
+
+                    JObject resObj = JObject.Parse(responseString);
+                    string? aiContent = resObj["choices"]?[0]?["message"]?["content"]?.ToString();
+
+                    if (!string.IsNullOrEmpty(aiContent))
+                    {
+                        string? cleanJson = ExtractJson(aiContent);
+                        txtJson.Text = cleanJson ?? aiContent;
+                        txtStatus.Text = "✅ ¡Geometría 3D generada desde multimedia! Revisa y haz clic en Construir.";
+                    }
+                    else
+                    {
+                        txtStatus.Text = "⚠️ La IA devolvió una respuesta vacía.";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                txtStatus.Text = "❌ Error al comunicarse con la IA.";
+                System.Windows.MessageBox.Show("Ocurrió un error en el procesamiento:\n" + ex.Message, "Error Multi-Modal");
+            }
+            finally
+            {
+                btnGenerateLive.IsEnabled = true;
+            }
+        }
+
+        private void CopyPrompt_Click(object sender, RoutedEventArgs e)
+        {
+            string prompt = GetSystemInstructions();
+            try
+            {
                 System.Windows.Clipboard.SetText(prompt);
-                txtStatus.Text = "✅ Prompt copiado al portapapeles. ¡Pégalo en Gemini!";
+                txtStatus.Text = "✅ Prompt copiado al portapapeles.";
             }
             catch (Exception ex)
             {
