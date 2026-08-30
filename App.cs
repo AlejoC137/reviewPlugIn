@@ -48,220 +48,136 @@ namespace RevitToSupabasePlugin
         private static void EnsureRibbonButtonsExist(UIControlledApplication application)
         {
             string tabName = "📕 Review";
-            string panelName = "🤖 Generador IA";
-
-            RibbonPanel? panel = null;
-            try
-            {
-                List<RibbonPanel> existingPanels = application.GetRibbonPanels(tabName);
-                foreach (RibbonPanel p in existingPanels)
-                {
-                    if (p.Name == panelName)
-                    {
-                        panel = p;
-                        break;
-                    }
-                }
-            }
-            catch { }
-
-            if (panel == null)
-            {
-                try
-                {
-                    panel = application.CreateRibbonPanel(tabName, panelName);
-                }
-                catch
-                {
-                    return;
-                }
-            }
-
             string thisAssemblyPath = Assembly.GetExecutingAssembly().Location;
             string? dirPath = Path.GetDirectoryName(thisAssemblyPath);
 
-            // Obtener ítems existentes en el panel
-            IList<RibbonItem> existingItems = panel.GetItems();
-            Dictionary<string, PushButton> existingButtons = new Dictionary<string, PushButton>();
-            foreach (RibbonItem item in existingItems)
+            BitmapImage? GetIcon(string baseName, bool large = false)
             {
-                if (item is PushButton btn)
+                if (!string.IsNullOrEmpty(dirPath))
                 {
-                    existingButtons[btn.Name] = btn;
-                }
-            }
-
-            void AddOrUpdateBtn(string name, string text, string className)
-            {
-                PushButton? btn = null;
-                if (!existingButtons.ContainsKey(name))
-                {
-                    PushButtonData bData = new PushButtonData(name, text, thisAssemblyPath, "RevitToSupabasePlugin." + className);
-                    btn = panel.AddItem(bData) as PushButton;
-                }
-            }
-
-            AddOrUpdateBtn("cmdGen", "🏗️ Generador\nFamilias IA", "CommandGenerador");
-            AddOrUpdateBtn("cmdMCP", "📊 Exportar\nMetadata", "Command");
-            AddOrUpdateBtn("cmdIA", "⚙️ Configurador\nPlantillas", "CommandConfiguradorPlantilla");
-            AddOrUpdateBtn("cmdSchedules", "📝 Asistente\nTablas IA", "CommandSchedulesIA");
-            AddOrUpdateBtn("cmdSyncMaterials", "🔄 Sincronizar\nMateriales", "CommandSyncMaterials");
-
-            // --- Panel y Botones para Sistema de Riego ---
-            string panelRiegoName = "💧 Sistema de Riego";
-
-            RibbonPanel? panelRiego = null;
-            try
-            {
-                List<RibbonPanel> existingPanels = application.GetRibbonPanels(tabName);
-                foreach (RibbonPanel p in existingPanels)
-                {
-                    if (p.Name == panelRiegoName)
+                    string fileName = large ? $"{baseName}_32.png" : $"{baseName}.png";
+                    string iconPath = Path.Combine(dirPath, fileName);
+                    if (!File.Exists(iconPath))
                     {
-                        panelRiego = p;
-                        break;
+                        iconPath = Path.Combine(dirPath, $"{baseName}.png");
+                    }
+
+                    if (File.Exists(iconPath))
+                    {
+                        var bmp = new BitmapImage();
+                        bmp.BeginInit();
+                        bmp.UriSource = new Uri(iconPath);
+                        bmp.CacheOption = BitmapCacheOption.OnLoad;
+                        bmp.CreateOptions = BitmapCreateOptions.PreservePixelFormat;
+                        bmp.EndInit();
+                        bmp.Freeze();
+                        return bmp;
                     }
                 }
+                return null;
             }
-            catch { }
 
-            if (panelRiego == null)
+            PushButtonData CreateBtnData(string name, string text, string className, string iconBaseName)
+            {
+                PushButtonData bData = new PushButtonData(name, text, thisAssemblyPath, "RevitToSupabasePlugin." + className);
+                if (!string.IsNullOrEmpty(iconBaseName))
+                {
+                    BitmapImage? icon16 = GetIcon(iconBaseName, false);
+                    if (icon16 != null)
+                    {
+                        bData.Image = icon16;
+                    }
+
+                    BitmapImage? icon32 = GetIcon(iconBaseName, true);
+                    if (icon32 != null)
+                    {
+                        bData.LargeImage = icon32;
+                    }
+                }
+                return bData;
+            }
+
+            RibbonPanel GetOrCreatePanel(string name)
             {
                 try
                 {
-                    panelRiego = application.CreateRibbonPanel(tabName, panelRiegoName);
+                    List<RibbonPanel> existingPanels = application.GetRibbonPanels(tabName);
+                    foreach (RibbonPanel p in existingPanels)
+                    {
+                        if (p.Name == name) return p;
+                    }
                 }
                 catch { }
-            }
 
-            if (panelRiego != null)
-            {
-                IList<RibbonItem> existingRiegoItems = panelRiego.GetItems();
-                Dictionary<string, PushButton> existingRiegoButtons = new Dictionary<string, PushButton>();
-                foreach (RibbonItem item in existingRiegoItems)
-                {
-                    if (item is PushButton btn)
-                    {
-                        existingRiegoButtons[btn.Name] = btn;
-                    }
-                }
-
-                void AddOrUpdateRiegoBtn(string name, string text, string className)
-                {
-                    if (!existingRiegoButtons.ContainsKey(name))
-                    {
-                        PushButtonData bData = new PushButtonData(name, text, thisAssemblyPath, "RevitToSupabasePlugin." + className);
-                        panelRiego.AddItem(bData);
-                    }
-                }
-
-                AddOrUpdateRiegoBtn("cmdCargarRiego", "📂 Explorador\nPlantilla Riego", "CommandCargarPlantillaRiego");
-                AddOrUpdateRiegoBtn("cmdPlumbingSheet", "🚰 Plumbing\nSheet", "CommandPlumbingSheet");
-            }
-
-            // --- Panel y Botones para Albañilería ---
-            string panelAlbaName = "🧱 Albañilería";
-            RibbonPanel? panelAlba = null;
-            try
-            {
-                List<RibbonPanel> existingPanels = application.GetRibbonPanels(tabName);
-                foreach (RibbonPanel p in existingPanels)
-                {
-                    if (p.Name == panelAlbaName)
-                    {
-                        panelAlba = p;
-                        break;
-                    }
-                }
-            }
-            catch { }
-
-            if (panelAlba == null)
-            {
                 try
                 {
-                    panelAlba = application.CreateRibbonPanel(tabName, panelAlbaName);
+                    return application.CreateRibbonPanel(tabName, name);
                 }
-                catch { }
+                catch
+                {
+                    return null!;
+                }
             }
 
-            if (panelAlba != null)
+            // --- Panel 1: 🤖 Generador IA ---
+            RibbonPanel panelIA = GetOrCreatePanel("🤖 Generador IA");
+            if (panelIA != null && panelIA.GetItems().Count == 0)
             {
-                IList<RibbonItem> existingAlbaItems = panelAlba.GetItems();
-                Dictionary<string, PushButton> existingAlbaButtons = new Dictionary<string, PushButton>();
-                foreach (RibbonItem item in existingAlbaItems)
-                {
-                    if (item is PushButton btn)
-                    {
-                        existingAlbaButtons[btn.Name] = btn;
-                    }
-                }
+                PushButtonData btnGen = CreateBtnData("cmdGen", "Generador Familias IA", "CommandGenerador", "icon_gen_ia");
+                PushButtonData btnMCP = CreateBtnData("cmdMCP", "Exportar Metadata", "Command", "icon_export_metadata");
+                PushButtonData btnIA = CreateBtnData("cmdIA", "Configurador Plantillas", "CommandConfiguradorPlantilla", "icon_config_plantilla");
+                panelIA.AddStackedItems(btnGen, btnMCP, btnIA);
 
-                void AddOrUpdateAlbaBtn(string name, string text, string className)
-                {
-                    if (!existingAlbaButtons.ContainsKey(name))
-                    {
-                        PushButtonData bData = new PushButtonData(name, text, thisAssemblyPath, "RevitToSupabasePlugin." + className);
-                        panelAlba.AddItem(bData);
-                    }
-                }
-
-                AddOrUpdateAlbaBtn("cmdGenLadrillos", "🏭 Generar Familias\nde Ladrillos", "CommandGenerarFamiliasLadrillos");
-                AddOrUpdateAlbaBtn("cmdConvMuros", "🧱 Convertir Muros\na Ladrillos", "CommandConvertirMurosALadrillos");
-                AddOrUpdateAlbaBtn("cmdCrearTablas", "📊 Crear Tablas\nde Cómputos", "CommandCrearTablasAlbanileria");
+                PushButtonData btnSchedules = CreateBtnData("cmdSchedules", "Asistente Tablas IA", "CommandSchedulesIA", "icon_tablas_ia");
+                PushButtonData btnSync = CreateBtnData("cmdSyncMaterials", "Sincronizar Materiales", "CommandSyncMaterials", "icon_sync_materials");
+                panelIA.AddStackedItems(btnSchedules, btnSync);
             }
 
-            // --- Panel y Botón para Ayuda y Documentación ---
-            string panelHelpName = "ℹ️ Ayuda & Docs";
-            RibbonPanel? panelHelp = null;
-            try
+            // --- Panel 2: 💧 Sistema de Riego ---
+            RibbonPanel panelRiego = GetOrCreatePanel("💧 Sistema de Riego");
+            if (panelRiego != null && panelRiego.GetItems().Count == 0)
             {
-                List<RibbonPanel> existingPanels = application.GetRibbonPanels(tabName);
-                foreach (RibbonPanel p in existingPanels)
-                {
-                    if (p.Name == panelHelpName)
-                    {
-                        panelHelp = p;
-                        break;
-                    }
-                }
-            }
-            catch { }
-
-            if (panelHelp == null)
-            {
-                try
-                {
-                    panelHelp = application.CreateRibbonPanel(tabName, panelHelpName);
-                }
-                catch { }
+                PushButtonData btnRiego = CreateBtnData("cmdCargarRiego", "Explorador Plantilla Riego", "CommandCargarPlantillaRiego", "icon_riego_plantilla");
+                PushButtonData btnPlumbing = CreateBtnData("cmdPlumbingSheet", "Plumbing Sheet", "CommandPlumbingSheet", "icon_plumbing_sheet");
+                panelRiego.AddStackedItems(btnRiego, btnPlumbing);
             }
 
-            if (panelHelp != null)
+            // --- Panel 3: 🧱 Albañilería ---
+            RibbonPanel panelAlba = GetOrCreatePanel("🧱 Albañilería");
+            if (panelAlba != null && panelAlba.GetItems().Count == 0)
             {
-                IList<RibbonItem> existingHelpItems = panelHelp.GetItems();
-                Dictionary<string, PushButton> existingHelpButtons = new Dictionary<string, PushButton>();
-                foreach (RibbonItem item in existingHelpItems)
-                {
-                    if (item is PushButton btn)
-                    {
-                        existingHelpButtons[btn.Name] = btn;
-                    }
-                }
+                PushButtonData btnGenLadrillos = CreateBtnData("cmdGenLadrillos", "Generar Familias de Ladrillos", "CommandGenerarFamiliasLadrillos", "icon_gen_ladrillos");
+                PushButtonData btnConvMuros = CreateBtnData("cmdConvMuros", "Convertir Muros a Ladrillos", "CommandConvertirMurosALadrillos", "icon_conv_muros");
+                PushButtonData btnCrearTablas = CreateBtnData("cmdCrearTablas", "Crear Tablas de Cómputos", "CommandCrearTablasAlbanileria", "icon_tablas_ladrillos");
+                panelAlba.AddStackedItems(btnGenLadrillos, btnConvMuros, btnCrearTablas);
+            }
 
-                if (!existingHelpButtons.ContainsKey("cmdManual"))
-                {
-                    PushButtonData bData = new PushButtonData("cmdManual", "📘 Manual & Mapa\nde la App", thisAssemblyPath, "RevitToSupabasePlugin.CommandManualApp");
-                    if (!string.IsNullOrEmpty(dirPath))
-                    {
-                        string iconPath = Path.Combine(dirPath, "icon_doc.png");
-                        if (File.Exists(iconPath))
-                        {
-                            bData.LargeImage = new BitmapImage(new Uri(iconPath));
-                        }
-                    }
-                    panelHelp.AddItem(bData);
-                }
+            // --- Panel 4: 🪵 Enchapes & Pisos ---
+            RibbonPanel panelPisos = GetOrCreatePanel("🪵 Enchapes & Pisos");
+            if (panelPisos != null && panelPisos.GetItems().Count == 0)
+            {
+                PushButtonData btnGenPisos = CreateBtnData("cmdGenPisos", "Gestor de Piezas y Baldosas", "CommandGenerarFamiliasPisos", "icon_gen_pisos");
+                PushButtonData btnConvPisos = CreateBtnData("cmdConvPisos", "Instanciador de Enchapes & Pisos", "CommandConvertirPisosABaldosas", "icon_conv_pisos");
+                PushButtonData btnCrearTablasPisos = CreateBtnData("cmdCrearTablasPisos", "Cómputos de Enchapes & Zócalos", "CommandCrearTablasPisos", "icon_tablas_pisos");
+                panelPisos.AddStackedItems(btnGenPisos, btnConvPisos, btnCrearTablasPisos);
+            }
+
+            // --- Panel 5: 🔩 Steel Decks ---
+            RibbonPanel panelSteelDeck = GetOrCreatePanel("🔩 Steel Decks");
+            if (panelSteelDeck != null && panelSteelDeck.GetItems().Count == 0)
+            {
+                PushButtonData btnGenSteelDeck = CreateBtnData("cmdGenSteelDeck", "Gestor de Perfiles Steel Deck", "CommandGenerarFamiliasSteelDeck", "icon_gen_steel");
+                PushButtonData btnConvSteelDeck = CreateBtnData("cmdConvSteelDeck", "Modelador de Steel Decks", "CommandConvertirSteelDeck", "icon_conv_steel");
+                PushButtonData btnCrearTablasSteelDecks = CreateBtnData("cmdCrearTablasSteelDecks", "Cómputos de Steel Decks", "CommandCrearTablasSteelDecks", "icon_tablas_steel");
+                panelSteelDeck.AddStackedItems(btnGenSteelDeck, btnConvSteelDeck, btnCrearTablasSteelDecks);
+            }
+
+            // --- Panel 6: ℹ️ Ayuda & Docs ---
+            RibbonPanel panelHelp = GetOrCreatePanel("ℹ️ Ayuda & Docs");
+            if (panelHelp != null && panelHelp.GetItems().Count == 0)
+            {
+                PushButtonData btnManual = CreateBtnData("cmdManual", "📘 Manual & Mapa\nde la App", "CommandManualApp", "icon_manual");
+                panelHelp.AddItem(btnManual);
             }
         }
 

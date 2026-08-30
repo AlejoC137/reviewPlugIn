@@ -1,0 +1,401 @@
+<Window x:Class="RevitToSupabasePlugin.ManagerFamiliasSteelDeckWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Gestor de Perfiles y Catálogo de Steel Decks" 
+        Height="740" Width="1120" 
+        MinHeight="640" MinWidth="980"
+        WindowStartupLocation="CenterScreen" 
+        Background="#121214"
+        Foreground="#E3E5E8"
+        ResizeMode="CanResize"
+        BorderThickness="1"
+        BorderBrush="#3182CE"
+        Loaded="Window_Loaded">
+    <Window.Resources>
+        <Style TargetType="GroupBox">
+            <Setter Property="BorderBrush" Value="#2D3748"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GroupBox">
+                        <Grid>
+                            <Border CornerRadius="8" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="#1A1C20" Margin="0,8,0,0">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="Black" Opacity="0.2" BlurRadius="6" ShadowDepth="2"/>
+                                </Border.Effect>
+                            </Border>
+                            <Border Margin="10,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" Background="#121214" Padding="6,0">
+                                <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"/>
+                            </Border>
+                            <ContentPresenter Margin="{TemplateBinding Padding}" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#2B2D31"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,7"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#3F4248"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#15171A"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#4A5568"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#15171A"/>
+            <Setter Property="Foreground" Value="#121214"/>
+            <Setter Property="BorderBrush" Value="#4A5568"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        <Style TargetType="ListBox">
+            <Setter Property="Background" Value="#15171A"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="BorderBrush" Value="#2D3748"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="8"/>
+                        <Setter Property="Margin" Value="2"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Cursor" Value="Hand"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                                        <ContentPresenter/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="#2B6CB0"/>
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#2D3748"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="310" MinWidth="250"/>
+            <ColumnDefinition Width="370" MinWidth="300"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Columna 1: Catálogo y Lista de Perfiles -->
+        <Border Grid.Column="0" Background="#1A1C20" CornerRadius="8" Padding="12" Margin="0,0,10,0" BorderBrush="#2D3748" BorderThickness="1">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                    <TextBlock Text="🔩 Catálogo Steel Deck" FontSize="16" FontWeight="Bold" Foreground="#63B3ED"/>
+                    <TextBlock Text="Perfiles de chapa colaborante" FontSize="11" Foreground="#A0AEC0"/>
+                </StackPanel>
+
+                <!-- Filtro de Búsqueda -->
+                <Grid Grid.Row="1" Margin="0,0,0,8">
+                    <TextBox x:Name="txtSearch" TextChanged="txtSearch_TextChanged" Padding="6" Background="#15171A" Foreground="White" BorderBrush="#4A5568"/>
+                    <TextBlock Text="🔍 Buscar perfil..." Foreground="#718096" Margin="8,6,0,0" IsHitTestVisible="False">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Text, ElementName=txtSearch}" Value="">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+
+                <!-- Lista de Perfiles -->
+                <ListBox Grid.Row="2" x:Name="lstDecks" SelectionChanged="lstDecks_SelectionChanged">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Background="#2B6CB0" CornerRadius="4" Width="32" Height="32" Margin="0,0,8,0">
+                                    <TextBlock Text="📐" VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="16"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="White" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Foreground="#CBD5E0" FontSize="11">
+                                        <Run Text="{Binding RibHeightCm, StringFormat='h: {0:0.##}cm'}"/>
+                                        <Run Text=" • " Foreground="#718096"/>
+                                        <Run Text="{Binding Gauge}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- Botones Inferiores de Catálogo -->
+                <StackPanel Grid.Row="3" Margin="0,10,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" x:Name="btnNew" Content="➕ Nuevo Perfil" Margin="0,0,4,6" Background="#2B6CB0" Click="btnNew_Click"/>
+                        <Button Grid.Column="1" x:Name="btnDuplicate" Content="📑 Duplicar" Margin="4,0,0,6" Click="btnDuplicate_Click" IsEnabled="False"/>
+                    </Grid>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" x:Name="btnImport" Content="📥 Importar JSON" Margin="0,0,4,0" Background="#319795" Click="btnImport_Click"/>
+                        <Button Grid.Column="1" x:Name="btnExport" Content="📤 Exportar JSON" Margin="4,0,0,0" Background="#319795" Click="btnExport_Click"/>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Columna 2: Editor de Parámetros y Dimensiones de la Greca -->
+        <Border Grid.Column="1" Background="#1A1C20" CornerRadius="8" Padding="12" Margin="0,0,10,0" BorderBrush="#2D3748" BorderThickness="1">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel x:Name="pnlEditor" IsEnabled="False">
+                    <TextBlock Text="⚙️ Parámetros del Perfil" FontSize="15" FontWeight="Bold" Foreground="#63B3ED" Margin="0,0,0,8"/>
+
+                    <GroupBox Header="1. Información General">
+                        <StackPanel>
+                            <TextBlock Text="Nombre del Perfil:" FontSize="11" Foreground="#A0AEC0"/>
+                            <TextBox x:Name="txtName" TextChanged="OnParameterChanged"/>
+
+                            <TextBlock Text="Categoría / Tipo de Deck:" FontSize="11" Foreground="#A0AEC0"/>
+                            <TextBox x:Name="txtCategory" TextChanged="OnParameterChanged"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                                    <TextBlock Text="Calibre / Gauge:" FontSize="11" Foreground="#A0AEC0"/>
+                                    <TextBox x:Name="txtGauge" TextChanged="OnParameterChanged"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                                    <TextBlock Text="Espesor Chapa (mm):" FontSize="11" Foreground="#A0AEC0"/>
+                                    <TextBox x:Name="txtThicknessMm" TextChanged="OnParameterChanged"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <GroupBox Header="2. Geometría de la Onda (Greca)">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                                    <TextBlock Text="Altura Cresta (cm):" FontSize="11" Foreground="#A0AEC0"/>
+                                    <TextBox x:Name="txtRibHeight" TextChanged="OnParameterChanged"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                                    <TextBlock Text="Paso / Pitch (cm):" FontSize="11" Foreground="#A0AEC0"/>
+                                    <TextBox x:Name="txtPitch" TextChanged="OnParameterChanged"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                                    <TextBlock Text="Ancho Cresta Sup. (cm):" FontSize="11" Foreground="#A0AEC0"/>
+                                    <TextBox x:Name="txtTopFlute" TextChanged="OnParameterChanged"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                                    <TextBlock Text="Ancho Valle Inf. (cm):" FontSize="11" Foreground="#A0AEC0"/>
+                                    <TextBox x:Name="txtBottomFlute" TextChanged="OnParameterChanged"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Text="Ancho Útil de Panel (cm):" FontSize="11" Foreground="#A0AEC0"/>
+                            <TextBox x:Name="txtSheetWidth" TextChanged="OnParameterChanged"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <GroupBox Header="3. Concreto y Capa de Compresión">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                                    <TextBlock Text="Capa sobre Cresta (cm):" FontSize="11" Foreground="#A0AEC0"/>
+                                    <TextBox x:Name="txtToppingCm" TextChanged="OnParameterChanged"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                                    <TextBlock Text="Peso Aprox (kg/m²):" FontSize="11" Foreground="#A0AEC0"/>
+                                    <TextBox x:Name="txtWeight" TextChanged="OnParameterChanged"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Text="Material de Concreto:" FontSize="11" Foreground="#A0AEC0"/>
+                            <ComboBox x:Name="cmbConcreteMat" DisplayMemberPath="Name" SelectionChanged="OnParameterChanged"/>
+
+                            <TextBlock Text="Material de Acero Chapa:" FontSize="11" Foreground="#A0AEC0"/>
+                            <ComboBox x:Name="cmbSteelMat" DisplayMemberPath="Name" SelectionChanged="OnParameterChanged"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <GroupBox Header="4. Conectores de Cortante (Studs)">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,3,0">
+                                    <TextBlock Text="Diámetro (pulg):" FontSize="11" Foreground="#A0AEC0"/>
+                                    <TextBox x:Name="txtStudDiameter" TextChanged="OnParameterChanged"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="3,0,3,0">
+                                    <TextBlock Text="Altura (cm):" FontSize="11" Foreground="#A0AEC0"/>
+                                    <TextBox x:Name="txtStudHeight" TextChanged="OnParameterChanged"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Margin="3,0,0,0">
+                                    <TextBlock Text="Paso (cm):" FontSize="11" Foreground="#A0AEC0"/>
+                                    <TextBox x:Name="txtStudSpacing" TextChanged="OnParameterChanged"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Text="Costo estimado ($/m²):" FontSize="11" Foreground="#A0AEC0"/>
+                            <TextBox x:Name="txtCost" TextChanged="OnParameterChanged"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- Acciones de Guardar / Eliminar -->
+                    <Grid Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" x:Name="btnSave" Content="💾 Guardar Cambios" Background="#38A169" FontWeight="Bold" Margin="0,0,6,0" Click="btnSave_Click"/>
+                        <Button Grid.Column="1" x:Name="btnDelete" Content="🗑️ Eliminar" Background="#E53E3E" Padding="12,7" Click="btnDelete_Click"/>
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Columna 3: Visor 3D Interactivo del Perfil Steel Deck -->
+        <Border Grid.Column="2" Background="#15171A" CornerRadius="8" BorderBrush="#2D3748" BorderThickness="1" ClipToBounds="True">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Barra Superior de Herramientas del Visor -->
+                <Border Grid.Row="0" Background="#1A1C20" Padding="10,8" BorderBrush="#2D3748" BorderThickness="0,0,0,1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <TextBlock Text="👁️ Vista 3D del Steel Deck" FontWeight="Bold" FontSize="13" Foreground="#63B3ED" VerticalAlignment="Center"/>
+                            <TextBlock Text=" • (Arrastra con el ratón para rotar)" FontSize="11" Foreground="#718096" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <CheckBox x:Name="chkShowConcrete" Content="Capa Concreto" IsChecked="True" Foreground="#CBD5E0" Margin="0,0,10,0" Checked="OnRenderOptionChanged" Unchecked="OnRenderOptionChanged"/>
+                            <CheckBox x:Name="chkShowStuds" Content="Studs Cortante" IsChecked="True" Foreground="#CBD5E0" Margin="0,0,10,0" Checked="OnRenderOptionChanged" Unchecked="OnRenderOptionChanged"/>
+                            <Button Content="🔄 Reset Vista" Padding="6,2" FontSize="11" Background="#2D3748" Click="btnResetView_Click"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Viewport 3D -->
+                <Viewport3D Grid.Row="1" x:Name="viewport3D"
+                            MouseDown="Viewport_MouseDown" 
+                            MouseMove="Viewport_MouseMove" 
+                            MouseUp="Viewport_MouseUp" 
+                            MouseWheel="Viewport_MouseWheel">
+                    <Viewport3D.Camera>
+                        <PerspectiveCamera x:Name="camera" Position="80,-90,65" LookDirection="-80,90,-65" UpDirection="0,0,1" FieldOfView="45"/>
+                    </Viewport3D.Camera>
+
+                    <ModelVisual3D>
+                        <ModelVisual3D.Content>
+                            <Model3DGroup x:Name="modelGroup">
+                                <AmbientLight Color="#606060"/>
+                                <DirectionalLight Color="#FFFFFF" Direction="-1,1,-1.5"/>
+                                <DirectionalLight Color="#909090" Direction="1,-1,1"/>
+                            </Model3DGroup>
+                        </ModelVisual3D.Content>
+                    </ModelVisual3D>
+                </Viewport3D>
+
+                <!-- Panel Inferior Informativo de Cotas -->
+                <Border Grid.Row="2" Background="#1A1C20" Padding="10,6" BorderBrush="#2D3748" BorderThickness="0,1,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" x:Name="lblInfoPaso" Text="Paso: 30.48 cm" FontSize="11" Foreground="#CBD5E0" HorizontalAlignment="Center"/>
+                        <TextBlock Grid.Column="1" x:Name="lblInfoAltura" Text="Altura Chapa: 5.08 cm" FontSize="11" Foreground="#CBD5E0" HorizontalAlignment="Center"/>
+                        <TextBlock Grid.Column="2" x:Name="lblInfoTotalH" Text="Espesor Total: 10.08 cm" FontSize="11" Foreground="#63B3ED" FontWeight="Bold" HorizontalAlignment="Center"/>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

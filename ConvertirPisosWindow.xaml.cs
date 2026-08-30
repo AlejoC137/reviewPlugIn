@@ -1,0 +1,1076 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Media3D;
+using Autodesk.Revit.DB;
+using Autodesk.Revit.UI;
+
+namespace RevitToSupabasePlugin
+{
+    public partial class ConvertirPisosWindow : Window
+    {
+        public bool IsConfirmed { get; private set; } = false;
+
+        public TileType? SelectedTile { get; private set; }
+        public FloorPatternType SelectedPattern { get; private set; } = FloorPatternType.OrthogonalGrid;
+
+        // Capas a Modelar
+        public bool ModelRevoque { get; private set; } = false;
+        public double RevoqueThickCm { get; private set; } = 1.5;
+        public Autodesk.Revit.DB.Material? RevoqueMaterial { get; private set; }
+
+        public bool ModelBeddingMortar { get; private set; } = true;
+        public double BeddingThickMm { get; private set; } = 5.0;
+        public Autodesk.Revit.DB.Material? BeddingMaterial { get; private set; }
+
+        public bool ModelTiles { get; private set; } = true;
+        public double TileLengthCm { get; private set; } = 60.0;
+        public double TileWidthCm { get; private set; } = 60.0;
+        public double TileThickCm { get; private set; } = 1.0;
+        public Autodesk.Revit.DB.Material? TileMaterial { get; private set; }
+
+        public bool GenerateJointMesh { get; private set; } = true;
+        public double JointInnerMm { get; private set; } = 2.0;
+        public double JointPerimMm { get; private set; } = 8.0;
+        public Autodesk.Revit.DB.Material? GroutMaterial { get; private set; }
+
+        // Muros
+        public bool FullWallHeight { get; private set; } = true;
+        public double CustomWallHeightCm { get; private set; } = 210.0;
+        public double WallBaseOffsetCm { get; private set; } = 0.0;
+
+        // Zócalos
+        public bool EnableSkirting { get; private set; } = true;
+        public double SkirtingHeightCm { get; private set; } = 8.0;
+        public double SkirtingThickCm { get; private set; } = 1.2;
+        public double SkirtingBevelMm { get; private set; } = 1.5;
+        public Autodesk.Revit.DB.Material? SkirtingMaterial { get; private set; }
+
+        public double RotationDeg { get; private set; } = 0.0;
+        public double OffsetXCm { get; private set; } = 0.0;
+        public double OffsetYCm { get; private set; } = 0.0;
+
+        public List<TileLayoutItem> LayoutTiles { get; private set; } = new List<TileLayoutItem>();
+        public List<JointLayoutItem> LayoutJoints { get; private set; } = new List<JointLayoutItem>();
+        public List<SkirtingItem> SkirtingSegments { get; private set; } = new List<SkirtingItem>();
+
+        public List<TilingHostInfo> SelectedHosts { get; private set; } = new List<TilingHostInfo>();
+
+        private Document? _doc;
+        private List<TileType> _availableTiles = new List<TileType>();
+        private List<Autodesk.Revit.DB.Material> _materials = new List<Autodesk.Revit.DB.Material>();
+
+        // Variables de Cámara 3D
+        private System.Windows.Point _lastMousePosition;
+        private double _cameraAngleX = 45;
+        private double _cameraAngleY = 35;
+        private double _cameraDistance = 250;
+        private bool _isDragging = false;
+        private bool _isUpdating = false;
+
+        public ConvertirPisosWindow(List<TilingHostInfo> selectedHosts, Document? doc)
+        {
+            InitializeComponent();
+            _doc = doc;
+            SelectedHosts = selectedHosts ?? new List<TilingHostInfo>();
+        }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            LoadMaterials();
+            LoadFaceBasedTileFamilies();
+            AutoPopulateFromHostLayers();
+            UpdateHostSummary();
+            RecalculateLayoutAnd3D();
+        }
+
+        private void LoadMaterials()
+        {
+            try
+            {
+                if (_doc == null) return;
+                _materials = new FilteredElementCollector(_doc)
+                    .OfClass(typeof(Autodesk.Revit.DB.Material))
+                    .Cast<Autodesk.Revit.DB.Material>()
+                    .OrderBy(m => m.Name)
+                    .ToList();
+
+                cmbTileMaterial.ItemsSource = _materials;
+                cmbRevoqueMaterial.ItemsSource = _materials;
+                cmbBeddingMaterial.ItemsSource = _materials;
+                cmbGroutMaterial.ItemsSource = _materials;
+                cmbSkirtingMaterial.ItemsSource = _materials;
+
+                if (_materials.Count > 0)
+                {
+                    cmbTileMaterial.SelectedItem = _materials.FirstOrDefault(m => m.Name.IndexOf("Porcelanato", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                                                 m.Name.IndexOf("Ceram", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                                                 m.Name.IndexOf("Piso", StringComparison.OrdinalIgnoreCase) >= 0) ?? _materials[0];
+
+                    cmbRevoqueMaterial.SelectedItem = _materials.FirstOrDefault(m => m.Name.IndexOf("Revoque", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                                                    m.Name.IndexOf("Yeso", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                                                    m.Name.IndexOf("Mortero", StringComparison.OrdinalIgnoreCase) >= 0) ?? _materials[0];
+
+                    cmbBeddingMaterial.SelectedItem = _materials.FirstOrDefault(m => m.Name.IndexOf("Pega", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                                                    m.Name.IndexOf("Mortero", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                                                    m.Name.IndexOf("Adhesivo", StringComparison.OrdinalIgnoreCase) >= 0) ?? _materials[0];
+
+                    cmbGroutMaterial.SelectedItem = _materials.FirstOrDefault(m => m.Name.IndexOf("Fragua", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                                                  m.Name.IndexOf("Grout", StringComparison.OrdinalIgnoreCase) >= 0) ?? _materials[0];
+
+                    cmbSkirtingMaterial.SelectedItem = _materials.FirstOrDefault(m => m.Name.IndexOf("Madera", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                                                     m.Name.IndexOf("Zocalo", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                                                     m.Name.IndexOf("Ceram", StringComparison.OrdinalIgnoreCase) >= 0) ?? _materials[0];
+                }
+            }
+            catch { }
+        }
+
+        private void LoadFaceBasedTileFamilies()
+        {
+            _availableTiles.Clear();
+
+            if (_doc != null)
+            {
+                // Buscar familias Face-Based cargadas en el proyecto (Tiles Base, Base Tiles, etc.)
+                var tileSymbols = new FilteredElementCollector(_doc)
+                    .OfClass(typeof(FamilySymbol))
+                    .Cast<FamilySymbol>()
+                    .Where(s => s.FamilyName.IndexOf("Tiles Base", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                s.FamilyName.IndexOf("Base Tiles", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                s.FamilyName.IndexOf("Baldosa", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                s.Name.IndexOf("Tiles Base", StringComparison.OrdinalIgnoreCase) >= 0)
+                    .ToList();
+
+                foreach (var symbol in tileSymbols)
+                {
+                    double l = GetSymbolParam(symbol, new[] { "Length", "Largo", "Depth", "Longitud" }, 60.0);
+                    double w = GetSymbolParam(symbol, new[] { "Width", "Ancho" }, 60.0);
+                    double th = GetSymbolParam(symbol, new[] { "Height", "Thickness", "Espesor", "Alto" }, 1.0);
+
+                    _availableTiles.Add(new TileType
+                    {
+                        Id = symbol.Id.ToString(),
+                        Name = $"{symbol.FamilyName} - {symbol.Name}",
+                        LengthCm = l,
+                        WidthCm = w,
+                        ThicknessCm = th,
+                        FamilySymbol = symbol
+                    });
+                }
+            }
+
+            // Si aún no está cargada en el proyecto, proveer el tipo base por defecto que enlazará con Tiles Base.rfa
+            if (_availableTiles.Count == 0)
+            {
+                _availableTiles.Add(new TileType
+                {
+                    Id = "tiles_base_default",
+                    Name = "Tiles Base (Face-Based Generic Model)",
+                    LengthCm = 60.0,
+                    WidthCm = 60.0,
+                    ThicknessCm = 1.0
+                });
+            }
+
+            cmbTileType.ItemsSource = null;
+            cmbTileType.ItemsSource = _availableTiles.Select(t => new { Tile = t, Display = $"{t.Name} ({t.LengthCm}x{t.WidthCm}cm)" }).ToList();
+            cmbTileType.DisplayMemberPath = "Display";
+            if (cmbTileType.Items.Count > 0) cmbTileType.SelectedIndex = 0;
+        }
+
+        private double GetSymbolParam(FamilySymbol symbol, string[] names, double defaultCm)
+        {
+            foreach (var name in names)
+            {
+                Parameter p = symbol.LookupParameter(name);
+                if (p != null && p.AsDouble() > 0)
+                {
+                    return p.AsDouble() * 30.48; // Pies a cm
+                }
+            }
+            return defaultCm;
+        }
+
+        private void AutoPopulateFromHostLayers()
+        {
+            if (SelectedHosts.Count == 0) return;
+
+            var firstHost = SelectedHosts[0];
+            var layers = firstHost.DetectedLayers;
+
+            if (layers.HasRevoque && layers.SuggestedRevoqueCm > 0)
+            {
+                chkModelRevoque.IsChecked = true;
+                txtRevoqueThickCm.Text = layers.SuggestedRevoqueCm.ToString("0.##");
+                if (!string.IsNullOrEmpty(layers.SuggestedRevoqueMaterial) && cmbRevoqueMaterial.ItemsSource is List<Autodesk.Revit.DB.Material> mats)
+                {
+                    var mat = mats.FirstOrDefault(m => m.Name.IndexOf(layers.SuggestedRevoqueMaterial, StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (mat != null) cmbRevoqueMaterial.SelectedItem = mat;
+                }
+            }
+
+            if (layers.HasPega && layers.SuggestedPegaMm > 0)
+            {
+                chkModelBeddingMortar.IsChecked = true;
+                txtBeddingThickMm.Text = layers.SuggestedPegaMm.ToString("0.##");
+                if (!string.IsNullOrEmpty(layers.SuggestedPegaMaterial) && cmbBeddingMaterial.ItemsSource is List<Autodesk.Revit.DB.Material> mats)
+                {
+                    var mat = mats.FirstOrDefault(m => m.Name.IndexOf(layers.SuggestedPegaMaterial, StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (mat != null) cmbBeddingMaterial.SelectedItem = mat;
+                }
+            }
+
+            if (layers.HasFinish && layers.SuggestedFinishCm > 0)
+            {
+                txtTileThick.Text = layers.SuggestedFinishCm.ToString("0.##");
+                if (!string.IsNullOrEmpty(layers.SuggestedFinishMaterial) && cmbTileMaterial.ItemsSource is List<Autodesk.Revit.DB.Material> mats)
+                {
+                    var mat = mats.FirstOrDefault(m => m.Name.IndexOf(layers.SuggestedFinishMaterial, StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (mat != null) cmbTileMaterial.SelectedItem = mat;
+                }
+            }
+        }
+
+        private void UpdateHostSummary()
+        {
+            if (SelectedHosts.Count == 0)
+            {
+                txtFloorSummary.Text = "No hay elementos seleccionados.";
+                txtFloorDimensions.Text = "Área: 0.00 m² | Longitud: 0.00 m";
+                return;
+            }
+
+            int floorCount = SelectedHosts.Count(h => h.HostType == HostElementType.Floor);
+            int wallCount = SelectedHosts.Count(h => h.HostType == HostElementType.Wall);
+
+            string hostDesc = "";
+            if (floorCount > 0 && wallCount > 0) hostDesc = $"{floorCount} Suelo(s) y {wallCount} Muro(s)";
+            else if (floorCount > 0) hostDesc = $"{floorCount} Suelo(s)";
+            else hostDesc = $"{wallCount} Muro(s)";
+
+            double totalArea = SelectedHosts.Sum(f => f.AreaSqM);
+            double totalPerimeter = SelectedHosts.Sum(f => f.PerimeterM);
+
+            txtFloorSummary.Text = $"Anfitriones: {hostDesc}";
+            txtFloorDimensions.Text = $"Área Total: {totalArea:0.00} m² | Longitud/Perímetro: {totalPerimeter:0.00} m";
+
+            grpWallParams.Visibility = wallCount > 0 ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+            grpSkirting.Visibility = floorCount > 0 ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+        }
+
+        private void cmbTileType_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (cmbTileType.SelectedItem != null)
+            {
+                dynamic item = cmbTileType.SelectedItem;
+                SelectedTile = item.Tile as TileType;
+                if (SelectedTile != null)
+                {
+                    txtTileLength.Text = SelectedTile.LengthCm.ToString("0.##");
+                    txtTileWidth.Text = SelectedTile.WidthCm.ToString("0.##");
+                    txtTileThick.Text = SelectedTile.ThicknessCm.ToString("0.##");
+                }
+            }
+            RecalculateLayoutAnd3D();
+        }
+
+        private void TileParam_Changed(object sender, TextChangedEventArgs e)
+        {
+            if (_isUpdating || SelectedTile == null) return;
+
+            if (double.TryParse(txtTileLength.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double l))
+                SelectedTile.LengthCm = Math.Max(5.0, l);
+
+            if (double.TryParse(txtTileWidth.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double w))
+                SelectedTile.WidthCm = Math.Max(5.0, w);
+
+            if (double.TryParse(txtTileThick.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double th))
+                SelectedTile.ThicknessCm = Math.Max(0.2, th);
+
+            RecalculateLayoutAnd3D();
+        }
+
+        private void WallParam_Changed(object sender, RoutedEventArgs e)
+        {
+            if (txtCustomWallHeight != null)
+            {
+                txtCustomWallHeight.IsEnabled = chkFullWallHeight.IsChecked != true;
+            }
+            ParamControl_Changed(sender, e);
+        }
+
+        private void ParamControl_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_isUpdating) return;
+            RecalculateLayoutAnd3D();
+        }
+
+        private void ReadParametersFromUI()
+        {
+            if (cmbPattern.SelectedItem is ComboBoxItem pItem && pItem.Tag != null)
+            {
+                if (Enum.TryParse(pItem.Tag.ToString(), out FloorPatternType pat))
+                    SelectedPattern = pat;
+            }
+
+            ModelRevoque = chkModelRevoque.IsChecked == true;
+            if (double.TryParse(txtRevoqueThickCm.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double rt))
+                RevoqueThickCm = Math.Max(0.1, rt);
+            RevoqueMaterial = cmbRevoqueMaterial.SelectedItem as Autodesk.Revit.DB.Material;
+
+            ModelBeddingMortar = chkModelBeddingMortar.IsChecked == true;
+            if (double.TryParse(txtBeddingThickMm.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double bt))
+                BeddingThickMm = Math.Max(0.5, bt);
+            BeddingMaterial = cmbBeddingMaterial.SelectedItem as Autodesk.Revit.DB.Material;
+
+            ModelTiles = chkModelTiles.IsChecked == true;
+            if (double.TryParse(txtTileLength.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double tl))
+                TileLengthCm = Math.Max(5.0, tl);
+            if (double.TryParse(txtTileWidth.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double tw))
+                TileWidthCm = Math.Max(5.0, tw);
+            if (double.TryParse(txtTileThick.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double tt))
+                TileThickCm = Math.Max(0.2, tt);
+            TileMaterial = cmbTileMaterial.SelectedItem as Autodesk.Revit.DB.Material;
+
+            GenerateJointMesh = chkGenerateJointMesh.IsChecked == true;
+            if (double.TryParse(txtJointInner.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double ji))
+                JointInnerMm = Math.Max(0.5, ji);
+            if (double.TryParse(txtJointPerimeter.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double jp))
+                JointPerimMm = Math.Max(0.0, jp);
+            GroutMaterial = cmbGroutMaterial.SelectedItem as Autodesk.Revit.DB.Material;
+
+            // Muros
+            FullWallHeight = chkFullWallHeight.IsChecked == true;
+            if (double.TryParse(txtCustomWallHeight.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double wh))
+                CustomWallHeightCm = Math.Max(10.0, wh);
+
+            if (double.TryParse(txtWallBaseOffset.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double wbo))
+                WallBaseOffsetCm = Math.Max(0.0, wbo);
+
+            // Zócalos
+            EnableSkirting = chkEnableSkirting.IsChecked == true;
+            if (double.TryParse(txtSkirtingHeight.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double sh))
+                SkirtingHeightCm = Math.Max(1.0, sh);
+
+            if (double.TryParse(txtSkirtingThickness.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double st))
+                SkirtingThickCm = Math.Max(0.5, st);
+
+            if (double.TryParse(txtSkirtingBevel.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double sb))
+                SkirtingBevelMm = Math.Max(0.0, sb);
+
+            SkirtingMaterial = cmbSkirtingMaterial.SelectedItem as Autodesk.Revit.DB.Material;
+
+            if (double.TryParse(txtRotation.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double rot))
+                RotationDeg = rot;
+
+            if (double.TryParse(txtOffsetX.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double ox))
+                OffsetXCm = ox;
+
+            if (double.TryParse(txtOffsetY.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double oy))
+                OffsetYCm = oy;
+        }
+
+        private void RecalculateLayoutAnd3D()
+        {
+            if (SelectedHosts.Count == 0) return;
+            ReadParametersFromUI();
+
+            LayoutTiles.Clear();
+            LayoutJoints.Clear();
+            SkirtingSegments.Clear();
+
+            double tileLFt = (TileLengthCm / 100.0) * 3.28084;
+            double tileWFt = (TileWidthCm / 100.0) * 3.28084;
+            double tileHFt = (TileThickCm / 100.0) * 3.28084;
+
+            double jointInnerFt = (JointInnerMm / 1000.0) * 3.28084;
+            double jointPerimFt = (JointPerimMm / 1000.0) * 3.28084;
+
+            double revoqueFt = ModelRevoque ? (RevoqueThickCm / 100.0) * 3.28084 : 0.0;
+            double beddingFt = ModelBeddingMortar ? (BeddingThickMm / 1000.0) * 3.28084 : 0.0;
+            double normalTileOffset = revoqueFt + beddingFt;
+
+            double rotRad = RotationDeg * Math.PI / 180.0;
+            double offXFt = (OffsetXCm / 100.0) * 3.28084;
+            double offYFt = (OffsetYCm / 100.0) * 3.28084;
+
+            double totalCutTilesArea = 0;
+            double totalFullTilesArea = 0;
+            int fullCount = 0;
+            int cutCount = 0;
+
+            foreach (var host in SelectedHosts)
+            {
+                if (host.OuterBoundaryUV.Count < 3) continue;
+
+                List<XYZ> effectiveBoundaryUV = new List<XYZ>(host.OuterBoundaryUV);
+
+                if (host.HostType == HostElementType.Wall && !FullWallHeight)
+                {
+                    double maxCustomV = host.MinV + (WallBaseOffsetCm / 100.0) * 3.28084 + (CustomWallHeightCm / 100.0) * 3.28084;
+                    effectiveBoundaryUV = ClipPolygonToVMax(effectiveBoundaryUV, maxCustomV);
+                }
+
+                if (effectiveBoundaryUV.Count < 3) continue;
+
+                // Generar Zócalo perimetral si el anfitrión es un Piso (apoyado sobre nivel de piso terminado como en Imagen 2)
+                if (host.HostType == HostElementType.Floor && EnableSkirting)
+                {
+                    double skHeightFt = (SkirtingHeightCm / 100.0) * 3.28084;
+                    double skThickFt = (SkirtingThickCm / 100.0) * 3.28084;
+                    double skBevelFt = (SkirtingBevelMm / 1000.0) * 3.28084;
+                    double baseElevation = host.ElevationFt + normalTileOffset + tileHFt;
+
+                    for (int i = 0; i < host.OuterBoundary3D.Count; i++)
+                    {
+                        XYZ pt1 = host.OuterBoundary3D[i];
+                        XYZ pt2 = host.OuterBoundary3D[(i + 1) % host.OuterBoundary3D.Count];
+                        SkirtingSegments.Add(new SkirtingItem
+                        {
+                            StartPoint = pt1,
+                            EndPoint = pt2,
+                            HeightFt = skHeightFt,
+                            ThicknessFt = skThickFt,
+                            BevelFt = skBevelFt,
+                            BaseElevationFt = baseElevation,
+                            MaterialName = SkirtingMaterial?.Name ?? "Zócalo"
+                        });
+                    }
+                }
+
+                double minU = effectiveBoundaryUV.Min(p => p.X) + jointPerimFt;
+                double maxU = effectiveBoundaryUV.Max(p => p.X) - jointPerimFt;
+                double minV = effectiveBoundaryUV.Min(p => p.Y) + jointPerimFt;
+                double maxV = effectiveBoundaryUV.Max(p => p.Y) - jointPerimFt;
+
+                if (minU >= maxU || minV >= maxV) continue;
+
+                double originU = minU;
+                double originV = minV;
+                if (cmbOrigin.SelectedIndex == 0) // Centro
+                {
+                    originU = (minU + maxU) / 2.0;
+                    originV = (minV + maxV) / 2.0;
+                }
+                else if (cmbOrigin.SelectedIndex == 2) // Sup-Der
+                {
+                    originU = maxU;
+                    originV = maxV;
+                }
+
+                originU += offXFt;
+                originV += offYFt;
+
+                double stepU = tileLFt + jointInnerFt;
+                double stepV = tileWFt + jointInnerFt;
+
+                double spanRadius = Math.Sqrt(Math.Pow(maxU - minU, 2) + Math.Pow(maxV - minV, 2)) * 1.3;
+                int nu = (int)Math.Ceiling(spanRadius / stepU) + 2;
+                int nv = (int)Math.Ceiling(spanRadius / stepV) + 2;
+
+                for (int iv = -nv; iv <= nv; iv++)
+                {
+                    double rowShiftU = 0;
+                    if (SelectedPattern == FloorPatternType.RunningBond50)
+                    {
+                        if (Math.Abs(iv) % 2 == 1) rowShiftU = stepU * 0.5;
+                    }
+                    else if (SelectedPattern == FloorPatternType.ThirdBond33)
+                    {
+                        rowShiftU = (Math.Abs(iv) % 3) * (stepU / 3.0);
+                    }
+
+                    for (int iu = -nu; iu <= nu; iu++)
+                    {
+                        double localU = iu * stepU + rowShiftU;
+                        double localV = iv * stepV;
+
+                        double ru = localU * Math.Cos(rotRad) - localV * Math.Sin(rotRad) + originU;
+                        double rv = localU * Math.Sin(rotRad) + localV * Math.Cos(rotRad) + originV;
+
+                        double hu = tileLFt / 2.0;
+                        double hv = tileWFt / 2.0;
+
+                        List<XYZ> tilePolyUV = new List<XYZ>
+                        {
+                            RotateAndTranslate2D(new XYZ(-hu, -hv, 0), rotRad, ru, rv),
+                            RotateAndTranslate2D(new XYZ( hu, -hv, 0), rotRad, ru, rv),
+                            RotateAndTranslate2D(new XYZ( hu,  hv, 0), rotRad, ru, rv),
+                            RotateAndTranslate2D(new XYZ(-hu,  hv, 0), rotRad, ru, rv)
+                        };
+
+                        var clipResultUV = ClipPolygon(tilePolyUV, effectiveBoundaryUV);
+                        if (clipResultUV.Count < 3) continue;
+
+                        double clippedAreaSqFt = CalculatePolygonArea(clipResultUV);
+                        double fullAreaSqFt = tileLFt * tileWFt;
+
+                        bool isCut = Math.Abs(clippedAreaSqFt - fullAreaSqFt) > 0.05 * fullAreaSqFt;
+                        double areaSqM = clippedAreaSqFt * 0.092903;
+
+                        TileRole role = TileRole.Full;
+                        if (isCut)
+                        {
+                            role = clipResultUV.Count > 4 ? TileRole.Trimmed : TileRole.CutEdge;
+                            cutCount++;
+                            totalCutTilesArea += (fullAreaSqFt * 0.092903);
+                        }
+                        else
+                        {
+                            fullCount++;
+                            totalFullTilesArea += areaSqM;
+                        }
+
+                        List<XYZ> poly3D = clipResultUV.Select(pt => host.LocalToWorld(pt, normalTileOffset)).ToList();
+                        XYZ center3D = host.LocalToWorld(new XYZ(ru, rv, 0), normalTileOffset);
+
+                        LayoutTiles.Add(new TileLayoutItem
+                        {
+                            IndexX = iu,
+                            IndexY = iv,
+                            CenterU_Ft = ru,
+                            CenterV_Ft = rv,
+                            Center3D = center3D,
+                            Length_Ft = tileLFt,
+                            Width_Ft = tileWFt,
+                            Thickness_Ft = tileHFt,
+                            RotationRad = rotRad,
+                            IsCut = isCut,
+                            Role = role,
+                            PolygonVerticesUV = clipResultUV,
+                            PolygonVertices3D = poly3D,
+                            ActualAreaSqM = areaSqM
+                        });
+
+                        // Agregar Junta / Fragua 3D entre baldosas (Face-Based Tiles Pega)
+                        if (GenerateJointMesh && !isCut)
+                        {
+                            XYZ ptRight = host.LocalToWorld(new XYZ(ru + hu + jointInnerFt / 2.0, rv, 0), normalTileOffset);
+                            XYZ ptTop = host.LocalToWorld(new XYZ(ru, rv + hv + jointInnerFt / 2.0, 0), normalTileOffset);
+
+                            LayoutJoints.Add(new JointLayoutItem
+                            {
+                                IsVertical = true,
+                                Center3D = ptRight,
+                                StartPoint3D = ptRight - host.BasisV * (tileWFt / 2.0),
+                                EndPoint3D = ptRight + host.BasisV * (tileWFt / 2.0),
+                                LengthFt = tileWFt,
+                                WidthFt = jointInnerFt,
+                                DepthFt = tileHFt,
+                                MaterialName = GroutMaterial?.Name ?? "Fragua"
+                            });
+
+                            LayoutJoints.Add(new JointLayoutItem
+                            {
+                                IsVertical = false,
+                                Center3D = ptTop,
+                                StartPoint3D = ptTop - host.BasisU * (tileLFt / 2.0),
+                                EndPoint3D = ptTop + host.BasisU * (tileLFt / 2.0),
+                                LengthFt = tileLFt,
+                                WidthFt = jointInnerFt,
+                                DepthFt = tileHFt,
+                                MaterialName = GroutMaterial?.Name ?? "Fragua"
+                            });
+                        }
+                    }
+                }
+            }
+
+            UpdateQuickCalculations(fullCount, cutCount, totalFullTilesArea + totalCutTilesArea);
+            Render3DScene();
+        }
+
+        private XYZ RotateAndTranslate2D(XYZ pt, double angleRad, double tu, double tv)
+        {
+            double ru = pt.X * Math.Cos(angleRad) - pt.Y * Math.Sin(angleRad) + tu;
+            double rv = pt.X * Math.Sin(angleRad) + pt.Y * Math.Cos(angleRad) + tv;
+            return new XYZ(ru, rv, 0);
+        }
+
+        private List<XYZ> ClipPolygonToVMax(List<XYZ> poly, double maxV)
+        {
+            List<XYZ> clipBox = new List<XYZ>
+            {
+                new XYZ(-10000, -10000, 0),
+                new XYZ( 10000, -10000, 0),
+                new XYZ( 10000,  maxV, 0),
+                new XYZ(-10000,  maxV, 0)
+            };
+            return ClipPolygon(poly, clipBox);
+        }
+
+        private void UpdateQuickCalculations(int fullCount, int cutCount, double totalTileMaterialM2)
+        {
+            lblFullTiles.Text = $"{fullCount} pzas";
+            lblCutTiles.Text = $"{cutCount} pzas";
+
+            double netFloorArea = SelectedHosts.Sum(f => f.AreaSqM);
+            double wastePercent = netFloorArea > 0 ? Math.Max(5.0, ((totalTileMaterialM2 - netFloorArea) / netFloorArea) * 100.0) : 10.0;
+            double totalPurchasingArea = netFloorArea * (1.0 + (wastePercent / 100.0));
+
+            lblTotalAreaWaste.Text = $"{totalPurchasingArea:0.00} m² (+{wastePercent:0.0}%)";
+
+            double skirtingLinearM = SkirtingSegments.Sum(s => s.StartPoint.DistanceTo(s.EndPoint) * 0.3048);
+            lblSkirtingLinearM.Text = $"{skirtingLinearM:0.00} ml";
+
+            double perimeterPerTile = 2.0 * ((TileLengthCm) + (TileWidthCm)) / 100.0;
+            double totalJointLinearM = (fullCount + cutCount) * (perimeterPerTile / 2.0);
+            lblJointTotalM.Text = $"{totalJointLinearM:0.0} m";
+
+            double costM2 = 25.0;
+            double totalCost = totalPurchasingArea * costM2;
+            lblEstimatedCost.Text = $"$ {totalCost:0.00}";
+        }
+
+        #region Renderizado 3D en WPF
+
+        private void Render3DScene()
+        {
+            var lights = modelGroup.Children.Where(c => c is Light).ToList();
+            modelGroup.Children.Clear();
+            foreach (var light in lights) modelGroup.Children.Add(light);
+
+            if (SelectedHosts.Count == 0) return;
+
+            var fullTileMat = new MaterialGroup();
+            fullTileMat.Children.Add(new DiffuseMaterial(new SolidColorBrush(System.Windows.Media.Color.FromRgb(49, 151, 149))));
+            fullTileMat.Children.Add(new SpecularMaterial(new SolidColorBrush(System.Windows.Media.Color.FromRgb(60, 60, 60)), 30));
+
+            var cutTileMat = new MaterialGroup();
+            cutTileMat.Children.Add(new DiffuseMaterial(new SolidColorBrush(System.Windows.Media.Color.FromRgb(221, 107, 32))));
+            cutTileMat.Children.Add(new SpecularMaterial(new SolidColorBrush(System.Windows.Media.Color.FromRgb(60, 60, 60)), 30));
+
+            var revoqueMat = new DiffuseMaterial(new SolidColorBrush(System.Windows.Media.Color.FromRgb(160, 174, 192)));
+            var beddingMat = new DiffuseMaterial(new SolidColorBrush(System.Windows.Media.Color.FromRgb(113, 128, 150)));
+            var groutMat = new DiffuseMaterial(new SolidColorBrush(System.Windows.Media.Color.FromRgb(74, 85, 104)));
+
+            var skirtingMat = new MaterialGroup();
+            skirtingMat.Children.Add(new DiffuseMaterial(new SolidColorBrush(System.Windows.Media.Color.FromRgb(128, 90, 213))));
+            skirtingMat.Children.Add(new SpecularMaterial(new SolidColorBrush(System.Windows.Media.Color.FromRgb(80, 80, 80)), 40));
+
+            var baseSubstrateMat = new DiffuseMaterial(new SolidColorBrush(System.Windows.Media.Color.FromRgb(40, 44, 52)));
+
+            var allPts = SelectedHosts.SelectMany(h => h.OuterBoundary3D).ToList();
+            if (allPts.Count == 0) return;
+
+            double allMinX = allPts.Min(p => p.X);
+            double allMaxX = allPts.Max(p => p.X);
+            double allMinY = allPts.Min(p => p.Y);
+            double allMaxY = allPts.Max(p => p.Y);
+            double allMinZ = allPts.Min(p => p.Z);
+            double allMaxZ = allPts.Max(p => p.Z);
+
+            double centerX = (allMinX + allMaxX) / 2.0;
+            double centerY = (allMinY + allMaxY) / 2.0;
+            double centerZ = (allMinZ + allMaxZ) / 2.0;
+
+            // 1. Dibujar anfitriones base y capas (Revoque, Pega)
+            double revoqueFt = (RevoqueThickCm / 100.0) * 3.28084;
+            double beddingFt = (BeddingThickMm / 1000.0) * 3.28084;
+
+            foreach (var host in SelectedHosts)
+            {
+                // Sustrato estructural
+                MeshGeometry3D baseMesh = CreateHostBaseMesh(host, centerX, centerY, centerZ, -0.05);
+                modelGroup.Children.Add(new GeometryModel3D(baseMesh, baseSubstrateMat));
+
+                // Revoque si está activo
+                if (ModelRevoque)
+                {
+                    MeshGeometry3D revMesh = CreateHostBaseMesh(host, centerX, centerY, centerZ, revoqueFt);
+                    modelGroup.Children.Add(new GeometryModel3D(revMesh, revoqueMat));
+                }
+
+                // Cama de pega si está activa
+                if (ModelBeddingMortar)
+                {
+                    double bedOffset = (ModelRevoque ? revoqueFt : 0) + beddingFt;
+                    MeshGeometry3D bedMesh = CreateHostBaseMesh(host, centerX, centerY, centerZ, bedOffset);
+                    modelGroup.Children.Add(new GeometryModel3D(bedMesh, beddingMat));
+                }
+            }
+
+            // 2. Dibujar Baldosas 3D si están activas
+            if (ModelTiles)
+            {
+                MeshGeometry3D fullTilesMesh = new MeshGeometry3D();
+                MeshGeometry3D cutTilesMesh = new MeshGeometry3D();
+
+                foreach (var tile in LayoutTiles)
+                {
+                    MeshGeometry3D targetMesh = tile.IsCut ? cutTilesMesh : fullTilesMesh;
+                    AddTileSolidToMesh(targetMesh, tile.PolygonVertices3D, centerX, centerY, centerZ, tile.Thickness_Ft);
+                }
+
+                if (fullTilesMesh.Positions.Count > 0)
+                    modelGroup.Children.Add(new GeometryModel3D(fullTilesMesh, fullTileMat));
+
+                if (cutTilesMesh.Positions.Count > 0)
+                    modelGroup.Children.Add(new GeometryModel3D(cutTilesMesh, cutTileMat));
+            }
+
+            // 3. Dibujar Juntas / Fragua 3D entre baldosas si está activa
+            if (GenerateJointMesh && LayoutJoints.Count > 0)
+            {
+                MeshGeometry3D jointsMesh = new MeshGeometry3D();
+                foreach (var j in LayoutJoints)
+                {
+                    AddJointStripMesh(jointsMesh, j, centerX, centerY, centerZ);
+                }
+                if (jointsMesh.Positions.Count > 0)
+                    modelGroup.Children.Add(new GeometryModel3D(jointsMesh, groutMat));
+            }
+
+            // 4. Dibujar Zócalos perimetrales sobre piso
+            if (EnableSkirting && SkirtingSegments.Count > 0)
+            {
+                MeshGeometry3D skirtingMesh = new MeshGeometry3D();
+                foreach (var seg in SkirtingSegments)
+                {
+                    AddSkirtingMesh(skirtingMesh, seg, centerX, centerY, centerZ);
+                }
+                if (skirtingMesh.Positions.Count > 0)
+                    modelGroup.Children.Add(new GeometryModel3D(skirtingMesh, skirtingMat));
+            }
+
+            double spanX = (allMaxX - allMinX) * 30.48;
+            double spanY = (allMaxY - allMinY) * 30.48;
+            double spanZ = (allMaxZ - allMinZ) * 30.48;
+            double maxSpan = Math.Max(spanX, Math.Max(spanY, spanZ));
+            _cameraDistance = Math.Max(80, maxSpan * 1.6);
+            UpdateCamera();
+        }
+
+        private MeshGeometry3D CreateHostBaseMesh(TilingHostInfo host, double cx, double cy, double cz, double thickFt)
+        {
+            MeshGeometry3D mesh = new MeshGeometry3D();
+            if (host.OuterBoundary3D.Count < 3) return mesh;
+
+            double scale = 30.48;
+            List<XYZ> pts3D = host.OuterBoundary3D;
+
+            double avgX = pts3D.Average(p => p.X);
+            double avgY = pts3D.Average(p => p.Y);
+            double avgZ = pts3D.Average(p => p.Z);
+
+            Point3D centerPt = new Point3D((avgX - cx) * scale, (avgY - cy) * scale, (avgZ - cz + thickFt) * scale);
+            int cIdx = mesh.Positions.Count;
+            mesh.Positions.Add(centerPt);
+
+            for (int i = 0; i < pts3D.Count; i++)
+            {
+                double px = (pts3D[i].X - cx) * scale;
+                double py = (pts3D[i].Y - cy) * scale;
+                double pz = (pts3D[i].Z - cz + thickFt) * scale;
+                mesh.Positions.Add(new Point3D(px, py, pz));
+            }
+
+            for (int i = 0; i < pts3D.Count; i++)
+            {
+                int next = (i + 1) % pts3D.Count;
+                mesh.TriangleIndices.Add(cIdx);
+                mesh.TriangleIndices.Add(cIdx + 1 + i);
+                mesh.TriangleIndices.Add(cIdx + 1 + next);
+            }
+
+            return mesh;
+        }
+
+        private void AddTileSolidToMesh(MeshGeometry3D mesh, List<XYZ> poly3D, double cx, double cy, double cz, double thickFt)
+        {
+            if (poly3D.Count < 3) return;
+
+            double scale = 30.48;
+            int baseIdx = mesh.Positions.Count;
+
+            for (int i = 0; i < poly3D.Count; i++)
+            {
+                double px = (poly3D[i].X - cx) * scale;
+                double py = (poly3D[i].Y - cy) * scale;
+                double pz = (poly3D[i].Z - cz) * scale;
+                mesh.Positions.Add(new Point3D(px, py, pz));
+                mesh.Positions.Add(new Point3D(px, py, pz + thickFt * scale * 0.8));
+            }
+
+            for (int i = 1; i < poly3D.Count - 1; i++)
+            {
+                mesh.TriangleIndices.Add(baseIdx + 1);
+                mesh.TriangleIndices.Add(baseIdx + (i * 2) + 1);
+                mesh.TriangleIndices.Add(baseIdx + ((i + 1) * 2) + 1);
+            }
+
+            for (int i = 0; i < poly3D.Count; i++)
+            {
+                int next = (i + 1) % poly3D.Count;
+                int p0 = baseIdx + (i * 2);
+                int p1 = baseIdx + (i * 2) + 1;
+                int p2 = baseIdx + (next * 2) + 1;
+                int p3 = baseIdx + (next * 2);
+
+                mesh.TriangleIndices.Add(p0);
+                mesh.TriangleIndices.Add(p1);
+                mesh.TriangleIndices.Add(p2);
+
+                mesh.TriangleIndices.Add(p0);
+                mesh.TriangleIndices.Add(p2);
+                mesh.TriangleIndices.Add(p3);
+            }
+        }
+
+        private void AddJointStripMesh(MeshGeometry3D mesh, JointLayoutItem j, double cx, double cy, double cz)
+        {
+            double scale = 30.48;
+            double x1 = (j.StartPoint3D.X - cx) * scale;
+            double y1 = (j.StartPoint3D.Y - cy) * scale;
+            double z1 = (j.StartPoint3D.Z - cz) * scale;
+
+            double x2 = (j.EndPoint3D.X - cx) * scale;
+            double y2 = (j.EndPoint3D.Y - cy) * scale;
+            double z2 = (j.EndPoint3D.Z - cz) * scale;
+
+            double w = (j.WidthFt / 2.0) * scale;
+
+            Point3D p0 = new Point3D(x1 - w, y1 - w, z1);
+            Point3D p1 = new Point3D(x2 - w, y2 - w, z2);
+            Point3D p2 = new Point3D(x2 + w, y2 + w, z2);
+            Point3D p3 = new Point3D(x1 + w, y1 + w, z1);
+
+            int idx = mesh.Positions.Count;
+            mesh.Positions.Add(p0);
+            mesh.Positions.Add(p1);
+            mesh.Positions.Add(p2);
+            mesh.Positions.Add(p3);
+
+            mesh.TriangleIndices.Add(idx);
+            mesh.TriangleIndices.Add(idx + 1);
+            mesh.TriangleIndices.Add(idx + 2);
+            mesh.TriangleIndices.Add(idx);
+            mesh.TriangleIndices.Add(idx + 2);
+            mesh.TriangleIndices.Add(idx + 3);
+        }
+
+        private void AddSkirtingMesh(MeshGeometry3D mesh, SkirtingItem seg, double cx, double cy, double cz)
+        {
+            double scale = 30.48;
+            double x1 = (seg.StartPoint.X - cx) * scale;
+            double y1 = (seg.StartPoint.Y - cy) * scale;
+            double zBase = (seg.BaseElevationFt - cz) * scale;
+
+            double x2 = (seg.EndPoint.X - cx) * scale;
+            double y2 = (seg.EndPoint.Y - cy) * scale;
+
+            double dx = x2 - x1;
+            double dy = y2 - y1;
+            double len = Math.Sqrt(dx * dx + dy * dy);
+            if (len < 0.01) return;
+
+            double nx = -dy / len;
+            double ny = dx / len;
+
+            double th = seg.ThicknessFt * scale;
+            double h = seg.HeightFt * scale;
+
+            Point3D p0 = new Point3D(x1, y1, zBase);
+            Point3D p1 = new Point3D(x2, y2, zBase);
+            Point3D p2 = new Point3D(x2 + nx * th, y2 + ny * th, zBase);
+            Point3D p3 = new Point3D(x1 + nx * th, y1 + ny * th, zBase);
+
+            Point3D p4 = new Point3D(x1, y1, zBase + h);
+            Point3D p5 = new Point3D(x2, y2, zBase + h);
+            Point3D p6 = new Point3D(x2 + nx * th, y2 + ny * th, zBase + h);
+            Point3D p7 = new Point3D(x1 + nx * th, y1 + ny * th, zBase + h);
+
+            int idx = mesh.Positions.Count;
+            Point3D[] pts = { p0, p1, p2, p3, p4, p5, p6, p7 };
+            foreach (var p in pts) mesh.Positions.Add(p);
+
+            void AddQuad(int a, int b, int c, int d)
+            {
+                mesh.TriangleIndices.Add(idx + a);
+                mesh.TriangleIndices.Add(idx + b);
+                mesh.TriangleIndices.Add(idx + c);
+                mesh.TriangleIndices.Add(idx + a);
+                mesh.TriangleIndices.Add(idx + c);
+                mesh.TriangleIndices.Add(idx + d);
+            }
+
+            AddQuad(4, 5, 6, 7); // Superior
+            AddQuad(0, 4, 7, 3); // Cara externa
+            AddQuad(1, 2, 6, 5); // Cara interna
+            AddQuad(3, 7, 6, 2); // Cierre frontal
+        }
+
+        #endregion
+
+        #region Polígonos
+
+        private double CalculatePolygonArea(List<XYZ> poly)
+        {
+            if (poly.Count < 3) return 0;
+            double area = 0;
+            for (int i = 0; i < poly.Count; i++)
+            {
+                XYZ p1 = poly[i];
+                XYZ p2 = poly[(i + 1) % poly.Count];
+                area += (p1.X * p2.Y - p2.X * p1.Y);
+            }
+            return Math.Abs(area) / 2.0;
+        }
+
+        private List<XYZ> ClipPolygon(List<XYZ> subjectPoly, List<XYZ> clipBoundary)
+        {
+            List<XYZ> outputList = new List<XYZ>(subjectPoly);
+
+            for (int i = 0; i < clipBoundary.Count; i++)
+            {
+                XYZ cp1 = clipBoundary[i];
+                XYZ cp2 = clipBoundary[(i + 1) % clipBoundary.Count];
+
+                List<XYZ> inputList = new List<XYZ>(outputList);
+                outputList.Clear();
+
+                if (inputList.Count == 0) break;
+
+                XYZ s = inputList[inputList.Count - 1];
+
+                foreach (XYZ e in inputList)
+                {
+                    if (IsInsideEdge(e, cp1, cp2))
+                    {
+                        if (IsInsideEdge(s, cp1, cp2))
+                        {
+                            outputList.Add(e);
+                        }
+                        else
+                        {
+                            outputList.Add(Intersection(s, e, cp1, cp2));
+                            outputList.Add(e);
+                        }
+                    }
+                    else if (IsInsideEdge(s, cp1, cp2))
+                    {
+                        outputList.Add(Intersection(s, e, cp1, cp2));
+                    }
+                    s = e;
+                }
+            }
+
+            return outputList;
+        }
+
+        private bool IsInsideEdge(XYZ p, XYZ cp1, XYZ cp2)
+        {
+            return (cp2.X - cp1.X) * (p.Y - cp1.Y) - (cp2.Y - cp1.Y) * (p.X - cp1.X) >= -1e-7;
+        }
+
+        private XYZ Intersection(XYZ s, XYZ e, XYZ cp1, XYZ cp2)
+        {
+            double a1 = e.Y - s.Y;
+            double b1 = s.X - e.X;
+            double c1 = a1 * s.X + b1 * s.Y;
+
+            double a2 = cp2.Y - cp1.Y;
+            double b2 = cp1.X - cp2.X;
+            double c2 = a2 * cp1.X + b2 * cp1.Y;
+
+            double det = a1 * b2 - a2 * b1;
+            if (Math.Abs(det) < 1e-9) return s;
+
+            double x = (b2 * c1 - b1 * c2) / det;
+            double y = (a1 * c2 - a2 * c1) / det;
+            return new XYZ(x, y, (s.Z + e.Z) / 2.0);
+        }
+
+        #endregion
+
+        #region Controles de Cámara
+
+        private void UpdateCamera()
+        {
+            double radX = _cameraAngleX * Math.PI / 180.0;
+            double radY = _cameraAngleY * Math.PI / 180.0;
+
+            double x = _cameraDistance * Math.Cos(radY) * Math.Cos(radX);
+            double y = _cameraDistance * Math.Cos(radY) * Math.Sin(radX);
+            double z = _cameraDistance * Math.Sin(radY);
+
+            camera.Position = new Point3D(x, y, z);
+            camera.LookDirection = new Vector3D(-x, -y, -z);
+        }
+
+        private void btnTopView_Click(object sender, RoutedEventArgs e)
+        {
+            _cameraAngleX = 0;
+            _cameraAngleY = 89;
+            UpdateCamera();
+        }
+
+        private void btnIsoView_Click(object sender, RoutedEventArgs e)
+        {
+            _cameraAngleX = 45;
+            _cameraAngleY = 35;
+            UpdateCamera();
+        }
+
+        private void Viewport_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed)
+            {
+                _isDragging = true;
+                _lastMousePosition = e.GetPosition(viewport3D);
+                viewport3D.CaptureMouse();
+            }
+        }
+
+        private void Viewport_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (_isDragging)
+            {
+                System.Windows.Point currentPos = e.GetPosition(viewport3D);
+                double deltaX = currentPos.X - _lastMousePosition.X;
+                double deltaY = currentPos.Y - _lastMousePosition.Y;
+
+                _cameraAngleX -= deltaX * 0.6;
+                _cameraAngleY += deltaY * 0.6;
+                _cameraAngleY = Math.Max(5, Math.Min(89, _cameraAngleY));
+
+                _lastMousePosition = currentPos;
+                UpdateCamera();
+            }
+        }
+
+        private void Viewport_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            _isDragging = false;
+            viewport3D.ReleaseMouseCapture();
+        }
+
+        private void Viewport_MouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            _cameraDistance -= e.Delta * 0.15;
+            _cameraDistance = Math.Max(30, Math.Min(800, _cameraDistance));
+            UpdateCamera();
+        }
+
+        #endregion
+
+        private void btnGenerateRevit_Click(object sender, RoutedEventArgs e)
+        {
+            if (LayoutTiles.Count == 0 && !ModelRevoque && !ModelBeddingMortar)
+            {
+                System.Windows.MessageBox.Show("No hay elementos seleccionados para modelar.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            IsConfirmed = true;
+            this.DialogResult = true;
+            this.Close();
+        }
+    }
+}

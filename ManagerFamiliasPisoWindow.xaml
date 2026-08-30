@@ -1,0 +1,309 @@
+<Window x:Class="RevitToSupabasePlugin.ManagerFamiliasPisoWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Gestor de Familias y Piezas de Pisos / Pavimentos" 
+        Height="720" Width="1060" 
+        MinHeight="620" MinWidth="940"
+        WindowStartupLocation="CenterScreen" 
+        Background="#121214"
+        Foreground="#E3E5E8"
+        ResizeMode="CanResize"
+        BorderThickness="1"
+        BorderBrush="#3182CE"
+        Loaded="Window_Loaded">
+    <Window.Resources>
+        <Style TargetType="GroupBox">
+            <Setter Property="BorderBrush" Value="#2D3748"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Margin" Value="0,0,0,15"/>
+            <Setter Property="Padding" Value="12"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GroupBox">
+                        <Grid>
+                            <Border CornerRadius="8" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="#1A1C20" Margin="0,10,0,0">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="Black" Opacity="0.2" BlurRadius="6" ShadowDepth="2"/>
+                                </Border.Effect>
+                            </Border>
+                            <Border Margin="10,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" Background="#121214" Padding="6,0">
+                                <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"/>
+                            </Border>
+                            <ContentPresenter Margin="{TemplateBinding Padding}" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#2B2D31"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#3F4248"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#15171A"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#4A5568"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#15171A"/>
+            <Setter Property="Foreground" Value="#121214"/>
+            <Setter Property="BorderBrush" Value="#4A5568"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+        <Style TargetType="ListBox">
+            <Setter Property="Background" Value="#15171A"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="BorderBrush" Value="#2D3748"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="8"/>
+                        <Setter Property="Margin" Value="2"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Cursor" Value="Hand"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                                        <ContentPresenter/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="#2B6CB0"/>
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#2D3748"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300" MinWidth="240"/>
+            <ColumnDefinition Width="340" MinWidth="280"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Columna 1: Catálogo y Lista de Piezas -->
+        <Border Grid.Column="0" Background="#1A1C20" CornerRadius="8" Padding="12" Margin="0,0,10,0" BorderBrush="#2D3748" BorderThickness="1">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                    <TextBlock Text="🪵 Catálogo de Baldosas" FontSize="16" FontWeight="Bold" Foreground="#63B3ED"/>
+                    <TextBlock Text="Formatos de piso y pavimentos" FontSize="11" Foreground="#A0AEC0"/>
+                </StackPanel>
+
+                <!-- Filtro de Búsqueda -->
+                <Grid Grid.Row="1" Margin="0,0,0,8">
+                    <TextBox x:Name="txtSearch" TextChanged="txtSearch_TextChanged" Padding="6" Background="#15171A" Foreground="White" BorderBrush="#4A5568"/>
+                    <TextBlock Text="🔍 Buscar formato..." Foreground="#718096" Margin="8,6,0,0" IsHitTestVisible="False">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Text, ElementName=txtSearch}" Value="">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+
+                <ListBox Grid.Row="2" x:Name="lstTiles" SelectionChanged="lstTiles_SelectionChanged"/>
+
+                <StackPanel Grid.Row="3" Margin="0,10,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="➕ Nueva" Click="btnNewTile_Click" Background="#2B6CB0" Margin="0,0,4,6"/>
+                        <Button Grid.Column="1" Content="📋 Duplicar" Click="btnDuplicate_Click" Background="#2D3748" Margin="4,0,0,6"/>
+                    </Grid>
+                    <Button Content="🗑️ Eliminar Seleccionada" Click="btnDeleteTile_Click" Background="#742A2A"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Columna 2: Editor de Propiedades de la Pieza -->
+        <Border Grid.Column="1" Background="#1A1C20" CornerRadius="8" Padding="12" Margin="0,0,10,0" BorderBrush="#2D3748" BorderThickness="1">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <TextBlock Text="⚙️ Parámetros de la Baldosa" FontSize="16" FontWeight="Bold" Foreground="#63B3ED" Margin="0,0,0,12"/>
+
+                    <!-- Información General -->
+                    <GroupBox Header="Información General">
+                        <StackPanel>
+                            <TextBlock Text="Nombre del Formato:" FontSize="11" Foreground="#A0AEC0"/>
+                            <TextBox x:Name="txtName" TextChanged="PropertyField_Changed"/>
+
+                            <TextBlock Text="Categoría:" FontSize="11" Foreground="#A0AEC0"/>
+                            <ComboBox x:Name="cmbCategory" SelectionChanged="PropertyField_Changed">
+                                <ComboBoxItem Content="Porcelanato" IsSelected="True"/>
+                                <ComboBoxItem Content="Cerámica"/>
+                                <ComboBoxItem Content="Madera / Parquet"/>
+                                <ComboBoxItem Content="Terrazo / Hormigón"/>
+                                <ComboBoxItem Content="Adoquines / Exterior"/>
+                                <ComboBoxItem Content="Piedra Natural"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- Dimensiones Geométricas -->
+                    <GroupBox Header="Dimensiones (cm / mm)">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                                    <TextBlock Text="Largo (cm):" FontSize="11" Foreground="#A0AEC0"/>
+                                    <TextBox x:Name="txtLength" Text="60.0" TextChanged="PropertyField_Changed"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                                    <TextBlock Text="Ancho (cm):" FontSize="11" Foreground="#A0AEC0"/>
+                                    <TextBox x:Name="txtWidth" Text="60.0" TextChanged="PropertyField_Changed"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                                    <TextBlock Text="Espesor (cm):" FontSize="11" Foreground="#A0AEC0"/>
+                                    <TextBox x:Name="txtThickness" Text="1.0" TextChanged="PropertyField_Changed"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                                    <TextBlock Text="Bisel / Chaflán (mm):" FontSize="11" Foreground="#A0AEC0"/>
+                                    <TextBox x:Name="txtBevel" Text="1.0" TextChanged="PropertyField_Changed"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- Material y Costos -->
+                    <GroupBox Header="Material y Cuantificación">
+                        <StackPanel>
+                            <TextBlock Text="Material en Revit:" FontSize="11" Foreground="#A0AEC0"/>
+                            <ComboBox x:Name="cmbMaterial" DisplayMemberPath="Name" SelectionChanged="PropertyField_Changed"/>
+
+                            <TextBlock Text="Costo Referencial ($ / m²):" FontSize="11" Foreground="#A0AEC0"/>
+                            <TextBox x:Name="txtCost" Text="25.0" TextChanged="PropertyField_Changed"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- Acciones -->
+                    <Button Content="💾 Guardar Cambios en Catálogo" Click="btnSaveDB_Click" Background="#38A169" FontWeight="Bold" Padding="10,12" Margin="0,4,0,6"/>
+                    <Button Content="🏗️ Sincronizar / Cargar en Revit" Click="btnSyncRevit_Click" Background="#3182CE" FontWeight="Bold" Padding="10,10"/>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Columna 3: Visor 3D Interactivo y Métricas -->
+        <Border Grid.Column="2" Background="#1A1C20" CornerRadius="8" Padding="12" BorderBrush="#2D3748" BorderThickness="1">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Encabezado de Vista Previa -->
+                <Grid Grid.Row="0" Margin="0,0,0,8">
+                    <StackPanel>
+                        <TextBlock Text="🧊 Previsualización 3D en Vivo" FontSize="16" FontWeight="Bold" Foreground="#63B3ED"/>
+                        <TextBlock Text="Arrastra para rotar la cámara • Rueda del ratón para zoom" FontSize="10" Foreground="#A0AEC0"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Viewport 3D -->
+                <Border Grid.Row="1" Background="#0D0E11" CornerRadius="8" ClipToBounds="True" BorderBrush="#2D3748" BorderThickness="1">
+                    <Viewport3D x:Name="viewport3D" MouseDown="Viewport_MouseDown" MouseMove="Viewport_MouseMove" MouseUp="Viewport_MouseUp" MouseWheel="Viewport_MouseWheel">
+                        <Viewport3D.Camera>
+                            <PerspectiveCamera x:Name="camera" Position="100,100,100" LookDirection="-100,-100,-100" UpDirection="0,0,1" FieldOfView="45"/>
+                        </Viewport3D.Camera>
+                        <ModelVisual3D>
+                            <ModelVisual3D.Content>
+                                <Model3DGroup x:Name="modelGroup">
+                                    <AmbientLight Color="#505050"/>
+                                    <DirectionalLight Color="#FFFFFF" Direction="-1,-1,-2"/>
+                                    <DirectionalLight Color="#606070" Direction="1,2,1"/>
+                                </Model3DGroup>
+                            </ModelVisual3D.Content>
+                        </ModelVisual3D>
+                    </Viewport3D>
+                </Border>
+
+                <!-- Resumen de Métricas de la Baldosa -->
+                <Border Grid.Row="2" Background="#15171A" CornerRadius="6" Padding="10" Margin="0,10,0,0" BorderBrush="#2D3748" BorderThickness="1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Área por Pieza:" FontSize="10" Foreground="#A0AEC0"/>
+                            <TextBlock x:Name="lblTileArea" Text="0.360 m²" FontSize="13" FontWeight="Bold" Foreground="#63B3ED"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Rendimiento:" FontSize="10" Foreground="#A0AEC0"/>
+                            <TextBlock x:Name="lblYield" Text="2.78 pzas / m²" FontSize="13" FontWeight="Bold" Foreground="#48BB78"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Proporción (L/A):" FontSize="10" Foreground="#A0AEC0"/>
+                            <TextBlock x:Name="lblAspectRatio" Text="1.00 (Cuadrada)" FontSize="13" FontWeight="Bold" Foreground="#ECC94B"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

@@ -1,0 +1,114 @@
+{
+  "tiles": [
+    {
+      "id": "porcelanato_60x60",
+      "name": "Porcelanato Pulido 60x60",
+      "width_cm": 60.0,
+      "length_cm": 60.0,
+      "thickness_cm": 0.9,
+      "bevel_mm": 1.0,
+      "category": "Porcelanato",
+      "material": "Porcelanato Blanco Pulido",
+      "cost_m2": 24.50
+    },
+    {
+      "id": "porcelanato_60x120",
+      "name": "Porcelanato Gran Formato 60x120",
+      "width_cm": 60.0,
+      "length_cm": 120.0,
+      "thickness_cm": 1.0,
+      "bevel_mm": 1.0,
+      "category": "Porcelanato",
+      "material": "Porcelanato Calacatta",
+      "cost_m2": 38.00
+    },
+    {
+      "id": "porcelanato_80x80",
+      "name": "Porcelanato Satinado 80x80",
+      "width_cm": 80.0,
+      "length_cm": 80.0,
+      "thickness_cm": 1.0,
+      "bevel_mm": 1.2,
+      "category": "Porcelanato",
+      "material": "Porcelanato Gris Cemento",
+      "cost_m2": 29.00
+    },
+    {
+      "id": "liston_madera_20x120",
+      "name": "Listón Tipo Madera 20x120",
+      "width_cm": 20.0,
+      "length_cm": 120.0,
+      "thickness_cm": 0.9,
+      "bevel_mm": 0.8,
+      "category": "Madera / Parquet",
+      "material": "Madera Roble Natural",
+      "cost_m2": 32.50
+    },
+    {
+      "id": "liston_parquet_15x90",
+      "name": "Parquet Listón 15x90",
+      "width_cm": 15.0,
+      "length_cm": 90.0,
+      "thickness_cm": 1.2,
+      "bevel_mm": 0.5,
+      "category": "Madera / Parquet",
+      "material": "Parquet Guayacán",
+      "cost_m2": 45.00
+    },
+    {
+      "id": "ceramica_30x30",
+      "name": "Cerámica Antideslizante 30x30",
+      "width_cm": 30.0,
+      "length_cm": 30.0,
+      "thickness_cm": 0.7,
+      "bevel_mm": 1.5,
+      "category": "Cerámica",
+      "material": "Cerámica Esmaltada Beige",
+      "cost_m2": 14.00
+    },
+    {
+      "id": "ceramica_45x45",
+      "name": "Cerámica Alto Tráfico 45x45",
+      "width_cm": 45.0,
+      "length_cm": 45.0,
+      "thickness_cm": 0.8,
+      "bevel_mm": 1.2,
+      "category": "Cerámica",
+      "material": "Cerámica Rústica Terracota",
+      "cost_m2": 17.50
+    },
+    {
+      "id": "loseta_terrazo_40x40",
+      "name": "Loseta de Terrazo 40x40",
+      "width_cm": 40.0,
+      "length_cm": 40.0,
+      "thickness_cm": 2.5,
+      "bevel_mm": 2.0,
+      "category": "Terrazo / Hormigón",
+      "material": "Terrazo Veneciano Gris",
+      "cost_m2": 22.00
+    },
+    {
+      "id": "adoquin_concreto_10x20",
+      "name": "Adoquín Concreto Rectangular 10x20",
+      "width_cm": 10.0,
+      "length_cm": 20.0,
+      "thickness_cm": 6.0,
+      "bevel_mm": 3.0,
+      "category": "Adoquines / Exterior",
+      "material": "Concreto Adoquín Rojo",
+      "cost_m2": 18.00
+    },
+    {
+      "id": "marmol_travertino_40x60",
+      "name": "Mármol Travertino 40x60",
+      "width_cm": 40.0,
+      "length_cm": 60.0,
+      "thickness_cm": 2.0,
+      "bevel_mm": 1.0,
+      "category": "Piedra Natural",
+      "material": "Mármol Travertino Apomazado",
+      "cost_m2": 65.00
+    }
+  ]
+}
