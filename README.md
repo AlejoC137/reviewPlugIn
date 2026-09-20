@@ -106,7 +106,23 @@ Módulo avanzado para el despiece real de ladrillos, cálculo de morteros de peg
 
 ---
 
-### ℹ️ 4. Panel: Ayuda & Documentación
+### 🎨 4. Panel: Plan Ambientador (Alto Nivel Arquitectónico)
+
+Módulo especializado en post-producción, ambientación gráfica y estandarización de plantas para presentación y concurso (Estándar visual ARCA / PLAN:B Arquitectos).
+
+#### 4.1 🎨 Plan Ambientador (`cmdAmbientador`)
+* **Explicación:** Suite integral que en 1 clic transforma plantas técnicas en planos de presentación de alta gama arquitectónica.
+* **Capacidades:**
+  * **Estilo Gráfico ARCA / Plan:B:** Corte de muros y columnas en negro sólido puro (`#000000`), sombras solares calibradas (18% opacidad, sol al 85%) y anti-aliasing suavizado.
+  * **Atenuación Selectiva:** Muebles, artefactos sanitarios y vegetación enviados a *Halftone* (50%) para no ensuciar la lectura estructural.
+  * **Tramas de Pisos Suavizadas:** Pavimentos y tramas en gris arquitectónico sutil (`#B5B5B5`).
+  * **Zonas Húmedas / Piscinas:** Ambientación automática en azul cian translúcido pastel (`#C5E8FA`).
+  * **Normalización de Recintos (Rooms):** Detección de recintos cerrados, cálculo de m², niveles N.P.T. y conversión de nombres a **MAYÚSCULAS**.
+  * **Motor de Acotado Jerarquizado:** Generación automática de cadenas de cotas entre ejes estructurales (Grids).
+
+---
+
+### ℹ️ 5. Panel: Ayuda & Documentación
 
 #### 4.1 📘 Manual & Mapa de la App (`cmdManual`)
 * **Explicación:** Centro de documentación interactivo dentro de la interfaz de Revit.

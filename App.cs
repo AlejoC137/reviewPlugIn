@@ -172,7 +172,15 @@ namespace RevitToSupabasePlugin
                 panelSteelDeck.AddStackedItems(btnGenSteelDeck, btnConvSteelDeck, btnCrearTablasSteelDecks);
             }
 
-            // --- Panel 6: ℹ️ Ayuda & Docs ---
+            // --- Panel 6: 🎨 Plan Ambientador ---
+            RibbonPanel panelAmbientador = GetOrCreatePanel("🎨 Plan Ambientador");
+            if (panelAmbientador != null && panelAmbientador.GetItems().Count == 0)
+            {
+                PushButtonData btnAmbientador = CreateBtnData("cmdAmbientador", "Plan\nAmbientador", "CommandPlanAmbientador", "icon_plan_ambientador");
+                panelAmbientador.AddItem(btnAmbientador);
+            }
+
+            // --- Panel 7: ℹ️ Ayuda & Docs ---
             RibbonPanel panelHelp = GetOrCreatePanel("ℹ️ Ayuda & Docs");
             if (panelHelp != null && panelHelp.GetItems().Count == 0)
             {
