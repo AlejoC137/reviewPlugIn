@@ -142,10 +142,10 @@
                             </StackPanel>
                         </GroupBox>
 
-                        <!-- SECCIÓN 2: CAPAS A MODELAR (REVOQUE, PEGA, BALDOSAS) -->
+                        <!-- SECCIÓN 2: CAPAS A MODELAR (MORTERO, PEGA, BALDOSAS, JUNTAS) -->
                         <GroupBox Header="2. Capas Constructivas (Elegir qué modelar)">
                             <StackPanel>
-                                <!-- Capa 1: Revoque / Pañete Base -->
+                                <!-- Capa 1: Mortero / Contrapiso / Revoque Base -->
                                 <Border Background="#15171A" CornerRadius="6" Padding="8" Margin="0,0,0,6" BorderBrush="#2D3748" BorderThickness="1">
                                     <StackPanel>
                                         <Grid>
@@ -153,9 +153,9 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="100"/>
                                             </Grid.ColumnDefinitions>
-                                            <CheckBox Grid.Column="0" x:Name="chkModelRevoque" Content="☑ Modelar Revoque / Pañete" IsChecked="False" Checked="ParamControl_Changed" Unchecked="ParamControl_Changed" FontWeight="SemiBold"/>
+                                            <CheckBox Grid.Column="0" x:Name="chkModelRevoque" Content="☑ Modelar Mortero / Contrapiso" IsChecked="True" Checked="ParamControl_Changed" Unchecked="ParamControl_Changed" FontWeight="SemiBold"/>
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                                                <TextBox x:Name="txtRevoqueThickCm" Text="1.5" Width="45" TextChanged="ParamControl_Changed"/>
+                                                <TextBox x:Name="txtRevoqueThickCm" Text="3.0" Width="45" TextChanged="ParamControl_Changed"/>
                                                 <TextBlock Text=" cm" VerticalAlignment="Center" FontSize="10" Foreground="#A0AEC0"/>
                                             </StackPanel>
                                         </Grid>
@@ -171,7 +171,7 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="100"/>
                                             </Grid.ColumnDefinitions>
-                                            <CheckBox Grid.Column="0" x:Name="chkModelBeddingMortar" Content="☑ Modelar Cama de Pega" IsChecked="True" Checked="ParamControl_Changed" Unchecked="ParamControl_Changed" FontWeight="SemiBold"/>
+                                            <CheckBox Grid.Column="0" x:Name="chkModelBeddingMortar" Content="☑ Modelar Pega / Adhesivo" IsChecked="True" Checked="ParamControl_Changed" Unchecked="ParamControl_Changed" FontWeight="SemiBold"/>
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
                                                 <TextBox x:Name="txtBeddingThickMm" Text="5.0" Width="45" TextChanged="ParamControl_Changed"/>
                                                 <TextBlock Text=" mm" VerticalAlignment="Center" FontSize="10" Foreground="#A0AEC0"/>
@@ -181,12 +181,12 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Capa 3: Baldosas / Piezas -->
+                                <!-- Capa 3: Baldosas / Piezas (Tiles) -->
                                 <Border Background="#15171A" CornerRadius="6" Padding="8" Margin="0,0,0,6" BorderBrush="#2D3748" BorderThickness="1">
-                                    <CheckBox x:Name="chkModelTiles" Content="☑ Modelar Baldosas / Piezas (Tiles Base)" IsChecked="True" Checked="ParamControl_Changed" Unchecked="ParamControl_Changed" FontWeight="SemiBold" Foreground="#63B3ED"/>
+                                    <CheckBox x:Name="chkModelTiles" Content="☑ Modelar Baldosas / Tiles (Tiles Base)" IsChecked="True" Checked="ParamControl_Changed" Unchecked="ParamControl_Changed" FontWeight="SemiBold" Foreground="#63B3ED"/>
                                 </Border>
 
-                                <!-- Capa 4: Fragua / Juntas 3D (Base Tiles Pega) -->
+                                <!-- Capa 4: Juntas / Fragua 3D (Perimetral 5mm e Interior 3mm) -->
                                 <Border Background="#15171A" CornerRadius="6" Padding="8" BorderBrush="#2D3748" BorderThickness="1">
                                     <StackPanel>
                                         <Grid>
@@ -194,9 +194,9 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="100"/>
                                             </Grid.ColumnDefinitions>
-                                            <CheckBox Grid.Column="0" x:Name="chkGenerateJointMesh" Content="☑ Modelar Fragua 3D (Tiles Pega)" IsChecked="True" Checked="ParamControl_Changed" Unchecked="ParamControl_Changed" FontWeight="SemiBold"/>
+                                            <CheckBox Grid.Column="0" x:Name="chkGenerateJointMesh" Content="☑ Modelar Juntas / Fragua 3D" IsChecked="True" Checked="ParamControl_Changed" Unchecked="ParamControl_Changed" FontWeight="SemiBold"/>
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                                                <TextBox x:Name="txtJointInner" Text="2.0" Width="45" TextChanged="ParamControl_Changed"/>
+                                                <TextBox x:Name="txtJointInner" Text="3.0" Width="45" TextChanged="ParamControl_Changed"/>
                                                 <TextBlock Text=" mm" VerticalAlignment="Center" FontSize="10" Foreground="#A0AEC0"/>
                                             </StackPanel>
                                         </Grid>
@@ -207,7 +207,7 @@
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0" Margin="0,0,3,0">
                                                 <TextBlock Text="Junta Perímetro (mm):" FontSize="10" Foreground="#A0AEC0"/>
-                                                <TextBox x:Name="txtJointPerimeter" Text="8.0" TextChanged="ParamControl_Changed"/>
+                                                <TextBox x:Name="txtJointPerimeter" Text="5.0" TextChanged="ParamControl_Changed"/>
                                             </StackPanel>
                                             <StackPanel Grid.Column="1" Margin="3,0,0,0">
                                                 <TextBlock Text="Material Fragua:" FontSize="10" Foreground="#A0AEC0"/>

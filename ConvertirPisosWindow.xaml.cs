@@ -20,8 +20,8 @@ namespace RevitToSupabasePlugin
         public FloorPatternType SelectedPattern { get; private set; } = FloorPatternType.OrthogonalGrid;
 
         // Capas a Modelar
-        public bool ModelRevoque { get; private set; } = false;
-        public double RevoqueThickCm { get; private set; } = 1.5;
+        public bool ModelRevoque { get; private set; } = true;
+        public double RevoqueThickCm { get; private set; } = 3.0;
         public Autodesk.Revit.DB.Material? RevoqueMaterial { get; private set; }
 
         public bool ModelBeddingMortar { get; private set; } = true;
@@ -35,8 +35,8 @@ namespace RevitToSupabasePlugin
         public Autodesk.Revit.DB.Material? TileMaterial { get; private set; }
 
         public bool GenerateJointMesh { get; private set; } = true;
-        public double JointInnerMm { get; private set; } = 2.0;
-        public double JointPerimMm { get; private set; } = 8.0;
+        public double JointInnerMm { get; private set; } = 3.0;
+        public double JointPerimMm { get; private set; } = 5.0;
         public Autodesk.Revit.DB.Material? GroutMaterial { get; private set; }
 
         // Muros
@@ -444,6 +444,50 @@ namespace RevitToSupabasePlugin
                     }
                 }
 
+                // Generar Junta Perimetral 3D (Cinta de 5mm alrededor del borde exterior como en el diagrama)
+                if (GenerateJointMesh && jointPerimFt > 0.001)
+                {
+                    for (int i = 0; i < host.OuterBoundary3D.Count; i++)
+                    {
+                        XYZ p1 = host.OuterBoundary3D[i];
+                        XYZ p2 = host.OuterBoundary3D[(i + 1) % host.OuterBoundary3D.Count];
+                        XYZ segDir = (p2 - p1);
+                        double len = segDir.GetLength();
+                        if (len < 0.01) continue;
+
+                        XYZ uDir = segDir.Normalize();
+                        XYZ inward = host.Normal3D.CrossProduct(uDir).Normalize();
+
+                        XYZ startElev = p1 + host.Normal3D * normalTileOffset;
+                        XYZ endElev = p2 + host.Normal3D * normalTileOffset;
+                        XYZ centerPerim = (startElev + endElev) / 2.0 + inward * (jointPerimFt / 2.0);
+
+                        List<XYZ> perimPoly3D = new List<XYZ>
+                        {
+                            startElev,
+                            endElev,
+                            endElev + inward * jointPerimFt,
+                            startElev + inward * jointPerimFt
+                        };
+
+                        LayoutJoints.Add(new JointLayoutItem
+                        {
+                            IsPerimeter = true,
+                            Center3D = centerPerim,
+                            StartPoint3D = startElev + inward * (jointPerimFt / 2.0),
+                            EndPoint3D = endElev + inward * (jointPerimFt / 2.0),
+                            Normal3D = host.Normal3D,
+                            RotationRad = Math.Atan2(uDir.Y, uDir.X),
+                            LengthFt = len,
+                            WidthFt = jointPerimFt,
+                            DepthFt = tileHFt,
+                            PolygonVertices3D = perimPoly3D,
+                            MaterialName = GroutMaterial?.Name ?? "Fragua",
+                            HostFaceRef = host.HostFaceReference
+                        });
+                    }
+                }
+
                 double minU = effectiveBoundaryUV.Min(p => p.X) + jointPerimFt;
                 double maxU = effectiveBoundaryUV.Max(p => p.X) - jointPerimFt;
                 double minV = effectiveBoundaryUV.Min(p => p.Y) + jointPerimFt;
@@ -505,13 +549,43 @@ namespace RevitToSupabasePlugin
                             RotateAndTranslate2D(new XYZ(-hu,  hv, 0), rotRad, ru, rv)
                         };
 
-                        var clipResultUV = ClipPolygon(tilePolyUV, effectiveBoundaryUV);
-                        if (clipResultUV.Count < 3) continue;
-
-                        double clippedAreaSqFt = CalculatePolygonArea(clipResultUV);
+                        List<XYZ> clipResultUV;
+                        bool isCut = false;
                         double fullAreaSqFt = tileLFt * tileWFt;
 
-                        bool isCut = Math.Abs(clippedAreaSqFt - fullAreaSqFt) > 0.05 * fullAreaSqFt;
+                        // Fast containment test: count tile vertices inside floor boundary
+                        int insideCount = 0;
+                        for (int k = 0; k < 4; k++)
+                        {
+                            if (IsPointInPolygon2D(tilePolyUV[k], effectiveBoundaryUV)) insideCount++;
+                        }
+
+                        bool edgesIntersect = DoPolygonsIntersect2D(tilePolyUV, effectiveBoundaryUV);
+
+                        if (insideCount == 4 && !edgesIntersect)
+                        {
+                            // Baldosa completamente entera en el interior
+                            clipResultUV = tilePolyUV;
+                            isCut = false;
+                        }
+                        else if (insideCount == 0 && !edgesIntersect)
+                        {
+                            // Completamente fuera del contorno del suelo
+                            continue;
+                        }
+                        else
+                        {
+                            // Baldosa cortada en el perímetro
+                            clipResultUV = ClipPolygonAgainstConvex(effectiveBoundaryUV, tilePolyUV);
+                            if (clipResultUV.Count < 3) continue;
+
+                            double clippedArea = CalculatePolygonArea(clipResultUV);
+                            if (clippedArea < 0.005 * fullAreaSqFt) continue; // Descartar micro-astillas
+
+                            isCut = Math.Abs(clippedArea - fullAreaSqFt) > 0.02 * fullAreaSqFt;
+                        }
+
+                        double clippedAreaSqFt = CalculatePolygonArea(clipResultUV);
                         double areaSqM = clippedAreaSqFt * 0.092903;
 
                         TileRole role = TileRole.Full;
@@ -530,6 +604,9 @@ namespace RevitToSupabasePlugin
                         List<XYZ> poly3D = clipResultUV.Select(pt => host.LocalToWorld(pt, normalTileOffset)).ToList();
                         XYZ center3D = host.LocalToWorld(new XYZ(ru, rv, 0), normalTileOffset);
 
+                        XYZ dirU = (host.BasisU * Math.Cos(rotRad) + host.BasisV * Math.Sin(rotRad)).Normalize();
+                        XYZ dirV = (-host.BasisU * Math.Sin(rotRad) + host.BasisV * Math.Cos(rotRad)).Normalize();
+
                         LayoutTiles.Add(new TileLayoutItem
                         {
                             IndexX = iu,
@@ -537,6 +614,9 @@ namespace RevitToSupabasePlugin
                             CenterU_Ft = ru,
                             CenterV_Ft = rv,
                             Center3D = center3D,
+                            Normal3D = host.Normal3D,
+                            DirectionU3D = dirU,
+                            DirectionV3D = dirV,
                             Length_Ft = tileLFt,
                             Width_Ft = tileWFt,
                             Thickness_Ft = tileHFt,
@@ -545,37 +625,93 @@ namespace RevitToSupabasePlugin
                             Role = role,
                             PolygonVerticesUV = clipResultUV,
                             PolygonVertices3D = poly3D,
-                            ActualAreaSqM = areaSqM
+                            ActualAreaSqM = areaSqM,
+                            HostFaceRef = host.HostFaceReference
                         });
+                    }
+                }
 
-                        // Agregar Junta / Fragua 3D entre baldosas (Face-Based Tiles Pega)
-                        if (GenerateJointMesh && !isCut)
+                // Generar Juntas Interiores Continuas (Grid Ortogonal Bidireccional - Líneas de Imagen 2)
+                if (GenerateJointMesh && jointInnerFt > 0.0005)
+                {
+                    double halfSpan = spanRadius + 10.0;
+
+                    // 1. Líneas de Junta Transversales (a lo largo del eje U, desplazadas en V)
+                    for (int iv = -nv; iv <= nv; iv++)
+                    {
+                        double vPos = iv * stepV + (tileWFt / 2.0 + jointInnerFt / 2.0);
+                        double hw = jointInnerFt / 2.0;
+
+                        List<XYZ> stripPolyUV = new List<XYZ>
                         {
-                            XYZ ptRight = host.LocalToWorld(new XYZ(ru + hu + jointInnerFt / 2.0, rv, 0), normalTileOffset);
-                            XYZ ptTop = host.LocalToWorld(new XYZ(ru, rv + hv + jointInnerFt / 2.0, 0), normalTileOffset);
+                            RotateAndTranslate2D(new XYZ(-halfSpan, vPos - hw, 0), rotRad, originU, originV),
+                            RotateAndTranslate2D(new XYZ( halfSpan, vPos - hw, 0), rotRad, originU, originV),
+                            RotateAndTranslate2D(new XYZ( halfSpan, vPos + hw, 0), rotRad, originU, originV),
+                            RotateAndTranslate2D(new XYZ(-halfSpan, vPos + hw, 0), rotRad, originU, originV)
+                        };
 
-                            LayoutJoints.Add(new JointLayoutItem
-                            {
-                                IsVertical = true,
-                                Center3D = ptRight,
-                                StartPoint3D = ptRight - host.BasisV * (tileWFt / 2.0),
-                                EndPoint3D = ptRight + host.BasisV * (tileWFt / 2.0),
-                                LengthFt = tileWFt,
-                                WidthFt = jointInnerFt,
-                                DepthFt = tileHFt,
-                                MaterialName = GroutMaterial?.Name ?? "Fragua"
-                            });
+                        var clippedStripUV = ClipPolygonAgainstConvex(effectiveBoundaryUV, stripPolyUV);
+                        if (clippedStripUV.Count >= 3)
+                        {
+                            List<XYZ> strip3D = clippedStripUV.Select(pt => host.LocalToWorld(pt, normalTileOffset)).ToList();
+                            double cU = clippedStripUV.Average(p => p.X);
+                            double cV = clippedStripUV.Average(p => p.Y);
+                            XYZ centerStrip3D = host.LocalToWorld(new XYZ(cU, cV, 0), normalTileOffset);
 
                             LayoutJoints.Add(new JointLayoutItem
                             {
                                 IsVertical = false,
-                                Center3D = ptTop,
-                                StartPoint3D = ptTop - host.BasisU * (tileLFt / 2.0),
-                                EndPoint3D = ptTop + host.BasisU * (tileLFt / 2.0),
-                                LengthFt = tileLFt,
+                                Center3D = centerStrip3D,
+                                StartPoint3D = strip3D[0],
+                                EndPoint3D = strip3D[1],
+                                Normal3D = host.Normal3D,
+                                RotationRad = rotRad,
+                                LengthFt = halfSpan * 2,
                                 WidthFt = jointInnerFt,
                                 DepthFt = tileHFt,
-                                MaterialName = GroutMaterial?.Name ?? "Fragua"
+                                PolygonVertices3D = strip3D,
+                                MaterialName = GroutMaterial?.Name ?? "Fragua",
+                                HostFaceRef = host.HostFaceReference
+                            });
+                        }
+                    }
+
+                    // 2. Líneas de Junta Longitudinales (a lo largo del eje V, desplazadas en U)
+                    for (int iu = -nu; iu <= nu; iu++)
+                    {
+                        double uPos = iu * stepU + (tileLFt / 2.0 + jointInnerFt / 2.0);
+                        double hw = jointInnerFt / 2.0;
+
+                        List<XYZ> stripPolyUV = new List<XYZ>
+                        {
+                            RotateAndTranslate2D(new XYZ(uPos - hw, -halfSpan, 0), rotRad, originU, originV),
+                            RotateAndTranslate2D(new XYZ(uPos + hw, -halfSpan, 0), rotRad, originU, originV),
+                            RotateAndTranslate2D(new XYZ(uPos + hw,  halfSpan, 0), rotRad, originU, originV),
+                            RotateAndTranslate2D(new XYZ(uPos - hw,  halfSpan, 0), rotRad, originU, originV)
+                        };
+
+                        var clippedStripUV = ClipPolygonAgainstConvex(effectiveBoundaryUV, stripPolyUV);
+                        if (clippedStripUV.Count >= 3)
+                        {
+                            List<XYZ> strip3D = clippedStripUV.Select(pt => host.LocalToWorld(pt, normalTileOffset)).ToList();
+                            double cU = clippedStripUV.Average(p => p.X);
+                            double cV = clippedStripUV.Average(p => p.Y);
+                            XYZ centerStrip3D = host.LocalToWorld(new XYZ(cU, cV, 0), normalTileOffset);
+
+                            LayoutJoints.Add(new JointLayoutItem
+                            {
+                                IsVertical = true,
+                                Center3D = centerStrip3D,
+                                StartPoint3D = strip3D[0],
+                                EndPoint3D = strip3D[1],
+                                Normal3D = host.Normal3D,
+                                RotationRad = rotRad + Math.PI / 2.0,
+                                LengthFt = halfSpan * 2,
+                                WidthFt = jointInnerFt,
+                                DepthFt = tileHFt,
+                                PolygonVertices3D = strip3D,
+                                MaterialName = GroutMaterial?.Name ?? "Fragua",
+                                HostFaceRef = host.HostFaceReference
                             });
                         }
                     }
@@ -602,7 +738,7 @@ namespace RevitToSupabasePlugin
                 new XYZ( 10000,  maxV, 0),
                 new XYZ(-10000,  maxV, 0)
             };
-            return ClipPolygon(poly, clipBox);
+            return ClipPolygonAgainstConvex(poly, clipBox);
         }
 
         private void UpdateQuickCalculations(int fullCount, int cutCount, double totalTileMaterialM2)
@@ -676,21 +812,21 @@ namespace RevitToSupabasePlugin
 
             foreach (var host in SelectedHosts)
             {
-                // Sustrato estructural
+                // Sustrato estructural base
                 MeshGeometry3D baseMesh = CreateHostBaseMesh(host, centerX, centerY, centerZ, -0.05);
                 modelGroup.Children.Add(new GeometryModel3D(baseMesh, baseSubstrateMat));
 
-                // Revoque si está activo
+                // Revoque / Mortero Base si está activo
                 if (ModelRevoque)
                 {
-                    MeshGeometry3D revMesh = CreateHostBaseMesh(host, centerX, centerY, centerZ, revoqueFt);
+                    MeshGeometry3D revMesh = CreateHostBaseMesh(host, centerX, centerY, centerZ, 0.0);
                     modelGroup.Children.Add(new GeometryModel3D(revMesh, revoqueMat));
                 }
 
-                // Cama de pega si está activa
+                // Cama de pega / Adhesivo si está activa
                 if (ModelBeddingMortar)
                 {
-                    double bedOffset = (ModelRevoque ? revoqueFt : 0) + beddingFt;
+                    double bedOffset = (ModelRevoque ? revoqueFt : 0.0);
                     MeshGeometry3D bedMesh = CreateHostBaseMesh(host, centerX, centerY, centerZ, bedOffset);
                     modelGroup.Children.Add(new GeometryModel3D(bedMesh, beddingMat));
                 }
@@ -754,15 +890,9 @@ namespace RevitToSupabasePlugin
 
             double scale = 30.48;
             List<XYZ> pts3D = host.OuterBoundary3D;
+            List<XYZ> ptsUV = host.OuterBoundaryUV;
 
-            double avgX = pts3D.Average(p => p.X);
-            double avgY = pts3D.Average(p => p.Y);
-            double avgZ = pts3D.Average(p => p.Z);
-
-            Point3D centerPt = new Point3D((avgX - cx) * scale, (avgY - cy) * scale, (avgZ - cz + thickFt) * scale);
-            int cIdx = mesh.Positions.Count;
-            mesh.Positions.Add(centerPt);
-
+            int baseIdx = mesh.Positions.Count;
             for (int i = 0; i < pts3D.Count; i++)
             {
                 double px = (pts3D[i].X - cx) * scale;
@@ -771,12 +901,10 @@ namespace RevitToSupabasePlugin
                 mesh.Positions.Add(new Point3D(px, py, pz));
             }
 
-            for (int i = 0; i < pts3D.Count; i++)
+            List<int> tri = TriangulatePolygon2D(ptsUV);
+            foreach (int idx in tri)
             {
-                int next = (i + 1) % pts3D.Count;
-                mesh.TriangleIndices.Add(cIdx);
-                mesh.TriangleIndices.Add(cIdx + 1 + i);
-                mesh.TriangleIndices.Add(cIdx + 1 + next);
+                mesh.TriangleIndices.Add(baseIdx + idx);
             }
 
             return mesh;
@@ -784,75 +912,92 @@ namespace RevitToSupabasePlugin
 
         private void AddTileSolidToMesh(MeshGeometry3D mesh, List<XYZ> poly3D, double cx, double cy, double cz, double thickFt)
         {
-            if (poly3D.Count < 3) return;
+            if (poly3D == null || poly3D.Count < 3) return;
 
             double scale = 30.48;
             int baseIdx = mesh.Positions.Count;
+            int n = poly3D.Count;
 
-            for (int i = 0; i < poly3D.Count; i++)
+            // Vértices inferiores (z = pz)
+            for (int i = 0; i < n; i++)
             {
                 double px = (poly3D[i].X - cx) * scale;
                 double py = (poly3D[i].Y - cy) * scale;
                 double pz = (poly3D[i].Z - cz) * scale;
                 mesh.Positions.Add(new Point3D(px, py, pz));
-                mesh.Positions.Add(new Point3D(px, py, pz + thickFt * scale * 0.8));
             }
 
-            for (int i = 1; i < poly3D.Count - 1; i++)
+            // Vértices superiores (z = pz + thickFt)
+            for (int i = 0; i < n; i++)
             {
-                mesh.TriangleIndices.Add(baseIdx + 1);
-                mesh.TriangleIndices.Add(baseIdx + (i * 2) + 1);
-                mesh.TriangleIndices.Add(baseIdx + ((i + 1) * 2) + 1);
+                double px = (poly3D[i].X - cx) * scale;
+                double py = (poly3D[i].Y - cy) * scale;
+                double pz = (poly3D[i].Z - cz + thickFt) * scale;
+                mesh.Positions.Add(new Point3D(px, py, pz));
             }
 
-            for (int i = 0; i < poly3D.Count; i++)
+            // Triangulación Cara Superior
+            List<int> topTri = TriangulatePolygon2D(poly3D);
+            foreach (int idx in topTri)
             {
-                int next = (i + 1) % poly3D.Count;
-                int p0 = baseIdx + (i * 2);
-                int p1 = baseIdx + (i * 2) + 1;
-                int p2 = baseIdx + (next * 2) + 1;
-                int p3 = baseIdx + (next * 2);
+                mesh.TriangleIndices.Add(baseIdx + n + idx);
+            }
 
-                mesh.TriangleIndices.Add(p0);
-                mesh.TriangleIndices.Add(p1);
-                mesh.TriangleIndices.Add(p2);
+            // Triangulación Cara Inferior (orden inverso para normal hacia abajo)
+            for (int i = 0; i < topTri.Count; i += 3)
+            {
+                mesh.TriangleIndices.Add(baseIdx + topTri[i + 2]);
+                mesh.TriangleIndices.Add(baseIdx + topTri[i + 1]);
+                mesh.TriangleIndices.Add(baseIdx + topTri[i]);
+            }
 
-                mesh.TriangleIndices.Add(p0);
-                mesh.TriangleIndices.Add(p2);
-                mesh.TriangleIndices.Add(p3);
+            // Caras laterales
+            for (int i = 0; i < n; i++)
+            {
+                int next = (i + 1) % n;
+                int bCurr = baseIdx + i;
+                int bNext = baseIdx + next;
+                int tCurr = baseIdx + n + i;
+                int tNext = baseIdx + n + next;
+
+                mesh.TriangleIndices.Add(bCurr);
+                mesh.TriangleIndices.Add(tCurr);
+                mesh.TriangleIndices.Add(tNext);
+
+                mesh.TriangleIndices.Add(bCurr);
+                mesh.TriangleIndices.Add(tNext);
+                mesh.TriangleIndices.Add(bNext);
             }
         }
 
         private void AddJointStripMesh(MeshGeometry3D mesh, JointLayoutItem j, double cx, double cy, double cz)
         {
+            if (j.PolygonVertices3D != null && j.PolygonVertices3D.Count >= 3)
+            {
+                AddTileSolidToMesh(mesh, j.PolygonVertices3D, cx, cy, cz, j.DepthFt);
+                return;
+            }
+
             double scale = 30.48;
-            double x1 = (j.StartPoint3D.X - cx) * scale;
-            double y1 = (j.StartPoint3D.Y - cy) * scale;
-            double z1 = (j.StartPoint3D.Z - cz) * scale;
+            XYZ segDir = j.EndPoint3D - j.StartPoint3D;
+            double segLen = segDir.GetLength();
+            if (segLen < 0.001) return;
 
-            double x2 = (j.EndPoint3D.X - cx) * scale;
-            double y2 = (j.EndPoint3D.Y - cy) * scale;
-            double z2 = (j.EndPoint3D.Z - cz) * scale;
+            XYZ uDir = segDir.Normalize();
+            XYZ side = j.Normal3D.CrossProduct(uDir);
+            if (side.GetLength() < 0.01) side = XYZ.BasisZ.CrossProduct(uDir);
+            if (side.GetLength() < 0.01) side = XYZ.BasisY.CrossProduct(uDir);
+            side = side.Normalize();
 
-            double w = (j.WidthFt / 2.0) * scale;
+            double w = j.WidthFt / 2.0;
 
-            Point3D p0 = new Point3D(x1 - w, y1 - w, z1);
-            Point3D p1 = new Point3D(x2 - w, y2 - w, z2);
-            Point3D p2 = new Point3D(x2 + w, y2 + w, z2);
-            Point3D p3 = new Point3D(x1 + w, y1 + w, z1);
+            XYZ pt0 = j.StartPoint3D - side * w;
+            XYZ pt1 = j.EndPoint3D - side * w;
+            XYZ pt2 = j.EndPoint3D + side * w;
+            XYZ pt3 = j.StartPoint3D + side * w;
 
-            int idx = mesh.Positions.Count;
-            mesh.Positions.Add(p0);
-            mesh.Positions.Add(p1);
-            mesh.Positions.Add(p2);
-            mesh.Positions.Add(p3);
-
-            mesh.TriangleIndices.Add(idx);
-            mesh.TriangleIndices.Add(idx + 1);
-            mesh.TriangleIndices.Add(idx + 2);
-            mesh.TriangleIndices.Add(idx);
-            mesh.TriangleIndices.Add(idx + 2);
-            mesh.TriangleIndices.Add(idx + 3);
+            List<XYZ> pts = new List<XYZ> { pt0, pt1, pt2, pt3 };
+            AddTileSolidToMesh(mesh, pts, cx, cy, cz, j.DepthFt);
         }
 
         private void AddSkirtingMesh(MeshGeometry3D mesh, SkirtingItem seg, double cx, double cy, double cz)
@@ -923,14 +1068,183 @@ namespace RevitToSupabasePlugin
             return Math.Abs(area) / 2.0;
         }
 
-        private List<XYZ> ClipPolygon(List<XYZ> subjectPoly, List<XYZ> clipBoundary)
+        private bool IsClockwise2D(List<XYZ> poly)
         {
+            double area = 0;
+            for (int i = 0; i < poly.Count; i++)
+            {
+                XYZ p1 = poly[i];
+                XYZ p2 = poly[(i + 1) % poly.Count];
+                area += (p1.X * p2.Y - p2.X * p1.Y);
+            }
+            return area < 0;
+        }
+
+        public static List<int> TriangulatePolygon2D(List<XYZ> poly)
+        {
+            List<int> triangles = new List<int>();
+            if (poly == null || poly.Count < 3) return triangles;
+
+            int n = poly.Count;
+            if (n == 3)
+            {
+                triangles.Add(0);
+                triangles.Add(1);
+                triangles.Add(2);
+                return triangles;
+            }
+
+            List<int> indices = new List<int>(n);
+            for (int i = 0; i < n; i++) indices.Add(i);
+
+            // Verificar si los índices están en sentido antihorario
+            double area = 0;
+            for (int i = 0; i < n; i++)
+            {
+                XYZ p1 = poly[i];
+                XYZ p2 = poly[(i + 1) % n];
+                area += (p1.X * p2.Y - p2.X * p1.Y);
+            }
+            if (area < 0)
+            {
+                indices.Reverse();
+            }
+
+            int count = indices.Count;
+            int timeout = count * 3;
+            int curr = 0;
+
+            while (count > 3 && timeout > 0)
+            {
+                timeout--;
+                int prev = (curr + count - 1) % count;
+                int next = (curr + 1) % count;
+
+                int iPrev = indices[prev];
+                int iCurr = indices[curr];
+                int iNext = indices[next];
+
+                XYZ a = poly[iPrev];
+                XYZ b = poly[iCurr];
+                XYZ c = poly[iNext];
+
+                // Verificar si el vértice 'b' es convexo
+                double cross = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
+                if (cross > 1e-7)
+                {
+                    bool isEar = true;
+                    for (int i = 0; i < count; i++)
+                    {
+                        if (i == prev || i == curr || i == next) continue;
+                        XYZ p = poly[indices[i]];
+                        if (IsPointInTriangle2D(p, a, b, c))
+                        {
+                            isEar = false;
+                            break;
+                        }
+                    }
+
+                    if (isEar)
+                    {
+                        triangles.Add(iPrev);
+                        triangles.Add(iCurr);
+                        triangles.Add(iNext);
+                        indices.RemoveAt(curr);
+                        count--;
+                        curr = curr % Math.Max(1, count);
+                        continue;
+                    }
+                }
+
+                curr = (curr + 1) % count;
+            }
+
+            if (count == 3)
+            {
+                triangles.Add(indices[0]);
+                triangles.Add(indices[1]);
+                triangles.Add(indices[2]);
+            }
+
+            return triangles;
+        }
+
+        private static bool IsPointInTriangle2D(XYZ p, XYZ a, XYZ b, XYZ c)
+        {
+            double c1 = (b.X - a.X) * (p.Y - a.Y) - (b.Y - a.Y) * (p.X - a.X);
+            double c2 = (c.X - b.X) * (p.Y - b.Y) - (c.Y - b.Y) * (p.X - b.X);
+            double c3 = (a.X - c.X) * (p.Y - c.Y) - (a.Y - c.Y) * (p.X - c.X);
+
+            return (c1 >= -1e-7 && c2 >= -1e-7 && c3 >= -1e-7) || (c1 <= 1e-7 && c2 <= 1e-7 && c3 <= 1e-7);
+        }
+
+        private bool IsPointInPolygon2D(XYZ pt, List<XYZ> poly)
+        {
+            if (poly.Count < 3) return false;
+            bool inside = false;
+            for (int i = 0, j = poly.Count - 1; i < poly.Count; j = i++)
+            {
+                if (((poly[i].Y > pt.Y) != (poly[j].Y > pt.Y)) &&
+                    (pt.X < (poly[j].X - poly[i].X) * (pt.Y - poly[i].Y) / (poly[j].Y - poly[i].Y) + poly[i].X))
+                {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        }
+
+        private bool DoPolygonsIntersect2D(List<XYZ> poly1, List<XYZ> poly2)
+        {
+            for (int i = 0; i < poly1.Count; i++)
+            {
+                XYZ a1 = poly1[i];
+                XYZ a2 = poly1[(i + 1) % poly1.Count];
+                for (int j = 0; j < poly2.Count; j++)
+                {
+                    XYZ b1 = poly2[j];
+                    XYZ b2 = poly2[(j + 1) % poly2.Count];
+                    if (DoLinesIntersect2D(a1, a2, b1, b2)) return true;
+                }
+            }
+            return false;
+        }
+
+        private bool DoLinesIntersect2D(XYZ p1, XYZ p2, XYZ p3, XYZ p4)
+        {
+            double d1 = Direction2D(p3, p4, p1);
+            double d2 = Direction2D(p3, p4, p2);
+            double d3 = Direction2D(p1, p2, p3);
+            double d4 = Direction2D(p1, p2, p4);
+
+            if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+                ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0)))
+                return true;
+
+            return false;
+        }
+
+        private double Direction2D(XYZ pi, XYZ pj, XYZ pk)
+        {
+            return (pk.X - pi.X) * (pj.Y - pi.Y) - (pj.X - pi.X) * (pk.Y - pi.Y);
+        }
+
+        private List<XYZ> ClipPolygonAgainstConvex(List<XYZ> subjectPoly, List<XYZ> convexClipBoundary)
+        {
+            if (subjectPoly == null || subjectPoly.Count < 3 || convexClipBoundary == null || convexClipBoundary.Count < 3)
+                return new List<XYZ>();
+
+            List<XYZ> clipBox = new List<XYZ>(convexClipBoundary);
+            if (IsClockwise2D(clipBox))
+            {
+                clipBox.Reverse();
+            }
+
             List<XYZ> outputList = new List<XYZ>(subjectPoly);
 
-            for (int i = 0; i < clipBoundary.Count; i++)
+            for (int i = 0; i < clipBox.Count; i++)
             {
-                XYZ cp1 = clipBoundary[i];
-                XYZ cp2 = clipBoundary[(i + 1) % clipBoundary.Count];
+                XYZ cp1 = clipBox[i];
+                XYZ cp2 = clipBox[(i + 1) % clipBox.Count];
 
                 List<XYZ> inputList = new List<XYZ>(outputList);
                 outputList.Clear();
@@ -961,7 +1275,21 @@ namespace RevitToSupabasePlugin
                 }
             }
 
-            return outputList;
+            List<XYZ> clean = new List<XYZ>();
+            for (int i = 0; i < outputList.Count; i++)
+            {
+                XYZ p = outputList[i];
+                if (clean.Count == 0 || clean[clean.Count - 1].DistanceTo(p) > 0.001)
+                {
+                    clean.Add(p);
+                }
+            }
+            if (clean.Count >= 2 && clean[0].DistanceTo(clean[clean.Count - 1]) < 0.001)
+            {
+                clean.RemoveAt(clean.Count - 1);
+            }
+
+            return clean;
         }
 
         private bool IsInsideEdge(XYZ p, XYZ cp1, XYZ cp2)

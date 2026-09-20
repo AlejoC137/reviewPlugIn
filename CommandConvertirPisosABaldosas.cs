@@ -139,10 +139,10 @@ namespace RevitToSupabasePlugin
                             {
                                 DirectShape dsRev = DirectShape.CreateElement(doc, categoryId);
                                 dsRev.SetShape(new GeometryObject[] { revSolid });
-                                dsRev.Name = SanitizeRevitName($"Revoque Base - {host.Name}", "Revoque Base");
+                                dsRev.Name = SanitizeRevitName($"Mortero Base - {host.Name}", "Mortero Base");
 
                                 Parameter pComm = dsRev.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                                if (pComm != null && !pComm.IsReadOnly) pComm.Set("ENCHAPE-REVOQUE-BASE");
+                                if (pComm != null && !pComm.IsReadOnly) pComm.Set("ENCHAPE-MORTERO-BASE");
 
                                 if (revoqueMatId != ElementId.InvalidElementId)
                                 {
@@ -185,113 +185,119 @@ namespace RevitToSupabasePlugin
                         {
                             if (tile.PolygonVertices3D.Count < 3) continue;
 
+                            bool placedAsFamily = false;
                             if (!tile.IsCut && tileSymbol != null)
                             {
                                 try
                                 {
                                     if (!tileSymbol.IsActive) tileSymbol.Activate();
-                                    Level? level = hostInfos.FirstOrDefault()?.Level;
+                                    FamilyInstance? inst = null;
 
-                                    FamilyInstance inst = doc.Create.NewFamilyInstance(
-                                        tile.Center3D,
-                                        tileSymbol,
-                                        level,
-                                        Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
-
-                                    // Ajustar parámetros paramétricos de la familia editable
-                                    SetParameterValue(inst, new[] { "Length", "Largo", "Depth", "Longitud" }, tile.Length_Ft);
-                                    SetParameterValue(inst, new[] { "Width", "Ancho" }, tile.Width_Ft);
-                                    SetParameterValue(inst, new[] { "Height", "Thickness", "Espesor", "Alto" }, tile.Thickness_Ft);
-
-                                    Parameter pComm = inst.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                                    if (pComm != null && !pComm.IsReadOnly) pComm.Set("ENCHAPE-BALDOSA-ENTERA");
-
-                                    if (tileMatId != ElementId.InvalidElementId)
+                                    // Intento 1: Face-Based con Face Reference
+                                    if (tile.HostFaceRef != null)
                                     {
-                                        Parameter pMat = inst.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
-                                        if (pMat != null && !pMat.IsReadOnly) pMat.Set(tileMatId);
+                                        try
+                                        {
+                                            inst = doc.Create.NewFamilyInstance(
+                                                tile.HostFaceRef,
+                                                tile.Center3D,
+                                                tile.DirectionU3D,
+                                                tileSymbol);
+                                        }
+                                        catch { }
                                     }
 
-                                    createdTilesCount++;
-                                    continue;
+                                    // Intento 2: Ubicación por nivel
+                                    if (inst == null)
+                                    {
+                                        Level? level = hostInfos.FirstOrDefault()?.Level;
+                                        inst = doc.Create.NewFamilyInstance(
+                                            tile.Center3D,
+                                            tileSymbol,
+                                            level,
+                                            Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+                                    }
+
+                                    if (inst != null)
+                                    {
+                                        // Rotar la baldosa según el ángulo del patrón si es necesario
+                                        if (Math.Abs(tile.RotationRad) > 1e-4)
+                                        {
+                                            try
+                                            {
+                                                Line rotAxis = Line.CreateUnbound(tile.Center3D, tile.Normal3D);
+                                                ElementTransformUtils.RotateElement(doc, inst.Id, rotAxis, tile.RotationRad);
+                                            }
+                                            catch { }
+                                        }
+
+                                        // Ajustar parámetros paramétricos de la familia editable
+                                        SetParameterValue(inst, new[] { "Length", "Largo", "Depth", "Longitud", "Longitud_Baldosa" }, tile.Length_Ft);
+                                        SetParameterValue(inst, new[] { "Width", "Ancho", "Ancho_Baldosa" }, tile.Width_Ft);
+                                        SetParameterValue(inst, new[] { "Height", "Thickness", "Espesor", "Alto", "Espesor_Baldosa" }, tile.Thickness_Ft);
+
+                                        Parameter pComm = inst.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                                        if (pComm != null && !pComm.IsReadOnly) pComm.Set("ENCHAPE-BALDOSA-ENTERA");
+
+                                        if (tileMatId != ElementId.InvalidElementId)
+                                        {
+                                            Parameter pMat = inst.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
+                                            if (pMat != null && !pMat.IsReadOnly) pMat.Set(tileMatId);
+                                        }
+
+                                        createdTilesCount++;
+                                        placedAsFamily = true;
+                                    }
                                 }
                                 catch { }
                             }
 
-                            // DirectShape de Generic Model para piezas cortadas
-                            Solid? tileSolid = CreatePrismFromPolygon(tile.PolygonVertices3D, XYZ.BasisZ, tile.Thickness_Ft);
-                            if (tileSolid != null)
+                            // Si no se instanció como familia o es pieza cortada, crear DirectShape sólido
+                            if (!placedAsFamily)
                             {
-                                DirectShape ds = DirectShape.CreateElement(doc, categoryId);
-                                ds.SetShape(new GeometryObject[] { tileSolid });
-                                ds.Name = tile.IsCut ? "Baldosa Cortada" : "Baldosa";
-
-                                Parameter pComm = ds.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                                if (pComm != null && !pComm.IsReadOnly)
+                                Solid? tileSolid = CreatePrismFromPolygon(tile.PolygonVertices3D, tile.Normal3D, tile.Thickness_Ft);
+                                if (tileSolid != null)
                                 {
-                                    pComm.Set(tile.IsCut ? "ENCHAPE-BALDOSA-CORTADA" : "ENCHAPE-BALDOSA-ENTERA");
-                                }
+                                    DirectShape ds = DirectShape.CreateElement(doc, categoryId);
+                                    ds.SetShape(new GeometryObject[] { tileSolid });
+                                    ds.Name = tile.IsCut ? "Baldosa Cortada" : "Baldosa";
 
-                                if (tileMatId != ElementId.InvalidElementId)
-                                {
-                                    Parameter pMat = ds.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
-                                    if (pMat != null && !pMat.IsReadOnly) pMat.Set(tileMatId);
-                                }
+                                    Parameter pComm = ds.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                                    if (pComm != null && !pComm.IsReadOnly)
+                                    {
+                                        pComm.Set(tile.IsCut ? "ENCHAPE-BALDOSA-CORTADA" : "ENCHAPE-BALDOSA-ENTERA");
+                                    }
 
-                                if (tile.IsCut) cutTilesCount++;
-                                else createdTilesCount++;
+                                    if (tileMatId != ElementId.InvalidElementId)
+                                    {
+                                        Parameter pMat = ds.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
+                                        if (pMat != null && !pMat.IsReadOnly) pMat.Set(tileMatId);
+                                    }
+
+                                    if (tile.IsCut) cutTilesCount++;
+                                    else createdTilesCount++;
+                                }
                             }
                         }
                     }
 
-                    // D. Modelar Juntas / Fragua 3D entre baldosas (Base Tiles Pega)
+                    // D. Modelar Juntas / Fragua 3D entre baldosas en dos direcciones (Grid bidireccional y perimetral)
                     int jointCount = 0;
                     if (window.GenerateJointMesh && window.LayoutJoints.Count > 0)
                     {
                         foreach (var j in window.LayoutJoints)
                         {
-                            if (pegaSymbol != null)
-                            {
-                                try
-                                {
-                                    if (!pegaSymbol.IsActive) pegaSymbol.Activate();
-                                    Level? level = hostInfos.FirstOrDefault()?.Level;
+                            if (j.PolygonVertices3D.Count < 3) continue;
 
-                                    FamilyInstance inst = doc.Create.NewFamilyInstance(
-                                        j.Center3D,
-                                        pegaSymbol,
-                                        level,
-                                        Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
-
-                                    SetParameterValue(inst, new[] { "Length", "Largo", "Depth" }, j.LengthFt);
-                                    SetParameterValue(inst, new[] { "Width", "Ancho", "Espesor" }, j.WidthFt);
-                                    SetParameterValue(inst, new[] { "Height", "Thickness", "Alto" }, j.DepthFt);
-
-                                    Parameter pComm = inst.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                                    if (pComm != null && !pComm.IsReadOnly) pComm.Set("ENCHAPE-PEGA-FRAGUA");
-
-                                    if (groutMatId != ElementId.InvalidElementId)
-                                    {
-                                        Parameter pMat = inst.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
-                                        if (pMat != null && !pMat.IsReadOnly) pMat.Set(groutMatId);
-                                    }
-
-                                    jointCount++;
-                                    continue;
-                                }
-                                catch { }
-                            }
-
-                            // Fallback DirectShape para fragua
-                            Solid? jSolid = CreateJointBoxSolid(j);
+                            Solid? jSolid = CreatePrismFromPolygon(j.PolygonVertices3D, j.Normal3D, j.DepthFt);
                             if (jSolid != null)
                             {
                                 DirectShape dsJ = DirectShape.CreateElement(doc, categoryId);
                                 dsJ.SetShape(new GeometryObject[] { jSolid });
-                                dsJ.Name = "Fragua de Junta";
+                                dsJ.Name = j.IsPerimeter ? "Junta Perimetral" : "Fragua de Junta";
 
                                 Parameter pComm = dsJ.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                                if (pComm != null && !pComm.IsReadOnly) pComm.Set("ENCHAPE-PEGA-FRAGUA");
+                                if (pComm != null && !pComm.IsReadOnly) pComm.Set(j.IsPerimeter ? "ENCHAPE-JUNTA-PERIMETRAL" : "ENCHAPE-PEGA-FRAGUA");
 
                                 if (groutMatId != ElementId.InvalidElementId)
                                 {
@@ -652,16 +658,49 @@ namespace RevitToSupabasePlugin
 
         private Solid? CreatePrismFromPolygon(List<XYZ> vertices, XYZ normal, double thickness)
         {
-            if (vertices.Count < 3) return null;
+            if (vertices == null || vertices.Count < 3 || thickness < 1e-5) return null;
 
             try
             {
-                CurveLoop loop = new CurveLoop();
+                // 1. Limpiar vértices duplicados o colapsados
+                List<XYZ> cleanPts = new List<XYZ>();
                 for (int i = 0; i < vertices.Count; i++)
                 {
-                    XYZ p1 = vertices[i];
-                    XYZ p2 = vertices[(i + 1) % vertices.Count];
-                    if (p1.DistanceTo(p2) > 0.005)
+                    XYZ pt = vertices[i];
+                    if (cleanPts.Count == 0 || cleanPts[cleanPts.Count - 1].DistanceTo(pt) > 0.003)
+                    {
+                        cleanPts.Add(pt);
+                    }
+                }
+                if (cleanPts.Count >= 2 && cleanPts[0].DistanceTo(cleanPts[cleanPts.Count - 1]) < 0.003)
+                {
+                    cleanPts.RemoveAt(cleanPts.Count - 1);
+                }
+
+                if (cleanPts.Count < 3) return null;
+
+                // 2. Calcular normal del polígono y garantizar sentido antihorario (CCW) respecto a la normal de extrusión
+                XYZ polyNormal = XYZ.Zero;
+                for (int i = 0; i < cleanPts.Count; i++)
+                {
+                    XYZ curr = cleanPts[i];
+                    XYZ next = cleanPts[(i + 1) % cleanPts.Count];
+                    polyNormal += curr.CrossProduct(next);
+                }
+
+                XYZ normDir = normal.Normalize();
+                if (polyNormal.DotProduct(normDir) < 0)
+                {
+                    cleanPts.Reverse();
+                }
+
+                // 3. Crear CurveLoop cerrado
+                CurveLoop loop = new CurveLoop();
+                for (int i = 0; i < cleanPts.Count; i++)
+                {
+                    XYZ p1 = cleanPts[i];
+                    XYZ p2 = cleanPts[(i + 1) % cleanPts.Count];
+                    if (p1.DistanceTo(p2) > 0.001)
                     {
                         loop.Append(Line.CreateBound(p1, p2));
                     }
@@ -671,49 +710,8 @@ namespace RevitToSupabasePlugin
                 {
                     return GeometryCreationUtilities.CreateExtrusionGeometry(
                         new List<CurveLoop> { loop },
-                        normal,
+                        normDir,
                         thickness);
-                }
-            }
-            catch { }
-
-            return null;
-        }
-
-        private Solid? CreateJointBoxSolid(JointLayoutItem j)
-        {
-            try
-            {
-                XYZ p1 = j.StartPoint3D;
-                XYZ p2 = j.EndPoint3D;
-                XYZ dir = (p2 - p1);
-                double len = dir.GetLength();
-                if (len < 0.01) return null;
-
-                XYZ norm = dir.Normalize();
-                XYZ side = XYZ.BasisZ.CrossProduct(norm);
-                if (side.IsAlmostEqualTo(XYZ.Zero)) side = XYZ.BasisY;
-                side = side.Normalize();
-
-                double hw = j.WidthFt / 2.0;
-
-                XYZ pt0 = p1 - side * hw;
-                XYZ pt1 = p2 - side * hw;
-                XYZ pt2 = p2 + side * hw;
-                XYZ pt3 = p1 + side * hw;
-
-                CurveLoop loop = new CurveLoop();
-                loop.Append(Line.CreateBound(pt0, pt1));
-                loop.Append(Line.CreateBound(pt1, pt2));
-                loop.Append(Line.CreateBound(pt2, pt3));
-                loop.Append(Line.CreateBound(pt3, pt0));
-
-                if (!loop.IsOpen())
-                {
-                    return GeometryCreationUtilities.CreateExtrusionGeometry(
-                        new List<CurveLoop> { loop },
-                        XYZ.BasisZ,
-                        j.DepthFt);
                 }
             }
             catch { }
@@ -743,19 +741,8 @@ namespace RevitToSupabasePlugin
                 XYZ pt2 = new XYZ(p2.X + inward.X * th, p2.Y + inward.Y * th, z);
                 XYZ pt3 = new XYZ(p1.X + inward.X * th, p1.Y + inward.Y * th, z);
 
-                CurveLoop loop = new CurveLoop();
-                loop.Append(Line.CreateBound(pt0, pt1));
-                loop.Append(Line.CreateBound(pt1, pt2));
-                loop.Append(Line.CreateBound(pt2, pt3));
-                loop.Append(Line.CreateBound(pt3, pt0));
-
-                if (!loop.IsOpen())
-                {
-                    return GeometryCreationUtilities.CreateExtrusionGeometry(
-                        new List<CurveLoop> { loop },
-                        XYZ.BasisZ,
-                        h);
-                }
+                List<XYZ> pts = new List<XYZ> { pt0, pt1, pt2, pt3 };
+                return CreatePrismFromPolygon(pts, XYZ.BasisZ, h);
             }
             catch { }
 

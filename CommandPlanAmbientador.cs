@@ -25,7 +25,7 @@ namespace RevitToSupabasePlugin
                 PlanAmbientadorWindow window = new PlanAmbientadorWindow(uidoc);
                 WindowInteropHelper helper = new WindowInteropHelper(window);
                 helper.Owner = uiapp.MainWindowHandle;
-                window.Show();
+                window.ShowDialog();
                 return Result.Succeeded;
             }
             catch (Exception ex)

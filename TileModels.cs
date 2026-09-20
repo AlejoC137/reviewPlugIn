@@ -139,6 +139,9 @@ namespace RevitToSupabasePlugin
         public double CenterU_Ft { get; set; }
         public double CenterV_Ft { get; set; }
         public XYZ Center3D { get; set; } = XYZ.Zero;
+        public XYZ Normal3D { get; set; } = XYZ.BasisZ;
+        public XYZ DirectionU3D { get; set; } = XYZ.BasisX;
+        public XYZ DirectionV3D { get; set; } = XYZ.BasisY;
 
         public double Length_Ft { get; set; }
         public double Width_Ft { get; set; }
@@ -153,6 +156,7 @@ namespace RevitToSupabasePlugin
         public List<XYZ> PolygonVertices3D { get; set; } = new List<XYZ>();
 
         public double ActualAreaSqM { get; set; }
+        public Reference? HostFaceRef { get; set; }
     }
 
     public class JointLayoutItem
@@ -162,10 +166,14 @@ namespace RevitToSupabasePlugin
         public XYZ Center3D { get; set; } = XYZ.Zero;
         public XYZ StartPoint3D { get; set; } = XYZ.Zero;
         public XYZ EndPoint3D { get; set; } = XYZ.Zero;
+        public XYZ Normal3D { get; set; } = XYZ.BasisZ;
+        public double RotationRad { get; set; }
         public double LengthFt { get; set; }
         public double WidthFt { get; set; }
         public double DepthFt { get; set; }
         public string MaterialName { get; set; } = "Fragua";
+        public List<XYZ> PolygonVertices3D { get; set; } = new List<XYZ>();
+        public Reference? HostFaceRef { get; set; }
     }
 
     public class SkirtingItem
