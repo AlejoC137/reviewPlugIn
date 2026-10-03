@@ -11,14 +11,23 @@ namespace RevitToSupabasePlugin
     public class App : IExternalApplication
     {
         private static UIControlledApplication? _uiApp;
+        public static RevitMcpServer? McpServerInstance { get; private set; }
 
         public Result OnStartup(UIControlledApplication application)
         {
             _uiApp = application;
             InitializeRibbon(application);
 
-            // Deshabilitado: el evento Idling estaba rompiendo la interfaz de Revit (ocultando el Project Browser)
-            // application.Idling += Application_Idling;
+            // Iniciar Servidor MCP Local de Revit (http://localhost:8080/mcp/)
+            try
+            {
+                McpServerInstance = new RevitMcpServer();
+                McpServerInstance.Start(8080);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error iniciando RevitMcpServer: {ex.Message}");
+            }
 
             return Result.Succeeded;
         }
@@ -130,7 +139,8 @@ namespace RevitToSupabasePlugin
 
                 PushButtonData btnSchedules = CreateBtnData("cmdSchedules", "Asistente Tablas IA", "CommandSchedulesIA", "icon_tablas_ia");
                 PushButtonData btnSync = CreateBtnData("cmdSyncMaterials", "Sincronizar Materiales", "CommandSyncMaterials", "icon_sync_materials");
-                panelIA.AddStackedItems(btnSchedules, btnSync);
+                PushButtonData btnMcp = CreateBtnData("cmdMcpStatus", "Bi-MCP Status", "CommandMcpStatus", "icon_qaqc");
+                panelIA.AddStackedItems(btnSchedules, btnSync, btnMcp);
             }
 
             // --- Panel 2: 💧 Sistema de Riego ---
@@ -202,6 +212,12 @@ namespace RevitToSupabasePlugin
 
         public Result OnShutdown(UIControlledApplication application)
         {
+            try
+            {
+                McpServerInstance?.Stop();
+            }
+            catch { }
+
             if (_uiApp != null)
             {
                 // _uiApp.Idling -= Application_Idling;
