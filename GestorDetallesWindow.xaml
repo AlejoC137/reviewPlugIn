@@ -1,0 +1,251 @@
+<Window x:Class="RevitToSupabasePlugin.GestorDetallesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="📐 GESTOR DE DETALLES &amp; ESTANDARIZACIÓN CONSTRUCTIVA | ARCA REVIEW"
+        Height="780" Width="920"
+        MinHeight="650" MinWidth="800"
+        WindowStartupLocation="CenterScreen"
+        Background="#181825"
+        Foreground="#CDD6F4">
+
+    <Window.Resources>
+        <!-- Estilo Botón Primario -->
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#89B4FA"/>
+            <Setter Property="Foreground" Value="#11111B"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#B4BEFE"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Estilo Botón Verde Ejecutar -->
+        <Style x:Key="SuccessButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#A6E3A1"/>
+            <Setter Property="Foreground" Value="#11111B"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#94E2D5"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Estilo Botón Secundario -->
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#313244"/>
+            <Setter Property="Foreground" Value="#CDD6F4"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="12,7"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#45475A"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#45475A"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Estilo TextBox Oscuro -->
+        <Style x:Key="DarkTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="#1E1E2E"/>
+            <Setter Property="Foreground" Value="#CDD6F4"/>
+            <Setter Property="BorderBrush" Value="#45475A"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="CaretBrush" Value="#89B4FA"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="0"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <!-- 0: Header -->
+            <RowDefinition Height="Auto"/>
+            <!-- 1: Condiciones Opcionales -->
+            <RowDefinition Height="Auto"/>
+            <!-- 2: Tabs (Prompt, JSON, Diagnóstico) -->
+            <RowDefinition Height="*"/>
+            <!-- 3: Status & Botones -->
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#1E1E2E" CornerRadius="8" Padding="14,10" Margin="0,0,0,14" BorderBrush="#313244" BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="📐 Gestor y Estandarizador de Detalles Constructivos" FontSize="16" FontWeight="Bold" Foreground="#F5C2E7"/>
+                    <TextBlock x:Name="TxtActiveViewInfo" Text="Detectando vista activa de Revit..." FontSize="12" Foreground="#A6ADC8" Margin="0,3,0,0"/>
+                </StackPanel>
+                <Border Grid.Column="1" Background="#313244" CornerRadius="6" Padding="8,4" VerticalAlignment="Center">
+                    <TextBlock Text="DB: Conectado ● Estándar BIM" FontSize="11" Foreground="#A6E3A1" FontWeight="SemiBold"/>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Condiciones Opcionales (No forzosas) -->
+        <Border Grid.Row="1" Background="#1E1E2E" CornerRadius="8" Padding="14,10" Margin="0,0,0,14" BorderBrush="#313244" BorderThickness="1">
+            <StackPanel>
+                <TextBlock Text="CONDICIONES DE CONTORNO (OPCIONALES - NO FORZOSAS)" FontSize="11" FontWeight="Bold" Foreground="#89B4FA" Margin="0,0,0,8"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,6">
+                        <TextBlock Text="Exposición Climática:" FontSize="11" Foreground="#BAC2DE" Margin="0,0,0,3"/>
+                        <TextBox x:Name="TxtClimate" Style="{StaticResource DarkTextBoxStyle}" ToolTip="Ej: Lluvia batiente / Viento severo / Interior seco"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,0,6">
+                        <TextBlock Text="Criterio de Desempeño / Norma:" FontSize="11" Foreground="#BAC2DE" Margin="0,0,0,3"/>
+                        <TextBox x:Name="TxtPerformance" Style="{StaticResource DarkTextBoxStyle}" ToolTip="Ej: Aislamiento pasivo / CTE-HE / Estándar constructivo"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,4,0,0">
+                        <TextBlock Text="Notas o Limitaciones Específicas del Proyecto:" FontSize="11" Foreground="#BAC2DE" Margin="0,0,0,3"/>
+                        <TextBox x:Name="TxtNotes" Style="{StaticResource DarkTextBoxStyle}" Height="38" TextWrapping="Wrap" AcceptsReturn="True"/>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Tabs de Información y Resultados -->
+        <TabControl Grid.Row="2" Background="#1E1E2E" BorderBrush="#313244" BorderThickness="1" Margin="0,0,0,14">
+            <!-- Tab 1: Meta-Prompt -->
+            <TabItem Header="📄 Meta-Prompt Generado" Foreground="#CDD6F4">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="Información extraída de la vista activa para el modelo de lenguaje / notebook:" FontSize="11" Foreground="#A6ADC8" Margin="0,0,0,6"/>
+                    <TextBox x:Name="TxtPromptPreview" Grid.Row="1" Style="{StaticResource DarkTextBoxStyle}"
+                             IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="11"/>
+                </Grid>
+            </TabItem>
+
+            <!-- Tab 2: JSON Response -->
+            <TabItem Header="⚡ JSON de Respuesta IA" Foreground="#CDD6F4">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="JSON estructurado de la IA con las acciones paramétricas y recomendaciones:" FontSize="11" Foreground="#A6ADC8" Margin="0,0,0,6"/>
+                    <TextBox x:Name="TxtJsonResponse" Grid.Row="1" Style="{StaticResource DarkTextBoxStyle}"
+                             AcceptsReturn="True" TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="11"/>
+                </Grid>
+            </TabItem>
+
+            <!-- Tab 3: Reporte Constructivo -->
+            <TabItem Header="📋 Recomendaciones Constructivas" Foreground="#CDD6F4">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="10">
+                    <StackPanel>
+                        <Border Background="#252538" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="SÍNTESIS DE LA SOLUCIÓN" FontWeight="Bold" FontSize="12" Foreground="#89B4FA" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="TxtReportSummary" Text="No se ha ejecutado ninguna evaluación todavía." TextWrapping="Wrap" FontSize="11" Foreground="#CDD6F4"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#252538" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="ESTRATEGIA TÉRMICA &amp; PUENTES TÉRMICOS" FontWeight="Bold" FontSize="12" Foreground="#FAB387" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="TxtReportThermal" Text="Pendiente de análisis." TextWrapping="Wrap" FontSize="11" Foreground="#CDD6F4"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#252538" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="ESTANQUEIDAD AL AGUA &amp; GOTERONES" FontWeight="Bold" FontSize="12" Foreground="#89DCEB" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="TxtReportWaterproofing" Text="Pendiente de análisis." TextWrapping="Wrap" FontSize="11" Foreground="#CDD6F4"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#252538" CornerRadius="6" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="ALERTAS DE CONSTRUCTIBILIDAD EN OBRA" FontWeight="Bold" FontSize="12" Foreground="#F38BA8" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="TxtReportWarnings" Text="Sin alertas." TextWrapping="Wrap" FontSize="11" Foreground="#CDD6F4"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- Footer / Botonera -->
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Button x:Name="BtnIngestCad" Grid.Column="0" Content="📥 Importar CAD a 3D Base" Style="{StaticResource SecondaryButtonStyle}" Click="BtnIngestCad_Click"/>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="BtnGeneratePrompt" Content="1. Analizar Vista &amp; Crear Prompt" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,10,0" Click="BtnGeneratePrompt_Click"/>
+                <Button x:Name="BtnApply" Content="2. Confirmar &amp; Ejecutar en Revit" Style="{StaticResource SuccessButtonStyle}" Click="BtnApply_Click"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

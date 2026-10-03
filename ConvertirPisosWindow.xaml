@@ -139,12 +139,32 @@
 
                                 <TextBlock Text="Material de la Baldosa:" FontSize="11" Foreground="#A0AEC0" Margin="0,4,0,0"/>
                                 <ComboBox x:Name="cmbTileMaterial" DisplayMemberPath="Name" SelectionChanged="ParamControl_Changed"/>
+
+                                <!-- Selector de Motor de Modelado en Revit -->
+                                <Border Background="#101419" CornerRadius="4" Padding="6" Margin="0,6,0,0" BorderBrush="#2D3748" BorderThickness="1">
+                                    <StackPanel>
+                                        <TextBlock Text="Familias Nativas de Revit:" FontSize="10" FontWeight="Bold" Foreground="#63B3ED" Margin="0,0,0,3"/>
+                                        <RadioButton x:Name="rbLoadableFamily" Content="Familias Paramétricas (Tiles Base + Base Tiles Pega)" IsChecked="True" Foreground="#48BB78" FontSize="10" FontWeight="SemiBold" Margin="0,1,0,2"/>
+                                        <TextBlock Text="• Usa Tiles Base.rfa (con Cut Lat / Cut Top) y Base Tiles Pega.rfa para juntas." FontSize="9" Foreground="#A0AEC0" Margin="14,0,0,3"/>
+                                        <RadioButton x:Name="rbDirectShape" Content="Respaldo Sólidos B-Rep DirectShape" Foreground="#E2E8F0" FontSize="10" Margin="0,1,0,1"/>
+                                        <TextBlock Text="• Modo alternativo únicamente si las familias RFA no se encuentran cargadas." FontSize="9" Foreground="#718096" Margin="14,0,0,0"/>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </GroupBox>
 
                         <!-- SECCIÓN 2: CAPAS A MODELAR (MORTERO, PEGA, BALDOSAS, JUNTAS) -->
-                        <GroupBox Header="2. Capas Constructivas (Elegir qué modelar)">
+                        <GroupBox Header="2. Capas Constructivas (Reemplazo de Torta de Suelo)">
                             <StackPanel>
+                                <!-- Panel de Absorción Automática de Espesor -->
+                                <Border Background="#1C2128" CornerRadius="6" Padding="8" Margin="0,0,0,8" BorderBrush="#3182CE" BorderThickness="1">
+                                    <StackPanel>
+                                        <CheckBox x:Name="chkAutoAbsorbFloorThickness" Content="Absorber espesor total del suelo en Mortero" IsChecked="True" Checked="AutoAbsorb_Changed" Unchecked="AutoAbsorb_Changed" FontWeight="Bold" Foreground="#63B3ED"/>
+                                        <TextBlock x:Name="txtStratigraphyBreakdown" Text="Estratigrafía: Top Enchape en N.P.T. | Mortero: 8.5 cm | Pega: 5 mm | Baldosa: 1.0 cm (Total: 10.0 cm)" FontSize="10" Foreground="#A0AEC0" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                        <CheckBox x:Name="chkDeleteOriginalFloor" Content="Eliminar suelo original tras crear el despiece (Reemplazo total)" IsChecked="False" Margin="0,4,0,0" FontSize="11" Foreground="#FEB2B2"/>
+                                    </StackPanel>
+                                </Border>
+
                                 <!-- Capa 1: Mortero / Contrapiso / Revoque Base -->
                                 <Border Background="#15171A" CornerRadius="6" Padding="8" Margin="0,0,0,6" BorderBrush="#2D3748" BorderThickness="1">
                                     <StackPanel>
@@ -153,9 +173,9 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="100"/>
                                             </Grid.ColumnDefinitions>
-                                            <CheckBox Grid.Column="0" x:Name="chkModelRevoque" Content="☑ Modelar Mortero / Contrapiso" IsChecked="True" Checked="ParamControl_Changed" Unchecked="ParamControl_Changed" FontWeight="SemiBold"/>
+                                            <CheckBox Grid.Column="0" x:Name="chkModelRevoque" Content="☑ Modelar Mortero de Nivel / Solado" IsChecked="True" Checked="ParamControl_Changed" Unchecked="ParamControl_Changed" FontWeight="SemiBold"/>
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                                                <TextBox x:Name="txtRevoqueThickCm" Text="3.0" Width="45" TextChanged="ParamControl_Changed"/>
+                                                <TextBox x:Name="txtRevoqueThickCm" Text="3.0" Width="45" TextChanged="RevoqueParam_Changed"/>
                                                 <TextBlock Text=" cm" VerticalAlignment="Center" FontSize="10" Foreground="#A0AEC0"/>
                                             </StackPanel>
                                         </Grid>
@@ -173,7 +193,7 @@
                                             </Grid.ColumnDefinitions>
                                             <CheckBox Grid.Column="0" x:Name="chkModelBeddingMortar" Content="☑ Modelar Pega / Adhesivo" IsChecked="True" Checked="ParamControl_Changed" Unchecked="ParamControl_Changed" FontWeight="SemiBold"/>
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                                                <TextBox x:Name="txtBeddingThickMm" Text="5.0" Width="45" TextChanged="ParamControl_Changed"/>
+                                                <TextBox x:Name="txtBeddingThickMm" Text="5.0" Width="45" TextChanged="BeddingParam_Changed"/>
                                                 <TextBlock Text=" mm" VerticalAlignment="Center" FontSize="10" Foreground="#A0AEC0"/>
                                             </StackPanel>
                                         </Grid>
@@ -294,7 +314,7 @@
                         <!-- SECCIÓN 5: ZÓCALO / RODAPIÉ (SOBRE PISO) -->
                         <GroupBox x:Name="grpSkirting" Header="5. Zócalo / Rodapié (Apoyado sobre Piso)">
                             <StackPanel>
-                                <CheckBox x:Name="chkEnableSkirting" Content="Generar Zócalo Perimetral (Sweep)" IsChecked="True" Checked="ParamControl_Changed" Unchecked="ParamControl_Changed" FontWeight="Bold" Foreground="#63B3ED"/>
+                                <CheckBox x:Name="chkEnableSkirting" Content="Generar Zócalo Perimetral (Sweep)" IsChecked="False" Checked="ParamControl_Changed" Unchecked="ParamControl_Changed" FontWeight="Bold" Foreground="#63B3ED"/>
 
                                 <Grid Margin="0,4,0,4">
                                     <Grid.ColumnDefinitions>
@@ -321,8 +341,21 @@
                             </StackPanel>
                         </GroupBox>
 
-                        <!-- SECCIÓN 6: CÓMPUTO INSTANTÁNEO -->
-                        <GroupBox Header="6. Métricas y Cómputos Rápidos">
+                        <!-- SECCIÓN 6: CATEGORÍA DE REVIT PARA ELEMENTOS -->
+                        <GroupBox Header="6. Categoría de Revit Asignada">
+                            <StackPanel>
+                                <TextBlock Text="Categoría de Sistema:" FontSize="11" Foreground="#A0AEC0"/>
+                                <ComboBox x:Name="cmbTargetCategory" Margin="0,4,0,0">
+                                    <ComboBoxItem Content="🪜 Suelos / Pisos (OST_Floors) [Recomendado]" Tag="OST_Floors" IsSelected="True"/>
+                                    <ComboBoxItem Content="🧱 Muros (OST_Walls) [Para Enchapes Verticales]" Tag="OST_Walls"/>
+                                    <ComboBoxItem Content="📦 Modelos Genéricos (OST_GenericModel)" Tag="OST_GenericModel"/>
+                                </ComboBox>
+                                <TextBlock Text="Al seleccionar Suelos (OST_Floors), las piezas aparecen en Tablas de Suelos y heredan sus propiedades." FontSize="10" Foreground="#63B3ED" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <!-- SECCIÓN 7: CÓMPUTO INSTANTÁNEO -->
+                        <GroupBox Header="7. Métricas y Cómputos Rápidos">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>

@@ -32,7 +32,8 @@ namespace IconGenerator
                 ("icon_gen_steel", DrawGenSteel),
                 ("icon_conv_steel", DrawConvSteel),
                 ("icon_tablas_steel", DrawTablasSteel),
-                ("icon_manual", DrawManual)
+                ("icon_manual", DrawManual),
+                ("icon_gestor_cat", DrawGestorCategorias)
             };
 
             foreach (var icon in icons)
@@ -444,6 +445,30 @@ namespace IconGenerator
 
             // Cinta marcapáginas
             dc.DrawRectangle(bookmark, null, new Rect(7.2 * sc, 1.5 * sc, 1.6 * sc, 5 * sc));
+        }
+
+        // 18. Gestor de Categorías de Sistema: Losa de Piso multicapa con flechas de conversión / asignación de sistema
+        static void DrawGestorCategorias(DrawingContext dc, double s)
+        {
+            double sc = s / 16.0;
+            var tileTop = B(14, 165, 233);      // Sky Blue (Piso / Baldosa)
+            var mortero = B(245, 158, 11);     // Amber (Cama mortero)
+            var slabBase = B(100, 116, 139);   // Slate (Losa de concreto / Suelo)
+            var arrow = B(34, 197, 94);        // Green (Asignación)
+
+            // Losa base (Suelo de sistema)
+            dc.DrawRoundedRectangle(slabBase, null, new Rect(1.5 * sc, 10 * sc, 13 * sc, 4.5 * sc), 1 * sc, 1 * sc);
+            // Capa mortero
+            dc.DrawRectangle(mortero, null, new Rect(2 * sc, 7.5 * sc, 12 * sc, 2 * sc));
+            // Capa acabado baldosas
+            dc.DrawRectangle(tileTop, null, new Rect(2 * sc, 3.5 * sc, 5.5 * sc, 3.5 * sc));
+            dc.DrawRectangle(tileTop, null, new Rect(8.5 * sc, 3.5 * sc, 5.5 * sc, 3.5 * sc));
+
+            // Insignia de categoría / flecha de conversión
+            dc.DrawEllipse(arrow, null, new Point(12.5 * sc, 3.5 * sc), 2.5 * sc, 2.5 * sc);
+            dc.DrawLine(P(B(255, 255, 255), 1.0 * sc), new Point(11.2 * sc, 3.5 * sc), new Point(13.8 * sc, 3.5 * sc));
+            dc.DrawLine(P(B(255, 255, 255), 1.0 * sc), new Point(12.8 * sc, 2.5 * sc), new Point(13.8 * sc, 3.5 * sc));
+            dc.DrawLine(P(B(255, 255, 255), 1.0 * sc), new Point(12.8 * sc, 4.5 * sc), new Point(13.8 * sc, 3.5 * sc));
         }
     }
 }

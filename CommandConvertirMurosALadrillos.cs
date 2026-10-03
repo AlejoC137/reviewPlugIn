@@ -280,6 +280,10 @@ namespace RevitToSupabasePlugin
                 using (Transaction tx = new Transaction(doc, "Convertir Muros a Ladrillos"))
                 {
                     tx.Start();
+
+                    // Asegurar que los parámetros de medición de ARCA existan y estén vinculados al proyecto
+                    MeasurementManager.EnsureMeasurementParameters(doc);
+
                     if (!brickSymbol.IsActive) brickSymbol.Activate();
                     if (pegaSymbol != null && !pegaSymbol.IsActive) pegaSymbol.Activate();
                     if (pegaVSymbol != null && !pegaVSymbol.IsActive) pegaVSymbol.Activate();
@@ -354,7 +358,8 @@ namespace RevitToSupabasePlugin
                         WallInfo? wInfo = window.SelectedWalls.FirstOrDefault(w => w.WallId == wall.Id);
                         int wallIdx = wInfo != null ? window.SelectedWalls.IndexOf(wInfo) : 0;
 
-                        List<BrickLayoutItem> wallLayoutItems = GenerateLayoutForWall(totalLength, totalHeight, brick, pattern, window.PegaCm, window.VerPega);
+                        var wallOpenings = ExtractWallOpenings(doc, wall, adjustedStartPoint, dir);
+                        List<BrickLayoutItem> wallLayoutItems = GenerateLayoutForWall(totalLength, totalHeight, brick, pattern, window.PegaCm, window.VerPega, wallOpenings);
 
                         // Sincronizar configuraciones interactivas del usuario (Canchado, Dovelas, etc.) desde la ventana
                         if (window.LayoutItems != null && window.LayoutItems.Count > 0)
@@ -621,6 +626,14 @@ namespace RevitToSupabasePlugin
                                 Parameter pRole = inst.LookupParameter("IntersectionRole");
                                 if (pRole != null && !pRole.IsReadOnly) pRole.Set(brickRole.ToString());
 
+                                // Medición exhaustiva unificada
+                                MeasurementManager.MeasureAndApply(inst, null, 
+                                    customLengthFt: itemLength, 
+                                    customThicknessFt: item.Height_Ft, 
+                                    customWidthFt: brickWidthFt, 
+                                    customAreaSqFt: itemLength * item.Height_Ft, 
+                                    customVolumeCuFt: itemLength * item.Height_Ft * brickWidthFt, 
+                                    units: 1);
                             }
 
                             // 3. Generar Mortero Centralizado (Familia Paramétrica Pega.rfa o DirectShape Fallback)
@@ -814,6 +827,14 @@ namespace RevitToSupabasePlugin
                                                     Parameter pDesc = ds.get_Parameter(BuiltInParameter.ALL_MODEL_DESCRIPTION);
                                                     if (pDesc != null && !pDesc.IsReadOnly) pDesc.Set(window.PegaDescripcion);
                                                 }
+
+                                                // Medición exhaustiva
+                                                MeasurementManager.MeasureAndApply(ds, null, 
+                                                    customLengthFt: totalLength, 
+                                                    customThicknessFt: depthFt, 
+                                                    customAreaSqFt: totalLength * totalHeight, 
+                                                    customVolumeCuFt: totalVolumeFt3, 
+                                                    units: 1);
                                             }
                                             catch { }
                                         }
@@ -1112,6 +1133,15 @@ namespace RevitToSupabasePlugin
                 Parameter pDesc = inst.get_Parameter(BuiltInParameter.ALL_MODEL_DESCRIPTION);
                 if (pDesc != null && !pDesc.IsReadOnly) pDesc.Set(description);
             }
+
+            // Medición exhaustiva
+            MeasurementManager.MeasureAndApply(inst, null, 
+                customLengthFt: lengthFt, 
+                customWidthFt: stripWidthFt, 
+                customThicknessFt: pegaFt, 
+                customAreaSqFt: lengthFt * stripWidthFt, 
+                customVolumeCuFt: lengthFt * stripWidthFt * pegaFt, 
+                units: 1);
 
             return inst;
         }
@@ -1699,7 +1729,8 @@ namespace RevitToSupabasePlugin
             BrickType brick,
             string pattern,
             double pegaCm,
-            bool verPega)
+            bool verPega,
+            List<WallOpeningInfo>? openings = null)
         {
             List<BrickLayoutItem> items = new List<BrickLayoutItem>();
             double pegaFt = pegaCm / 30.48;
@@ -1734,6 +1765,10 @@ namespace RevitToSupabasePlugin
                     if (halfBrickLen > 0.001)
                     {
                         double firstLen = Math.Min(halfBrickLen, maxWallX - startXOffset);
+                        bool skipFirst = openings != null && openings.Any(op => 
+                            startXOffset < op.MaxX - 0.02 && (startXOffset + firstLen) > op.MinX + 0.02 &&
+                            currentZ < op.MaxZ - 0.02 && (currentZ + itemH) > op.MinZ + 0.02);
+                        if (!skipFirst)
                         items.Add(new BrickLayoutItem
                         {
                             PosX_Ft = startXOffset,
@@ -1759,7 +1794,10 @@ namespace RevitToSupabasePlugin
                         double remainingX = maxWallX - currentX;
                         double len = Math.Min(brickLFt, remainingX);
                         bool isCutR = (remainingX < brickLFt - 0.001);
-
+                        bool skipBrick = openings != null && openings.Any(op => 
+                            currentX < op.MaxX - 0.02 && (currentX + len) > op.MinX + 0.02 &&
+                            currentZ < op.MaxZ - 0.02 && (currentZ + itemH) > op.MinZ + 0.02);
+                        if (!skipBrick)
                         items.Add(new BrickLayoutItem
                         {
                             PosX_Ft = currentX,
@@ -1791,7 +1829,10 @@ namespace RevitToSupabasePlugin
                         double remainingX = maxWallX - currentX;
                         double len = Math.Min(brickLFt, remainingX);
                         bool isCutR = (remainingX < brickLFt - 0.001);
-
+                        bool skipBrick = openings != null && openings.Any(op => 
+                            currentX < op.MaxX - 0.02 && (currentX + len) > op.MinX + 0.02 &&
+                            currentZ < op.MaxZ - 0.02 && (currentZ + itemH) > op.MinZ + 0.02);
+                        if (!skipBrick)
                         items.Add(new BrickLayoutItem
                         {
                             PosX_Ft = currentX,
@@ -1819,6 +1860,74 @@ namespace RevitToSupabasePlugin
 
             return items;
         }
+
+        private static List<WallOpeningInfo> ExtractWallOpenings(Document doc, Wall wall, XYZ startPoint, XYZ dir)
+        {
+            List<WallOpeningInfo> openings = new List<WallOpeningInfo>();
+            try
+            {
+                IList<ElementId> insertIds = wall.FindInserts(true, false, false, false);
+                double wallBaseZ = startPoint.Z;
+
+                foreach (ElementId id in insertIds)
+                {
+                    Element elem = doc.GetElement(id);
+                    if (elem == null) continue;
+
+                    BoundingBoxXYZ bbox = elem.get_BoundingBox(null);
+                    if (bbox == null) continue;
+
+                    XYZ[] corners = new XYZ[]
+                    {
+                        new XYZ(bbox.Min.X, bbox.Min.Y, bbox.Min.Z),
+                        new XYZ(bbox.Max.X, bbox.Min.Y, bbox.Min.Z),
+                        new XYZ(bbox.Min.X, bbox.Max.Y, bbox.Min.Z),
+                        new XYZ(bbox.Max.X, bbox.Max.Y, bbox.Min.Z),
+                        new XYZ(bbox.Min.X, bbox.Min.Y, bbox.Max.Z),
+                        new XYZ(bbox.Max.X, bbox.Min.Y, bbox.Max.Z),
+                        new XYZ(bbox.Min.X, bbox.Max.Y, bbox.Max.Z),
+                        new XYZ(bbox.Max.X, bbox.Max.Y, bbox.Max.Z)
+                    };
+
+                    double minX = double.MaxValue;
+                    double maxX = double.MinValue;
+                    double minZ = double.MaxValue;
+                    double maxZ = double.MinValue;
+
+                    foreach (XYZ pt in corners)
+                    {
+                        double xProj = (pt - startPoint).DotProduct(dir);
+                        double zProj = pt.Z - wallBaseZ;
+
+                        if (xProj < minX) minX = xProj;
+                        if (xProj > maxX) maxX = xProj;
+                        if (zProj < minZ) minZ = zProj;
+                        if (zProj > maxZ) maxZ = zProj;
+                    }
+
+                    if (maxX > minX + 0.1 && maxZ > minZ + 0.1)
+                    {
+                        openings.Add(new WallOpeningInfo
+                        {
+                            MinX = Math.Max(0, minX),
+                            MaxX = maxX,
+                            MinZ = Math.Max(0, minZ),
+                            MaxZ = maxZ
+                        });
+                    }
+                }
+            }
+            catch { }
+            return openings;
+        }
+    }
+
+    public class WallOpeningInfo
+    {
+        public double MinX { get; set; }
+        public double MaxX { get; set; }
+        public double MinZ { get; set; }
+        public double MaxZ { get; set; }
     }
 
     public class WallSelectionFilter : ISelectionFilter

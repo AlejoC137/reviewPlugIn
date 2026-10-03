@@ -35,6 +35,10 @@
     <None Remove="tools\**" />
     <Compile Remove="scratch\**" />
     <None Remove="scratch\**" />
+    <Compile Remove="_backup*/**" />
+    <None Remove="_backup*/**" />
+    <Compile Remove="**/*backup*/**" />
+    <None Remove="**/*backup*/**" />
   </ItemGroup>
 
   <!-- Evento Post-Build para copiar automáticamente los archivos a la carpeta de Revit 2027 -->

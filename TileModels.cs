@@ -96,6 +96,9 @@ namespace RevitToSupabasePlugin
         public double AreaSqM { get; set; }
         public double PerimeterM { get; set; }
 
+        public double TotalHostThicknessFt { get; set; } = 0.328084; // ~10cm default
+        public double TotalHostThicknessCm => TotalHostThicknessFt * 30.48;
+
         public double WallHeightFt { get; set; }
         public double WallLengthFt { get; set; }
 
@@ -124,6 +127,12 @@ namespace RevitToSupabasePlugin
         public List<XYZ> OuterBoundary3D { get; set; } = new List<XYZ>();
         public List<Curve> OuterCurves3D { get; set; } = new List<Curve>();
 
+        // Geometría Revit 2027
+        public PlanarFace? TopPlanarFace { get; set; }
+        public CurveLoop? OuterCurveLoop { get; set; }
+        public List<CurveLoop> InnerCurveLoops { get; set; } = new List<CurveLoop>();
+        public Transform? LocalTransform { get; set; }
+
         public XYZ LocalToWorld(XYZ uvPoint, double normalOffsetFt = 0.0)
         {
             return Origin3D + (BasisU * uvPoint.X) + (BasisV * uvPoint.Y) + (Normal3D * normalOffsetFt);
@@ -149,6 +158,10 @@ namespace RevitToSupabasePlugin
         public double RotationRad { get; set; }
 
         public bool IsCut { get; set; }
+        public double CutLat_Ft { get; set; } = 0.0;
+        public double CutTop_Ft { get; set; } = 0.0;
+        public double ActualLength_Ft { get; set; }
+        public double ActualWidth_Ft { get; set; }
         public TileRole Role { get; set; } = TileRole.Full;
 
         // Vértices 2D en plano U-V y 3D en el espacio
@@ -157,6 +170,7 @@ namespace RevitToSupabasePlugin
 
         public double ActualAreaSqM { get; set; }
         public Reference? HostFaceRef { get; set; }
+        public Solid? TileSolid { get; set; }
     }
 
     public class JointLayoutItem
@@ -184,6 +198,7 @@ namespace RevitToSupabasePlugin
         public double ThicknessFt { get; set; }
         public double BevelFt { get; set; }
         public double BaseElevationFt { get; set; }
+        public double LengthFt => StartPoint.DistanceTo(EndPoint);
         public string MaterialName { get; set; } = "Zócalo";
     }
 }

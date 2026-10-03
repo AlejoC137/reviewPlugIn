@@ -33,6 +33,8 @@ echo   [*] Exportacion de Planos y Vistas (Sheets/Views)
 echo   [*] Exportacion de Materiales del modelo
 echo   [*] Guardar JSON a archivo local
 echo   [*] Generador Estructural con IA
+echo   [*] Gestor de Categorias de Sistema (Suelos, Muros, DirectShape)
+echo   [*] Despiece y Cómputos de Enchapes, Pisos y Steel Deck
 echo.
 echo ============================================================
 echo.
@@ -193,6 +195,22 @@ if exist "%~dp0icon.png" (
     copy /Y "%~dp0icon.png" "%ADDIN_FOLDER%\" >nul
 )
 echo   - Iconos copiados (icon_generador.png, icon_masivo.png, etc.).
+
+echo Paso 6: Copiando bases de datos y catalogos JSON...
+for %%j in ("%~dp0*.json") do (
+    copy /Y "%%j" "%ADDIN_FOLDER%\" >nul
+)
+echo   - Bases de datos JSON sincronizadas (TilesDB.json, BricksDB.json, SteelDecksDB.json).
+
+echo Paso 7: Copiando familias RFA del plugin...
+if exist "%~dp0Familias" (
+    xcopy "%~dp0Familias\*.*" "%ADDIN_FOLDER%\Familias\" /Y /I /E /S >nul 2>&1
+    echo   - Carpeta Familias sincronizada.
+)
+for %%r in ("%~dp0*.rfa") do (
+    copy /Y "%%r" "%ADDIN_FOLDER%\" >nul 2>&1
+)
+echo   - Familias RFA copiadas correctamente.
 
 echo.
 color 0A

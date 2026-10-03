@@ -160,6 +160,9 @@ namespace RevitToSupabasePlugin
                 PushButtonData btnConvPisos = CreateBtnData("cmdConvPisos", "Instanciador de Enchapes & Pisos", "CommandConvertirPisosABaldosas", "icon_conv_pisos");
                 PushButtonData btnCrearTablasPisos = CreateBtnData("cmdCrearTablasPisos", "Cómputos de Enchapes & Zócalos", "CommandCrearTablasPisos", "icon_tablas_pisos");
                 panelPisos.AddStackedItems(btnGenPisos, btnConvPisos, btnCrearTablasPisos);
+
+                PushButtonData btnGestorCat = CreateBtnData("cmdGestorCat", "Gestor de\nCategorías", "CommandGestorCategorias", "icon_gestor_cat");
+                panelPisos.AddItem(btnGestorCat);
             }
 
             // --- Panel 5: 🔩 Steel Decks ---
@@ -180,7 +183,15 @@ namespace RevitToSupabasePlugin
                 panelAmbientador.AddItem(btnAmbientador);
             }
 
-            // --- Panel 7: ℹ️ Ayuda & Docs ---
+            // --- Panel 7: 📐 Gestión de Detalles ---
+            RibbonPanel panelDetalles = GetOrCreatePanel("📐 Detalles Constructivos");
+            if (panelDetalles != null && panelDetalles.GetItems().Count == 0)
+            {
+                PushButtonData btnDetalles = CreateBtnData("cmdGestorDetalles", "Gestor de\nDetalles", "CommandGestorDetalles", "icon_detalles");
+                panelDetalles.AddItem(btnDetalles);
+            }
+
+            // --- Panel 8: ℹ️ Ayuda & Docs ---
             RibbonPanel panelHelp = GetOrCreatePanel("ℹ️ Ayuda & Docs");
             if (panelHelp != null && panelHelp.GetItems().Count == 0)
             {
