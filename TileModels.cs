@@ -123,6 +123,10 @@ namespace RevitToSupabasePlugin
         public List<XYZ> OuterBoundaryUV { get; set; } = new List<XYZ>();
         public List<List<XYZ>> InnerBoundariesUV { get; set; } = new List<List<XYZ>>();
 
+        // Polígono interior con setback de junta perimetral (área de baldosas y cama de pega)
+        public List<XYZ> TilingBoundaryUV { get; set; } = new List<XYZ>();
+        public List<XYZ> TilingBoundary3D { get; set; } = new List<XYZ>();
+
         // Vértices 3D
         public List<XYZ> OuterBoundary3D { get; set; } = new List<XYZ>();
         public List<Curve> OuterCurves3D { get; set; } = new List<Curve>();
@@ -148,6 +152,7 @@ namespace RevitToSupabasePlugin
         public double CenterU_Ft { get; set; }
         public double CenterV_Ft { get; set; }
         public XYZ Center3D { get; set; } = XYZ.Zero;
+        public XYZ Corner3D { get; set; } = XYZ.Zero;
         public XYZ Normal3D { get; set; } = XYZ.BasisZ;
         public XYZ DirectionU3D { get; set; } = XYZ.BasisX;
         public XYZ DirectionV3D { get; set; } = XYZ.BasisY;

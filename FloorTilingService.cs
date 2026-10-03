@@ -33,6 +33,7 @@ namespace RevitToSupabasePlugin
         public CurveLoop TileLoop { get; set; } = null!;
         public Solid TileSolid { get; set; } = null!;
         public XYZ Center3D { get; set; } = XYZ.Zero;
+        public XYZ Corner3D { get; set; } = XYZ.Zero;
         public List<XYZ> PolygonVertices3D { get; set; } = new List<XYZ>();
         public List<XYZ> PolygonVerticesUV { get; set; } = new List<XYZ>();
         public double AreaSqFt { get; set; }
@@ -505,6 +506,7 @@ namespace RevitToSupabasePlugin
                         TileLoop = tileBaseLoop,
                         TileSolid = finalSolid,
                         Center3D = center3D,
+                        Corner3D = w0,
                         PolygonVertices3D = vertices3D,
                         PolygonVerticesUV = verticesUV,
                         AreaSqFt = pieceAreaSqFt,

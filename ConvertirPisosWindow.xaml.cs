@@ -21,11 +21,11 @@ namespace RevitToSupabasePlugin
         public FloorPatternType SelectedPattern { get; private set; } = FloorPatternType.OrthogonalGrid;
 
         // Capas a Modelar
-        public bool ModelRevoque { get; private set; } = true;
+        public bool ModelRevoque { get; private set; } = false;
         public double RevoqueThickCm { get; private set; } = 3.0;
         public Autodesk.Revit.DB.Material? RevoqueMaterial { get; private set; }
 
-        public bool ModelBeddingMortar { get; private set; } = true;
+        public bool ModelBeddingMortar { get; private set; } = false;
         public double BeddingThickMm { get; private set; } = 5.0;
         public Autodesk.Revit.DB.Material? BeddingMaterial { get; private set; }
 
@@ -50,7 +50,7 @@ namespace RevitToSupabasePlugin
         public double WallBaseOffsetCm { get; private set; } = 0.0;
 
         // Zócalos
-        public bool EnableSkirting { get; private set; } = true;
+        public bool EnableSkirting { get; private set; } = false;
         public double SkirtingHeightCm { get; private set; } = 8.0;
         public double SkirtingThickCm { get; private set; } = 1.2;
         public double SkirtingBevelMm { get; private set; } = 1.5;
@@ -261,9 +261,9 @@ namespace RevitToSupabasePlugin
             TotalFloorThicknessCm = firstHost.TotalHostThicknessCm > 0 ? firstHost.TotalHostThicknessCm : 10.0;
             var layers = firstHost.DetectedLayers;
 
+            chkModelRevoque.IsChecked = layers.HasRevoque && layers.SuggestedRevoqueCm > 0;
             if (layers.HasRevoque && layers.SuggestedRevoqueCm > 0)
             {
-                chkModelRevoque.IsChecked = true;
                 txtRevoqueThickCm.Text = layers.SuggestedRevoqueCm.ToString("0.##");
                 if (!string.IsNullOrEmpty(layers.SuggestedRevoqueMaterial) && cmbRevoqueMaterial.ItemsSource is List<Autodesk.Revit.DB.Material> mats)
                 {
@@ -272,9 +272,9 @@ namespace RevitToSupabasePlugin
                 }
             }
 
+            chkModelBeddingMortar.IsChecked = layers.HasPega && layers.SuggestedPegaMm > 0;
             if (layers.HasPega && layers.SuggestedPegaMm > 0)
             {
-                chkModelBeddingMortar.IsChecked = true;
                 txtBeddingThickMm.Text = layers.SuggestedPegaMm.ToString("0.##");
                 if (!string.IsNullOrEmpty(layers.SuggestedPegaMaterial) && cmbBeddingMaterial.ItemsSource is List<Autodesk.Revit.DB.Material> mats)
                 {
@@ -282,6 +282,8 @@ namespace RevitToSupabasePlugin
                     if (mat != null) cmbBeddingMaterial.SelectedItem = mat;
                 }
             }
+
+            if (chkEnableSkirting != null) chkEnableSkirting.IsChecked = false;
 
             if (layers.HasFinish && layers.SuggestedFinishCm > 0)
             {
@@ -566,6 +568,9 @@ namespace RevitToSupabasePlugin
 
                 if (tilingBoundaryUV.Count < 3) tilingBoundaryUV = effectiveBoundaryUV;
 
+                host.TilingBoundaryUV = tilingBoundaryUV;
+                host.TilingBoundary3D = tilingBoundaryUV.Select(uv => host.LocalToWorld(uv, 0.0)).ToList();
+
                 // Generar Zócalo perimetral si el anfitrión es un Piso (apoyado sobre N.P.T. / ElevationFt)
                 if (host.HostType == HostElementType.Floor && EnableSkirting)
                 {
@@ -630,172 +635,233 @@ namespace RevitToSupabasePlugin
                     }
                 }
 
-                if (host.HostType == HostElementType.Floor && host.TopPlanarFace != null && host.OuterCurveLoop != null)
+                if (host.HostType == HostElementType.Floor)
                 {
-                    TileGenerationConfig genConfig = new TileGenerationConfig
+                    double spanU = host.MaxU - host.MinU;
+                    double spanV = host.MaxV - host.MinV;
+                    if (spanU <= 0.01 || spanV <= 0.01) continue;
+
+                    bool hasPega = GenerateJointMesh && jointInnerFt > 0.0005;
+                    bool hasPerim = hasPerimJoint;
+                    double startOffsetU = (hasPerim ? jointPerimFt : 0.0) + offXFt;
+                    double startOffsetV = (hasPerim ? jointPerimFt : 0.0) + offYFt;
+                    double maxU = spanU - (hasPerim ? jointPerimFt : 0.0);
+                    double maxV = spanV - (hasPerim ? jointPerimFt : 0.0);
+
+                    double currentV = startOffsetV;
+                    int rowIndex = 0;
+                    var rowGroups = new List<List<TileLayoutItem>>();
+
+                    while (currentV < maxV - 0.0001)
                     {
-                        TileLengthFt = tileLFt,
-                        TileWidthFt = tileWFt,
-                        TileThicknessFt = tileHFt,
-                        JointThicknessFt = jointInnerFt,
-                        OffsetUFt = offXFt,
-                        OffsetVFt = offYFt,
-                        RotationAngleRad = rotRad,
-                        Pattern = SelectedPattern
-                    };
+                        double remainingV = maxV - currentV;
+                        double itemV = Math.Min(tileWFt, remainingV);
+                        bool isCutTop = (remainingV < tileWFt - 0.001);
+                        double topCut = isCutTop ? (tileWFt - itemV) : 0.0;
+                        if (itemV <= 0.001) break;
 
-                    List<TileResult> tiles = FloorTilingService.GenerateFloorTiles(
-                        host.TopPlanarFace,
-                        host.OuterCurveLoop,
-                        host.InnerCurveLoops,
-                        host.LocalTransform ?? Autodesk.Revit.DB.Transform.Identity,
-                        host.MaxU - host.MinU,
-                        host.MaxV - host.MinV,
-                        genConfig);
+                        var thisRow = new List<TileLayoutItem>();
 
-                    double fullAreaSqFt = tileLFt * tileWFt;
-                    XYZ dirU = (host.BasisU * Math.Cos(rotRad) + host.BasisV * Math.Sin(rotRad)).Normalize();
-                    XYZ dirV = (-host.BasisU * Math.Sin(rotRad) + host.BasisV * Math.Cos(rotRad)).Normalize();
-
-                    foreach (var t in tiles)
-                    {
-                        TileRole role = TileRole.Full;
-                        if (t.IsCut)
+                        // Traba / Desfase entre filas (RunningBond / ThirdBond)
+                        double rowShiftU = 0.0;
+                        if (SelectedPattern == FloorPatternType.RunningBond50)
                         {
-                            role = t.PolygonVerticesUV.Count > 4 ? TileRole.Trimmed : TileRole.CutEdge;
-                            cutCount++;
-                            totalCutTilesArea += (fullAreaSqFt * 0.092903);
+                            if (rowIndex % 2 != 0) rowShiftU = (tileLFt - (hasPega ? jointInnerFt : 0.0)) / 2.0;
                         }
-                        else
+                        else if (SelectedPattern == FloorPatternType.ThirdBond33)
                         {
-                            fullCount++;
-                            totalFullTilesArea += (t.AreaSqFt * 0.092903);
+                            rowShiftU = (rowIndex % 3) * ((tileLFt - (hasPega ? jointInnerFt : 0.0)) / 3.0);
                         }
 
-                        LayoutTiles.Add(new TileLayoutItem
+                        if (rowShiftU > 0.001)
                         {
-                            IndexX = t.ColIndex,
-                            IndexY = t.RowIndex,
-                            CenterU_Ft = t.PolygonVerticesUV.Count > 0 ? t.PolygonVerticesUV.Average(p => p.X) : 0,
-                            CenterV_Ft = t.PolygonVerticesUV.Count > 0 ? t.PolygonVerticesUV.Average(p => p.Y) : 0,
-                            Center3D = t.Center3D,
-                            Normal3D = host.Normal3D,
-                            DirectionU3D = dirU,
-                            DirectionV3D = dirV,
-                            Length_Ft = tileLFt,
-                            Width_Ft = tileWFt,
-                            Thickness_Ft = tileHFt,
-                            RotationRad = rotRad,
-                            IsCut = t.IsCut,
-                            CutLat_Ft = t.CutLatFt,
-                            CutTop_Ft = t.CutTopFt,
-                            ActualLength_Ft = Math.Max(0.01, tileLFt - t.CutLatFt),
-                            ActualWidth_Ft = Math.Max(0.01, tileWFt - t.CutTopFt),
-                            Role = role,
-                            PolygonVerticesUV = t.PolygonVerticesUV,
-                            PolygonVertices3D = t.PolygonVertices3D,
-                            ActualAreaSqM = t.AreaSqM,
-                            HostFaceRef = host.HostFaceReference,
-                            TileSolid = t.TileSolid
-                        });
+                            double firstLen = Math.Min(rowShiftU, maxU - startOffsetU);
+                            if (firstLen > 0.005)
+                            {
+                                double firstLatCut = tileLFt - firstLen;
+                                XYZ corner3D = host.LocalToWorld(new XYZ(startOffsetU, currentV, 0.0), normalTileOffset);
+                                XYZ center3D = host.LocalToWorld(new XYZ(startOffsetU + firstLen / 2.0, currentV + itemV / 2.0, 0.0), normalTileOffset);
+
+                                XYZ ft_p0 = host.LocalToWorld(new XYZ(startOffsetU, currentV, 0.0), normalTileOffset);
+                                XYZ ft_p1 = host.LocalToWorld(new XYZ(startOffsetU + firstLen, currentV, 0.0), normalTileOffset);
+                                XYZ ft_p2 = host.LocalToWorld(new XYZ(startOffsetU + firstLen, currentV + itemV, 0.0), normalTileOffset);
+                                XYZ ft_p3 = host.LocalToWorld(new XYZ(startOffsetU, currentV + itemV, 0.0), normalTileOffset);
+
+                                var firstTile = new TileLayoutItem
+                                {
+                                    IndexX = -1,
+                                    IndexY = rowIndex,
+                                    CenterU_Ft = startOffsetU + firstLen / 2.0,
+                                    CenterV_Ft = currentV + itemV / 2.0,
+                                    Center3D = center3D,
+                                    Corner3D = corner3D,
+                                    Normal3D = host.Normal3D,
+                                    DirectionU3D = host.BasisU,
+                                    DirectionV3D = host.BasisV,
+                                    Length_Ft = firstLen,
+                                    Width_Ft = itemV,
+                                    Thickness_Ft = tileHFt,
+                                    RotationRad = 0.0,
+                                    IsCut = true,
+                                    CutLat_Ft = firstLatCut,
+                                    CutTop_Ft = topCut,
+                                    ActualLength_Ft = firstLen,
+                                    ActualWidth_Ft = itemV,
+                                    Role = TileRole.CutEdge,
+                                    ActualAreaSqM = firstLen * itemV * 0.092903,
+                                    PolygonVertices3D = new List<XYZ> { ft_p0, ft_p1, ft_p2, ft_p3 },
+                                    HostFaceRef = host.HostFaceReference
+                                };
+                                LayoutTiles.Add(firstTile);
+                                thisRow.Add(firstTile);
+                                cutCount++;
+                                totalCutTilesArea += (firstLen * itemV * 0.092903);
+                            }
+                        }
+
+                        double currentU = startOffsetU + (rowShiftU > 0.001 ? (rowShiftU + (hasPega ? jointInnerFt : 0.0)) : 0.0);
+                        int colIndex = 0;
+
+                        while (currentU < maxU - 0.0001)
+                        {
+                            double remainingU = maxU - currentU;
+                            double itemU = Math.Min(tileLFt, remainingU);
+                            bool isCutLat = (remainingU < tileLFt - 0.001);
+                            double latCut = isCutLat ? (tileLFt - itemU) : 0.0;
+                            if (itemU <= 0.001) break;
+
+                            XYZ corner3D = host.LocalToWorld(new XYZ(currentU, currentV, 0.0), normalTileOffset);
+                            XYZ center3D = host.LocalToWorld(new XYZ(currentU + itemU / 2.0, currentV + itemV / 2.0, 0.0), normalTileOffset);
+
+                            bool isCut = isCutLat || isCutTop;
+                            TileRole role = isCut ? ((isCutLat && isCutTop) ? TileRole.Corner : TileRole.CutEdge) : TileRole.Full;
+
+                            if (isCut)
+                            {
+                                cutCount++;
+                                totalCutTilesArea += (itemU * itemV * 0.092903);
+                            }
+                            else
+                            {
+                                fullCount++;
+                                totalFullTilesArea += (itemU * itemV * 0.092903);
+                            }
+
+                            XYZ ti_p0 = host.LocalToWorld(new XYZ(currentU, currentV, 0.0), normalTileOffset);
+                            XYZ ti_p1 = host.LocalToWorld(new XYZ(currentU + itemU, currentV, 0.0), normalTileOffset);
+                            XYZ ti_p2 = host.LocalToWorld(new XYZ(currentU + itemU, currentV + itemV, 0.0), normalTileOffset);
+                            XYZ ti_p3 = host.LocalToWorld(new XYZ(currentU, currentV + itemV, 0.0), normalTileOffset);
+
+                            var tileItem = new TileLayoutItem
+                            {
+                                IndexX = colIndex,
+                                IndexY = rowIndex,
+                                CenterU_Ft = currentU + itemU / 2.0,
+                                CenterV_Ft = currentV + itemV / 2.0,
+                                Center3D = center3D,
+                                Corner3D = corner3D,
+                                Normal3D = host.Normal3D,
+                                DirectionU3D = host.BasisU,
+                                DirectionV3D = host.BasisV,
+                                Length_Ft = itemU,
+                                Width_Ft = itemV,
+                                Thickness_Ft = tileHFt,
+                                RotationRad = 0.0,
+                                IsCut = isCut,
+                                CutLat_Ft = latCut,
+                                CutTop_Ft = topCut,
+                                ActualLength_Ft = itemU,
+                                ActualWidth_Ft = itemV,
+                                Role = role,
+                                ActualAreaSqM = itemU * itemV * 0.092903,
+                                PolygonVertices3D = new List<XYZ> { ti_p0, ti_p1, ti_p2, ti_p3 },
+                                HostFaceRef = host.HostFaceReference
+                            };
+                            LayoutTiles.Add(tileItem);
+                            thisRow.Add(tileItem);
+
+                            currentU += (itemU + (hasPega ? jointInnerFt : 0.0));
+                            colIndex++;
+                        }
+
+                        if (thisRow.Count > 0) rowGroups.Add(thisRow);
+
+                        currentV += (itemV + (hasPega ? jointInnerFt : 0.0));
+                        rowIndex++;
                     }
 
-                    // Juntas acotadas y recortadas estrictamente al contorno del área de despiece (CERO líneas excedentes)
-                    if (GenerateJointMesh && jointInnerFt > 0.0005)
+                    // Generar Fraguas / Juntas (Idéntico a CommandConvertirMurosALadrillos)
+                    if (hasPega && rowGroups.Count > 0)
                     {
-                        var tileMap = new HashSet<(int, int)>(tiles.Select(ti => (ti.ColIndex, ti.RowIndex)));
-                        double stepU = tileLFt + jointInnerFt;
-                        double stepV = tileWFt + jointInnerFt;
-                        XYZ dirU_UV = new XYZ(Math.Cos(rotRad), Math.Sin(rotRad), 0);
-                        XYZ dirV_UV = new XYZ(-Math.Sin(rotRad), Math.Cos(rotRad), 0);
-
-                        foreach (var t in tiles)
+                        // 1. Juntas Horizontales entre filas
+                        for (int r = 0; r < rowGroups.Count - 1; r++)
                         {
-                            int col = t.ColIndex;
-                            int row = t.RowIndex;
+                            var rItems = rowGroups[r];
+                            if (rItems.Count == 0) continue;
 
-                            double rowShiftU = 0.0;
-                            if (SelectedPattern == FloorPatternType.RunningBond50)
+                            double vMaxOfRow = rItems.Max(t => t.CenterV_Ft + t.Width_Ft / 2.0);
+                            double hLen = maxU - startOffsetU;
+                            XYZ jStart3D = host.LocalToWorld(new XYZ(startOffsetU, vMaxOfRow, 0.0), normalTileOffset);
+                            XYZ jEnd3D = host.LocalToWorld(new XYZ(maxU, vMaxOfRow, 0.0), normalTileOffset);
+
+                            XYZ jh0 = host.LocalToWorld(new XYZ(startOffsetU, vMaxOfRow, 0.0), normalTileOffset);
+                            XYZ jh1 = host.LocalToWorld(new XYZ(maxU, vMaxOfRow, 0.0), normalTileOffset);
+                            XYZ jh2 = host.LocalToWorld(new XYZ(maxU, vMaxOfRow + jointInnerFt, 0.0), normalTileOffset);
+                            XYZ jh3 = host.LocalToWorld(new XYZ(startOffsetU, vMaxOfRow + jointInnerFt, 0.0), normalTileOffset);
+
+                            LayoutJoints.Add(new JointLayoutItem
                             {
-                                if (Math.Abs(row) % 2 == 1) rowShiftU = stepU * 0.5;
-                            }
-                            else if (SelectedPattern == FloorPatternType.ThirdBond33)
+                                IsVertical = false,
+                                StartPoint3D = jStart3D,
+                                EndPoint3D = jEnd3D,
+                                Center3D = (jStart3D + jEnd3D) / 2.0,
+                                Normal3D = host.Normal3D,
+                                RotationRad = 0.0,
+                                LengthFt = hLen,
+                                WidthFt = jointInnerFt,
+                                DepthFt = tileHFt,
+                                PolygonVertices3D = new List<XYZ> { jh0, jh1, jh2, jh3 },
+                                MaterialName = GroutMaterial?.Name ?? "Fragua",
+                                HostFaceRef = host.HostFaceReference
+                            });
+                        }
+
+                        // 2. Juntas Verticales entre baldosas de cada fila
+                        for (int r = 0; r < rowGroups.Count; r++)
+                        {
+                            var rItems = rowGroups[r].OrderBy(t => t.CenterU_Ft).ToList();
+                            for (int i = 0; i < rItems.Count - 1; i++)
                             {
-                                rowShiftU = (Math.Abs(row) % 3) * (stepU / 3.0);
-                            }
+                                var cur = rItems[i];
+                                var nxt = rItems[i + 1];
 
-                            double localU = col * stepU + rowShiftU;
-                            double localV = row * stepV;
-                            XYZ P = new XYZ(offXFt, offYFt, 0) + dirU_UV * localU + dirV_UV * localV;
+                                double curRightU = cur.CenterU_Ft + cur.Length_Ft / 2.0;
+                                double nxtLeftU = nxt.CenterU_Ft - nxt.Length_Ft / 2.0;
+                                double vGap = nxtLeftU - curRightU;
 
-                            // Junta Horizontal (a lo largo de U, entre fila row y row+1)
-                            if (tileMap.Contains((col, row + 1)))
-                            {
-                                XYZ j0 = P + dirV_UV * tileWFt;
-                                XYZ j1 = P + dirU_UV * tileLFt + dirV_UV * tileWFt;
-                                XYZ j2 = P + dirU_UV * tileLFt + dirV_UV * (tileWFt + jointInnerFt);
-                                XYZ j3 = P + dirV_UV * (tileWFt + jointInnerFt);
-
-                                List<XYZ> jCornersUV = new List<XYZ> { j0, j1, j2, j3 };
-                                List<XYZ> clippedJointUV = ClipPolygonAgainstConvex(tilingBoundaryUV, jCornersUV);
-
-                                if (clippedJointUV != null && clippedJointUV.Count >= 3)
+                                if (vGap > 0.0001)
                                 {
-                                    List<XYZ> jPoly3D = clippedJointUV.Select(pt => host.LocalToWorld(pt, normalTileOffset)).ToList();
-                                    XYZ pStart3D = host.LocalToWorld((j0 + j3) / 2.0, normalTileOffset);
-                                    XYZ pEnd3D = host.LocalToWorld((j1 + j2) / 2.0, normalTileOffset);
-                                    XYZ jCenter3D = new XYZ(jPoly3D.Average(p => p.X), jPoly3D.Average(p => p.Y), jPoly3D.Average(p => p.Z));
-                                    double len = (pEnd3D - pStart3D).GetLength();
+                                    double bottomV = cur.CenterV_Ft - cur.Width_Ft / 2.0;
+                                    XYZ vStart3D = host.LocalToWorld(new XYZ(curRightU, bottomV, 0.0), normalTileOffset);
+                                    XYZ vEnd3D = host.LocalToWorld(new XYZ(curRightU, bottomV + cur.Width_Ft, 0.0), normalTileOffset);
 
-                                    LayoutJoints.Add(new JointLayoutItem
-                                    {
-                                        IsVertical = false,
-                                        Center3D = jCenter3D,
-                                        StartPoint3D = pStart3D,
-                                        EndPoint3D = pEnd3D,
-                                        Normal3D = host.Normal3D,
-                                        RotationRad = rotRad,
-                                        LengthFt = len,
-                                        WidthFt = jointInnerFt,
-                                        DepthFt = tileHFt,
-                                        PolygonVertices3D = jPoly3D,
-                                        MaterialName = GroutMaterial?.Name ?? "Fragua",
-                                        HostFaceRef = host.HostFaceReference
-                                    });
-                                }
-                            }
-
-                            // Junta Vertical (a lo largo de V, entre col y col+1)
-                            if (tileMap.Contains((col + 1, row)))
-                            {
-                                XYZ k0 = P + dirU_UV * tileLFt;
-                                XYZ k1 = P + dirU_UV * (tileLFt + jointInnerFt);
-                                XYZ k2 = P + dirU_UV * (tileLFt + jointInnerFt) + dirV_UV * tileWFt;
-                                XYZ k3 = P + dirU_UV * tileLFt + dirV_UV * tileWFt;
-
-                                List<XYZ> kCornersUV = new List<XYZ> { k0, k1, k2, k3 };
-                                List<XYZ> clippedVertJointUV = ClipPolygonAgainstConvex(tilingBoundaryUV, kCornersUV);
-
-                                if (clippedVertJointUV != null && clippedVertJointUV.Count >= 3)
-                                {
-                                    List<XYZ> kPoly3D = clippedVertJointUV.Select(pt => host.LocalToWorld(pt, normalTileOffset)).ToList();
-                                    XYZ pStart3D = host.LocalToWorld((k0 + k1) / 2.0, normalTileOffset);
-                                    XYZ pEnd3D = host.LocalToWorld((k3 + k2) / 2.0, normalTileOffset);
-                                    XYZ kCenter3D = new XYZ(kPoly3D.Average(p => p.X), kPoly3D.Average(p => p.Y), kPoly3D.Average(p => p.Z));
-                                    double len = (pEnd3D - pStart3D).GetLength();
+                                    XYZ jv0 = host.LocalToWorld(new XYZ(curRightU, bottomV, 0.0), normalTileOffset);
+                                    XYZ jv1 = host.LocalToWorld(new XYZ(curRightU + vGap, bottomV, 0.0), normalTileOffset);
+                                    XYZ jv2 = host.LocalToWorld(new XYZ(curRightU + vGap, bottomV + cur.Width_Ft, 0.0), normalTileOffset);
+                                    XYZ jv3 = host.LocalToWorld(new XYZ(curRightU, bottomV + cur.Width_Ft, 0.0), normalTileOffset);
 
                                     LayoutJoints.Add(new JointLayoutItem
                                     {
                                         IsVertical = true,
-                                        Center3D = kCenter3D,
-                                        StartPoint3D = pStart3D,
-                                        EndPoint3D = pEnd3D,
+                                        StartPoint3D = vStart3D,
+                                        EndPoint3D = vEnd3D,
+                                        Center3D = (vStart3D + vEnd3D) / 2.0,
                                         Normal3D = host.Normal3D,
-                                        RotationRad = rotRad + Math.PI / 2.0,
-                                        LengthFt = len,
-                                        WidthFt = jointInnerFt,
+                                        RotationRad = Math.PI / 2.0,
+                                        LengthFt = cur.Width_Ft,
+                                        WidthFt = vGap,
                                         DepthFt = tileHFt,
-                                        PolygonVertices3D = kPoly3D,
+                                        PolygonVertices3D = new List<XYZ> { jv0, jv1, jv2, jv3 },
                                         MaterialName = GroutMaterial?.Name ?? "Fragua",
                                         HostFaceRef = host.HostFaceReference
                                     });
@@ -983,6 +1049,7 @@ namespace RevitToSupabasePlugin
                             CenterU_Ft = ru,
                             CenterV_Ft = rv,
                             Center3D = placementCenter3D,
+                            Corner3D = host.LocalToWorld(RotateAndTranslate2D(new XYZ(-hu, -hv, 0), rotRad, ru, rv), normalTileOffset),
                             Normal3D = host.Normal3D,
                             DirectionU3D = tileDirU,
                             DirectionV3D = dirV,
@@ -1248,11 +1315,11 @@ namespace RevitToSupabasePlugin
                         modelGroup.Children.Add(new GeometryModel3D(revMesh, revoqueMat));
                     }
 
-                    // Cama de pega inmediatamente debajo de las baldosas
+                    // Cama de pega inmediatamente debajo de las baldosas (con setback perimetral)
                     if (ModelBeddingMortar)
                     {
                         double bedOffset = -(tileHFt + beddingFt);
-                        MeshGeometry3D bedMesh = CreateHostBaseMesh(host, centerX, centerY, centerZ, bedOffset);
+                        MeshGeometry3D bedMesh = CreateBeddingMesh(host, centerX, centerY, centerZ, bedOffset);
                         modelGroup.Children.Add(new GeometryModel3D(bedMesh, beddingMat));
                     }
 
@@ -1331,6 +1398,32 @@ namespace RevitToSupabasePlugin
             double maxSpan = Math.Max(spanX, Math.Max(spanY, spanZ));
             _cameraDistance = Math.Max(80, maxSpan * 1.6);
             UpdateCamera();
+        }
+
+        private MeshGeometry3D CreateBeddingMesh(TilingHostInfo host, double cx, double cy, double cz, double thickFt)
+        {
+            MeshGeometry3D mesh = new MeshGeometry3D();
+            List<XYZ> pts3D = (host.TilingBoundary3D != null && host.TilingBoundary3D.Count >= 3) ? host.TilingBoundary3D : host.OuterBoundary3D;
+            List<XYZ> ptsUV = (host.TilingBoundaryUV != null && host.TilingBoundaryUV.Count >= 3) ? host.TilingBoundaryUV : host.OuterBoundaryUV;
+            if (pts3D.Count < 3) return mesh;
+
+            double scale = 30.48;
+            int baseIdx = mesh.Positions.Count;
+            for (int i = 0; i < pts3D.Count; i++)
+            {
+                double px = (pts3D[i].X - cx) * scale;
+                double py = (pts3D[i].Y - cy) * scale;
+                double pz = (pts3D[i].Z - cz + thickFt) * scale;
+                mesh.Positions.Add(new Point3D(px, py, pz));
+            }
+
+            List<int> tri = TriangulatePolygon2D(ptsUV);
+            foreach (int idx in tri)
+            {
+                mesh.TriangleIndices.Add(baseIdx + idx);
+            }
+
+            return mesh;
         }
 
         private MeshGeometry3D CreateHostBaseMesh(TilingHostInfo host, double cx, double cy, double cz, double thickFt)

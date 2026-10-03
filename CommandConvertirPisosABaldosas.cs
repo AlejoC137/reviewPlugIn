@@ -197,14 +197,19 @@ namespace RevitToSupabasePlugin
                     // B. Modelar Cama de Pega / Adhesivo
                     if (window.ModelBeddingMortar && beddingFt > 0.0005)
                     {
+                        double jointPerimFt = (window.JointPerimMm / 1000.0) * 3.28084;
                         foreach (var host in window.SelectedHosts)
                         {
                             List<XYZ> bedBoundary;
                             if (host.HostType == HostElementType.Floor)
                             {
-                                // Cama de pega sobre el mortero o losa base
+                                // Cama de pega con setback perimetral: queda estrictamente confinada dentro de la junta perimetral
                                 double bedOffset = revoqueFt;
-                                bedBoundary = host.OuterBoundary3D.Select(p => p + host.Normal3D * bedOffset).ToList();
+                                List<XYZ> boundaryUV = (host.TilingBoundaryUV != null && host.TilingBoundaryUV.Count >= 3)
+                                    ? host.TilingBoundaryUV
+                                    : InsetPolygon2D(host.OuterBoundaryUV, jointPerimFt);
+
+                                bedBoundary = boundaryUV.Select(uv => host.LocalToWorld(uv, bedOffset)).ToList();
                             }
                             else
                             {
@@ -258,7 +263,7 @@ namespace RevitToSupabasePlugin
 
                         foreach (var tile in window.LayoutTiles)
                         {
-                            if (tile.PolygonVertices3D.Count < 3) continue;
+                            if (tile.Length_Ft <= 0.001 || tile.Width_Ft <= 0.001) continue;
 
                             bool placedAsFamily = false;
 
@@ -268,7 +273,9 @@ namespace RevitToSupabasePlugin
                                 try
                                 {
                                     FamilyInstance? inst = null;
-                                    XYZ placePoint = tile.Center3D;
+                                    // En Tiles Base.rfa el punto de inserción (origen) está en la esquina inferior izquierda (0, 0)
+                                    XYZ rawCorner = (tile.Corner3D != null && tile.Corner3D.GetLength() > 1e-4) ? tile.Corner3D : tile.Center3D;
+                                    XYZ placePoint = rawCorner;
 
                                     if (tile.HostFaceRef != null)
                                     {
@@ -280,7 +287,7 @@ namespace RevitToSupabasePlugin
                                                 Face? planarFace = hostElem.GetGeometryObjectFromReference(tile.HostFaceRef) as Face;
                                                 if (planarFace != null)
                                                 {
-                                                    IntersectionResult ir = planarFace.Project(tile.Center3D);
+                                                    IntersectionResult ir = planarFace.Project(rawCorner);
                                                     if (ir != null) placePoint = ir.XYZPoint;
                                                 }
                                             }
@@ -339,8 +346,9 @@ namespace RevitToSupabasePlugin
                                         }
 
                                         // Parámetros dimensionales a nivel ejemplar (si la familia los tiene como ejemplar)
-                                        SetParameterValueInstanceOnly(inst, new[] { "Width", "Ancho" }, tile.Width_Ft);
-                                        SetParameterValueInstanceOnly(inst, new[] { "Lenght", "Length", "Largo" }, tile.Length_Ft);
+                                        // En Tiles Base.rfa, Width es a lo largo de DirectionU3D (Length_Ft) y Lenght es a lo largo de DirectionV3D (Width_Ft)
+                                        SetParameterValueInstanceOnly(inst, new[] { "Width", "Ancho", "Width (default)", "Ancho (default)" }, tile.Length_Ft);
+                                        SetParameterValueInstanceOnly(inst, new[] { "Lenght", "Length", "Largo", "Lenght (default)", "Length (default)" }, tile.Width_Ft);
                                         SetParameterValueInstanceOnly(inst, new[] { "Thickness", "Height", "Espesor" }, tile.Thickness_Ft);
 
 // Baldosa colocada exactamente en Center3D
@@ -416,139 +424,13 @@ namespace RevitToSupabasePlugin
                         }
                     }
 
-                    // D. Modelar Juntas / Fragua (Instanciación con Base Tiles Pega.rfa para juntas interiores y perimetrales)
+                    // D. Modelar Juntas / Fragua (Sólidos exactos B-Rep con DirectShape, idéntico al mortero de Muros)
                     int jointCount = 0;
                     if (window.GenerateJointMesh && window.LayoutJoints.Count > 0)
                     {
-                        if (pegaSymbol != null)
-                        {
-                            try
-                            {
-                                if (!pegaSymbol.IsActive) pegaSymbol.Activate();
-                                double jointInnerFt = (window.JointInnerMm / 1000.0) * 3.28084;
-                                SetParameterValue(pegaSymbol, new[] { "Width", "Ancho", "GrosorPega", "GrosorJunta" }, jointInnerFt);
-                                SetParameterValue(pegaSymbol, new[] { "Thickness", "Height", "Espesor", "Alto" }, tileHFt);
-                            }
-                            catch { }
-                        }
-
                         foreach (var j in window.LayoutJoints)
                         {
-                            bool placedPega = false;
-                            if (!window.PreferDirectShapeGeometry && pegaSymbol != null && j.LengthFt > 0.005)
-                            {
-                                try
-                                {
-                                    FamilyInstance? pegaInst = null;
-                                    XYZ segDir = (j.EndPoint3D - j.StartPoint3D);
-                                    XYZ dir = segDir.GetLength() > 1e-4 ? segDir.Normalize() : XYZ.BasisX;
-                                    XYZ targetCenter = (j.StartPoint3D + j.EndPoint3D) / 2.0;
-                                    XYZ placePoint = targetCenter;
-
-                                    if (j.HostFaceRef != null)
-                                    {
-                                        try
-                                        {
-                                            Element hostElem = doc.GetElement(j.HostFaceRef.ElementId);
-                                            if (hostElem != null)
-                                            {
-                                                Face? planarFace = hostElem.GetGeometryObjectFromReference(j.HostFaceRef) as Face;
-                                                if (planarFace != null)
-                                                {
-                                                    IntersectionResult ir = planarFace.Project(targetCenter);
-                                                    if (ir != null) placePoint = ir.XYZPoint;
-                                                }
-                                            }
-
-                                            pegaInst = doc.Create.NewFamilyInstance(
-                                                j.HostFaceRef,
-                                                placePoint,
-                                                dir,
-                                                pegaSymbol);
-                                        }
-                                        catch { }
-                                    }
-
-                                    if (pegaInst == null)
-                                    {
-                                        Level? level = hostInfos.FirstOrDefault()?.Level;
-                                        pegaInst = doc.Create.NewFamilyInstance(
-                                            placePoint,
-                                            pegaSymbol,
-                                            level,
-                                            Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
-
-                                        if (pegaInst != null && Math.Abs(j.RotationRad) > 1e-4)
-                                        {
-                                            try
-                                            {
-                                                Line rotAxis = Line.CreateUnbound(placePoint, j.Normal3D);
-                                                ElementTransformUtils.RotateElement(doc, pegaInst.Id, rotAxis, j.RotationRad);
-                                            }
-                                            catch { }
-                                        }
-                                    }
-
-                                    if (pegaInst != null)
-                                    {
-                                        // Ajustar dimensiones en la familia de pega (Base Tiles Pega)
-                                        SetParameterValueInstanceOnly(pegaInst, new[] { "Length", "Lenght", "Largo", "Longitud" }, j.LengthFt);
-                                        SetParameterValueInstanceOnly(pegaInst, new[] { "Width", "Ancho", "GrosorPega", "GrosorJunta" }, j.WidthFt);
-                                        SetParameterValueInstanceOnly(pegaInst, new[] { "Thickness", "Height", "Espesor", "Alto" }, j.DepthFt);
-                                        SetParameterValueInstanceOnly(pegaInst, new[] { "Cut", "Cut Lat", "Cut Top", "Recorte" }, 0.0);
-
-                                        // Recentrado planar exacto por BoundingBox:
-                                        // Garantiza que la junta quede perfectamente centrada entre StartPoint3D y EndPoint3D
-                                        // sin proyectarse hacia el exterior del piso.
-                                        try
-                                        {
-                                            doc.Regenerate();
-                                            BoundingBoxXYZ? pegaBbox = pegaInst.get_BoundingBox(null);
-                                            if (pegaBbox != null)
-                                            {
-                                                XYZ geomCenter = (pegaBbox.Min + pegaBbox.Max) / 2.0;
-                                                XYZ shift = targetCenter - geomCenter;
-                                                shift = shift - j.Normal3D * shift.DotProduct(j.Normal3D);
-                                                if (shift.GetLength() > 0.001)
-                                                {
-                                                    ElementTransformUtils.MoveElement(doc, pegaInst.Id, shift);
-                                                }
-                                            }
-                                        }
-                                        catch { }
-
-                                        Parameter pComm = pegaInst.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                                        if (pComm != null && !pComm.IsReadOnly)
-                                        {
-                                            pComm.Set(j.IsPerimeter ? "ENCHAPE-JUNTA-PERIMETRAL" : "ENCHAPE-PEGA-FRAGUA");
-                                        }
-
-                                        if (groutMatId != ElementId.InvalidElementId)
-                                        {
-                                            Parameter? pMat = pegaInst.LookupParameter("Mat")
-                                                          ?? pegaInst.LookupParameter("Material")
-                                                          ?? pegaInst.get_Parameter(BuiltInParameter.STRUCTURAL_MATERIAL_PARAM)
-                                                          ?? pegaInst.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
-                                            if (pMat != null && !pMat.IsReadOnly) pMat.Set(groutMatId);
-                                        }
-
-                                        MeasurementManager.MeasureAndApply(pegaInst, null, 
-                                            customLengthFt: j.LengthFt, 
-                                            customWidthFt: j.WidthFt, 
-                                            customThicknessFt: j.DepthFt, 
-                                            customAreaSqFt: j.LengthFt * j.WidthFt, 
-                                            customVolumeCuFt: j.LengthFt * j.WidthFt * j.DepthFt, 
-                                            units: 1);
-
-                                        jointCount++;
-                                        placedPega = true;
-                                    }
-                                }
-                                catch { }
-                            }
-
-                            // Respaldo DirectShape si no se pudo instanciar la familia o si se prefiere DirectShape
-                            if (!placedPega && j.PolygonVertices3D.Count >= 3)
+                            if (j.PolygonVertices3D != null && j.PolygonVertices3D.Count >= 3)
                             {
                                 Solid? jSolid = CreatePrismFromPolygon(j.PolygonVertices3D, j.Normal3D, j.DepthFt);
                                 if (jSolid != null)
@@ -1086,6 +968,75 @@ namespace RevitToSupabasePlugin
             }
 
             return det;
+        }
+
+        private static bool IsClockwise2D(List<XYZ> poly)
+        {
+            double area = 0;
+            for (int i = 0; i < poly.Count; i++)
+            {
+                XYZ p1 = poly[i];
+                XYZ p2 = poly[(i + 1) % poly.Count];
+                area += (p1.X * p2.Y - p2.X * p1.Y);
+            }
+            return area < 0;
+        }
+
+        private static List<XYZ> InsetPolygon2D(List<XYZ> poly, double insetDist)
+        {
+            if (poly == null || poly.Count < 3 || insetDist <= 0.0001)
+                return poly != null ? new List<XYZ>(poly) : new List<XYZ>();
+
+            List<XYZ> ccwPoly = new List<XYZ>(poly);
+            if (IsClockwise2D(ccwPoly))
+            {
+                ccwPoly.Reverse();
+            }
+
+            int n = ccwPoly.Count;
+            List<XYZ> insetVertices = new List<XYZ>();
+
+            for (int i = 0; i < n; i++)
+            {
+                XYZ pPrev = ccwPoly[(i + n - 1) % n];
+                XYZ pCurr = ccwPoly[i];
+                XYZ pNext = ccwPoly[(i + 1) % n];
+
+                XYZ vPrev = (pCurr - pPrev);
+                double lenPrev = Math.Sqrt(vPrev.X * vPrev.X + vPrev.Y * vPrev.Y);
+                if (lenPrev < 1e-6) { insetVertices.Add(pCurr); continue; }
+                vPrev = new XYZ(vPrev.X / lenPrev, vPrev.Y / lenPrev, 0);
+
+                XYZ vNext = (pNext - pCurr);
+                double lenNext = Math.Sqrt(vNext.X * vNext.X + vNext.Y * vNext.Y);
+                if (lenNext < 1e-6) { insetVertices.Add(pCurr); continue; }
+                vNext = new XYZ(vNext.X / lenNext, vNext.Y / lenNext, 0);
+
+                XYZ nPrev = new XYZ(-vPrev.Y, vPrev.X, 0);
+                XYZ nNext = new XYZ(-vNext.Y, vNext.X, 0);
+
+                double dotNorm = nNext.X * nPrev.X + nNext.Y * nPrev.Y;
+                double denom = nNext.X * vPrev.X + nNext.Y * vPrev.Y;
+
+                if (Math.Abs(denom) < 1e-6)
+                {
+                    insetVertices.Add(pCurr + nNext * insetDist);
+                }
+                else
+                {
+                    double t = (insetDist * (1.0 - dotNorm)) / denom;
+                    XYZ pA = pCurr + nPrev * insetDist;
+                    XYZ q = pA + vPrev * t;
+                    insetVertices.Add(new XYZ(q.X, q.Y, 0));
+                }
+            }
+
+            if (insetVertices.Count >= 3)
+            {
+                return insetVertices;
+            }
+
+            return ccwPoly;
         }
 
         private Solid? CreatePrismFromPolygon(List<XYZ> vertices, XYZ normal, double thickness)
