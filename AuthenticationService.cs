@@ -24,6 +24,8 @@ namespace RevitToSupabasePlugin
         public static string UserName { get; private set; } = string.Empty;
         public static string UserId { get; private set; } = string.Empty;
         public static bool IsAdmin { get; private set; } = false;
+        public static string ActiveProjectId { get; set; } = "a1234567-89ab-cdef-0123-456789abcdef";
+        public static string ActiveProjectName { get; set; } = "agora click clack";
         public static bool IsLoggedIn => !string.IsNullOrEmpty(UserEmail);
 
         private static string SessionFilePath => Path.Combine(
@@ -206,6 +208,8 @@ namespace RevitToSupabasePlugin
                     UserEmail,
                     UserName,
                     IsAdmin,
+                    ActiveProjectId,
+                    ActiveProjectName,
                     SavedAt = DateTime.UtcNow
                 };
 
@@ -226,6 +230,8 @@ namespace RevitToSupabasePlugin
                     UserEmail = obj["UserEmail"]?.ToString() ?? "";
                     UserName = obj["UserName"]?.ToString() ?? "";
                     IsAdmin = obj["IsAdmin"]?.Value<bool>() ?? false;
+                    ActiveProjectId = obj["ActiveProjectId"]?.ToString() ?? "a1234567-89ab-cdef-0123-456789abcdef";
+                    ActiveProjectName = obj["ActiveProjectName"]?.ToString() ?? "agora click clack";
                 }
             }
             catch { }
