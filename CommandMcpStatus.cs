@@ -30,7 +30,7 @@ namespace RevitToSupabasePlugin
                                 $"🤖 CONFIGURACIÓN BI-MCP:\n" +
                                 $"{{\n" +
                                 $"  \"mcpServers\": {{\n" +
-                                $"    \"review_cloud\": {{ \"url\": \"https://review2.vercel.app/api/mcp\" }},\n" +
+                                $"    \"review_cloud\": {{ \"url\": \"https://review.vercel.app/api/mcp\" }},\n" +
                                 $"    \"review_local\": {{ \"url\": \"http://localhost:{port}/mcp\" }}\n" +
                                 $"  }}\n" +
                                 $"}}\n\n" +

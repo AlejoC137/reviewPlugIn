@@ -1100,7 +1100,7 @@ namespace RevitToSupabasePlugin
                     HttpResponseMessage response = client.PostAsync(endpoint, content).GetAwaiter().GetResult();
                     if (response.IsSuccessStatusCode)
                     {
-                        responseMessage = "¡Metadata guardada exitosamente en Supabase!\nPuedes verla en la pestaña /fromPlugIn de review2.";
+                        responseMessage = "¡Metadata guardada exitosamente en Supabase!\nPuedes verla en la pestaña /fromPlugIn de review.";
                         return true;
                     }
                     else
