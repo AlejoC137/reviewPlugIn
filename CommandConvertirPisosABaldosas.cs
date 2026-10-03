@@ -159,8 +159,8 @@ namespace RevitToSupabasePlugin
                             List<XYZ> revBoundary;
                             if (host.HostType == HostElementType.Floor)
                             {
-                                // Mortero en la base inferior del suelo original
-                                double revOffset = -(tileHFt + beddingFt + revoqueFt);
+                                // Mortero nivelador directamente sobre la losa
+                                double revOffset = 0.0;
                                 revBoundary = host.OuterBoundary3D.Select(p => p + host.Normal3D * revOffset).ToList();
                             }
                             else
@@ -202,8 +202,8 @@ namespace RevitToSupabasePlugin
                             List<XYZ> bedBoundary;
                             if (host.HostType == HostElementType.Floor)
                             {
-                                // Cama de pega inmediatamente bajo el enchape
-                                double bedOffset = -(tileHFt + beddingFt);
+                                // Cama de pega sobre el mortero o losa base
+                                double bedOffset = revoqueFt;
                                 bedBoundary = host.OuterBoundary3D.Select(p => p + host.Normal3D * bedOffset).ToList();
                             }
                             else
@@ -343,8 +343,7 @@ namespace RevitToSupabasePlugin
                                         SetParameterValueInstanceOnly(inst, new[] { "Lenght", "Length", "Largo" }, tile.Length_Ft);
                                         SetParameterValueInstanceOnly(inst, new[] { "Thickness", "Height", "Espesor" }, tile.Thickness_Ft);
 
-                                        // Optimización de rendimiento: El punto de inserción placePoint ya se proyecta
-                                        // y orienta analíticamente en la cara anfitriona sin forzar doc.Regenerate() por baldosa.
+// Baldosa colocada exactamente en Center3D
 
                                         Parameter pComm = inst.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
                                         if (pComm != null && !pComm.IsReadOnly)
@@ -677,18 +676,11 @@ namespace RevitToSupabasePlugin
                 string? foundPath = searchPaths.FirstOrDefault(File.Exists);
                 if (foundPath != null)
                 {
-                    if (doc.IsModifiable)
+                    using (Transaction tLoad = new Transaction(doc, $"Cargar {familyName}"))
                     {
+                        tLoad.Start();
                         doc.LoadFamily(foundPath, out family);
-                    }
-                    else
-                    {
-                        using (Transaction tLoad = new Transaction(doc, $"Cargar {familyName}"))
-                        {
-                            tLoad.Start();
-                            doc.LoadFamily(foundPath, out family);
-                            tLoad.Commit();
-                        }
+                        tLoad.Commit();
                     }
                 }
             }

@@ -8,6 +8,8 @@ namespace RevitToSupabasePlugin
     [Transaction(TransactionMode.Manual)]
     public class CommandGestorCategorias : IExternalCommand
     {
+        private static GestorCategoriasWindow? _activeWindow;
+
         public Result Execute(
             ExternalCommandData commandData,
             ref string message,
@@ -22,8 +24,35 @@ namespace RevitToSupabasePlugin
                     return Result.Cancelled;
                 }
 
-                var window = new GestorCategoriasWindow(uidoc);
-                window.ShowDialog();
+                if (_activeWindow != null && _activeWindow.IsLoaded)
+                {
+                    _activeWindow.Activate();
+                    if (_activeWindow.WindowState == System.Windows.WindowState.Minimized)
+                    {
+                        _activeWindow.WindowState = System.Windows.WindowState.Normal;
+                    }
+                    return Result.Succeeded;
+                }
+
+                var handler = new GestorCategoriasExternalEventHandler();
+                var extEvent = ExternalEvent.Create(handler);
+                handler.SetExternalEvent(extEvent);
+
+                var window = new GestorCategoriasWindow(uidoc, extEvent, handler);
+                _activeWindow = window;
+                window.Closed += (s, e) => _activeWindow = null;
+
+                try
+                {
+                    var revitHandle = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle;
+                    if (revitHandle != IntPtr.Zero)
+                    {
+                        new System.Windows.Interop.WindowInteropHelper(window).Owner = revitHandle;
+                    }
+                }
+                catch { }
+
+                window.Show();
                 return Result.Succeeded;
             }
             catch (Exception ex)

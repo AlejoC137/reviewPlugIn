@@ -15,16 +15,32 @@ namespace RevitToSupabasePlugin
     {
         private UIDocument? _uidoc;
         private Document? _doc;
+        private ExternalEvent? _extEvent;
+        private GestorCategoriasExternalEventHandler? _handler;
         private List<ScannedElementItem> _allItems = new List<ScannedElementItem>();
         private ObservableCollection<ScannedElementItem> _displayedItems = new ObservableCollection<ScannedElementItem>();
         private List<FloorType> _floorTypes = new List<FloorType>();
         private bool _isLoaded = false;
 
-        public GestorCategoriasWindow(UIDocument? uidoc)
+        public GestorCategoriasWindow(UIDocument? uidoc, ExternalEvent? extEvent = null, GestorCategoriasExternalEventHandler? handler = null)
         {
             InitializeComponent();
             _uidoc = uidoc;
             _doc = uidoc?.Document;
+            _extEvent = extEvent;
+            _handler = handler;
+        }
+
+        private void RunInRevitContext(Action<UIApplication> action)
+        {
+            if (_handler != null && _extEvent != null)
+            {
+                _handler.Run(action);
+            }
+            else if (_uidoc?.Application != null)
+            {
+                action(_uidoc.Application);
+            }
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -130,6 +146,11 @@ namespace RevitToSupabasePlugin
 
         private void ScanElements(bool activeViewOnly)
         {
+            if (_uidoc?.Application?.ActiveUIDocument != null)
+            {
+                _uidoc = _uidoc.Application.ActiveUIDocument;
+                _doc = _uidoc.Document;
+            }
             if (_doc == null) return;
 
             bool pluginOnly = chkOnlyPlugin?.IsChecked == true;
@@ -222,66 +243,77 @@ namespace RevitToSupabasePlugin
 
         private void btnPickInRevit_Click(object sender, RoutedEventArgs e)
         {
-            if (_uidoc == null || _doc == null) return;
-
-            try
+            RunInRevitContext(app =>
             {
-                this.Hide();
+                var uidoc = app.ActiveUIDocument;
+                var doc = uidoc?.Document;
+                if (uidoc == null || doc == null) return;
 
-                IList<Reference> selectedRefs = _uidoc.Selection.PickObjects(
-                    ObjectType.Element,
-                    "Selecciona los elementos que deseas asignar a categorías de sistema.");
+                _uidoc = uidoc;
+                _doc = doc;
 
-                this.Show();
-
-                if (selectedRefs != null && selectedRefs.Count > 0)
+                try
                 {
-                    List<ElementId> ids = selectedRefs.Select(r => r.ElementId).ToList();
-                    var pickedElements = ids.Select(id => _doc.GetElement(id)).Where(elem => elem != null).ToList();
+                    this.WindowState = WindowState.Minimized;
 
-                    foreach (var elem in pickedElements)
+                    IList<Reference> selectedRefs = uidoc.Selection.PickObjects(
+                        ObjectType.Element,
+                        "Selecciona los elementos que deseas asignar a categorías de sistema.");
+
+                    this.WindowState = WindowState.Normal;
+                    this.Activate();
+
+                    if (selectedRefs != null && selectedRefs.Count > 0)
                     {
-                        var match = _allItems.FirstOrDefault(i => i.Id == elem.Id);
-                        if (match != null)
-                        {
-                            match.IsSelected = true;
-                        }
-                        else
-                        {
-                            Category? cat = elem.Category;
-                            BuiltInCategory bic = cat != null ? cat.BuiltInCategory : BuiltInCategory.INVALID;
+                        List<ElementId> ids = selectedRefs.Select(r => r.ElementId).ToList();
+                        var pickedElements = ids.Select(id => doc.GetElement(id)).Where(elem => elem != null).ToList();
 
-                            _allItems.Insert(0, new ScannedElementItem
+                        foreach (var elem in pickedElements)
+                        {
+                            var match = _allItems.FirstOrDefault(i => i.Id == elem.Id);
+                            if (match != null)
                             {
-                                Id = elem.Id,
-                                Name = elem.Name ?? "",
-                                ElementTypeKind = elem is DirectShape ? "DirectShape" : (elem is FamilyInstance ? "FamilyInstance" : elem.GetType().Name),
-                                CurrentCategoryName = cat?.Name ?? "Desconocido",
-                                CurrentBuiltInCategory = bic,
-                                Comments = elem.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString() ?? "",
-                                MaterialName = "Por Selección",
-                                LevelName = elem.LevelId != ElementId.InvalidElementId ? (_doc.GetElement(elem.LevelId)?.Name ?? "Sin Nivel") : "Sin Nivel",
-                                LevelId = elem.LevelId,
-                                IsPluginElement = true,
-                                PluginRole = "Seleccionado en Modelo",
-                                ElementRef = elem,
-                                IsSelected = true
-                            });
-                        }
-                    }
+                                match.IsSelected = true;
+                            }
+                            else
+                            {
+                                Category? cat = elem.Category;
+                                BuiltInCategory bic = cat != null ? cat.BuiltInCategory : BuiltInCategory.INVALID;
 
-                    ApplyFilter();
+                                _allItems.Insert(0, new ScannedElementItem
+                                {
+                                    Id = elem.Id,
+                                    Name = elem.Name ?? "",
+                                    ElementTypeKind = elem is DirectShape ? "DirectShape" : (elem is FamilyInstance ? "FamilyInstance" : elem.GetType().Name),
+                                    CurrentCategoryName = cat?.Name ?? "Desconocido",
+                                    CurrentBuiltInCategory = bic,
+                                    Comments = elem.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString() ?? "",
+                                    MaterialName = "Por Selección",
+                                    LevelName = elem.LevelId != ElementId.InvalidElementId ? (doc.GetElement(elem.LevelId)?.Name ?? "Sin Nivel") : "Sin Nivel",
+                                    LevelId = elem.LevelId,
+                                    IsPluginElement = true,
+                                    PluginRole = "Seleccionado en Modelo",
+                                    ElementRef = elem,
+                                    IsSelected = true
+                                });
+                            }
+                        }
+
+                        ApplyFilter();
+                    }
                 }
-            }
-            catch (Autodesk.Revit.Exceptions.OperationCanceledException)
-            {
-                this.Show();
-            }
-            catch (Exception ex)
-            {
-                this.Show();
-                System.Windows.MessageBox.Show($"Error al seleccionar en Revit: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+                catch (Autodesk.Revit.Exceptions.OperationCanceledException)
+                {
+                    this.WindowState = WindowState.Normal;
+                    this.Activate();
+                }
+                catch (Exception ex)
+                {
+                    this.WindowState = WindowState.Normal;
+                    this.Activate();
+                    System.Windows.MessageBox.Show($"Error al seleccionar en Revit: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            });
         }
 
         private void chkOnlyPlugin_Checked(object sender, RoutedEventArgs e)
@@ -312,25 +344,29 @@ namespace RevitToSupabasePlugin
 
         private void btnCreateFloorSchedule_Click(object sender, RoutedEventArgs e)
         {
-            if (_doc == null) return;
-            try
+            RunInRevitContext(app =>
             {
-                using (Transaction t = new Transaction(_doc, "Crear Tabla de Planificación de Suelos"))
+                var doc = app.ActiveUIDocument?.Document ?? _doc;
+                if (doc == null) return;
+                try
                 {
-                    t.Start();
-                    var sched = CategoryAssignmentService.CreateFloorSchedule(_doc);
-                    t.Commit();
-
-                    if (sched != null)
+                    using (Transaction t = new Transaction(doc, "Crear Tabla de Planificación de Suelos"))
                     {
-                        System.Windows.MessageBox.Show($"Tabla creada exitosamente:\n'{sched.Name}'\n\nDisponible en el Project Browser > Tablas de Planificación / Cantidades.", "Tabla de Suelos Creada", MessageBoxButton.OK, MessageBoxImage.Information);
+                        t.Start();
+                        var sched = CategoryAssignmentService.CreateFloorSchedule(doc);
+                        t.Commit();
+
+                        if (sched != null)
+                        {
+                            System.Windows.MessageBox.Show($"Tabla creada exitosamente:\n'{sched.Name}'\n\nDisponible en el Project Browser > Tablas de Planificación / Cantidades.", "Tabla de Suelos Creada", MessageBoxButton.OK, MessageBoxImage.Information);
+                        }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Windows.MessageBox.Show($"Error al crear tabla de suelos: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+                catch (Exception ex)
+                {
+                    System.Windows.MessageBox.Show($"Error al crear tabla de suelos: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            });
         }
 
         private void cmbTargetCategory_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -375,25 +411,28 @@ namespace RevitToSupabasePlugin
 
         private void HighlightSelectedElement()
         {
-            if (_uidoc == null || _doc == null) return;
-
             ScannedElementItem? selected = gridElements.SelectedItem as ScannedElementItem;
-            if (selected != null)
+            if (selected == null) return;
+
+            RunInRevitContext(app =>
             {
                 try
                 {
-                    _uidoc.Selection.SetElementIds(new List<ElementId> { selected.Id });
-                    _uidoc.ShowElements(selected.Id);
-                    UpdateInspector(selected);
+                    var uidoc = app.ActiveUIDocument ?? _uidoc;
+                    if (uidoc != null)
+                    {
+                        uidoc.Selection.SetElementIds(new List<ElementId> { selected.Id });
+                        uidoc.ShowElements(selected.Id);
+                    }
                 }
                 catch { }
-            }
+            });
+
+            UpdateInspector(selected);
         }
 
         private void btnApplyCategory_Click(object sender, RoutedEventArgs e)
         {
-            if (_doc == null) return;
-
             var itemsToProcess = _displayedItems.Where(i => i.IsSelected).ToList();
             if (itemsToProcess.Count == 0)
             {
@@ -407,68 +446,87 @@ namespace RevitToSupabasePlugin
                 return;
             }
 
+            bool isDirectShapeMode = rbDirectShape.IsChecked == true;
             bool preserveMeta = chkPreserveMetadata.IsChecked == true;
             bool deleteOriginals = chkDeleteOriginals.IsChecked == true;
+            FloorType? selFloorType = cmbFloorTypes.SelectedItem as FloorType;
 
-            try
+            if (!isDirectShapeMode && selFloorType == null)
             {
-                CategoryAssignmentResult result;
+                System.Windows.MessageBox.Show("Selecciona un Tipo de Piso (FloorType) para generar los suelos nativos.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
-                // MODO 1: Reasignar Categoría de Sistema (DirectShape)
-                if (rbDirectShape.IsChecked == true)
+            btnApplyCategory.IsEnabled = false;
+
+            RunInRevitContext(app =>
+            {
+                var uidoc = app.ActiveUIDocument ?? _uidoc;
+                var doc = uidoc?.Document ?? _doc;
+
+                if (doc == null)
                 {
-                    result = CategoryAssignmentService.ReassignCategoryToElements(
-                        _doc,
-                        itemsToProcess,
-                        targetCatItem.Category,
-                        preserveMeta);
+                    btnApplyCategory.IsEnabled = true;
+                    return;
                 }
-                // MODO 2: Convertir a Suelo Nativo (Floor)
-                else
+
+                try
                 {
-                    FloorType? selFloorType = cmbFloorTypes.SelectedItem as FloorType;
-                    if (selFloorType == null)
+                    CategoryAssignmentResult result;
+
+                    // MODO 1: Reasignar Categoría de Sistema (DirectShape)
+                    if (isDirectShapeMode)
                     {
-                        System.Windows.MessageBox.Show("Selecciona un Tipo de Piso (FloorType) para generar los suelos nativos.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
+                        result = CategoryAssignmentService.ReassignCategoryToElements(
+                            doc,
+                            itemsToProcess,
+                            targetCatItem.Category,
+                            preserveMeta);
+                    }
+                    // MODO 2: Convertir a Suelo Nativo (Floor)
+                    else
+                    {
+                        Level? fallbackLevel = new FilteredElementCollector(doc)
+                            .OfClass(typeof(Level))
+                            .Cast<Level>()
+                            .FirstOrDefault();
+
+                        ElementId fallbackLevelId = fallbackLevel?.Id ?? ElementId.InvalidElementId;
+
+                        result = CategoryAssignmentService.ConvertToNativeFloors(
+                            doc,
+                            itemsToProcess,
+                            selFloorType!.Id,
+                            fallbackLevelId,
+                            deleteOriginals);
                     }
 
-                    Level? fallbackLevel = new FilteredElementCollector(_doc)
-                        .OfClass(typeof(Level))
-                        .Cast<Level>()
-                        .FirstOrDefault();
+                    // Mostrar reporte
+                    string message = $"Proceso de Asignación Completado:\n\n" +
+                                     $"• Elementos convertidos con éxito: {result.SuccessCount}\n" +
+                                     $"• Elementos con advertencias/errores: {result.ErrorCount}\n" +
+                                     $"• Categoría asignada: {targetCatItem.DisplayName}\n\n" +
+                                     $"Los elementos ahora adquieren las propiedades, visibilidad y cómputos de la categoría {targetCatItem.DisplayName} en Revit.";
 
-                    ElementId fallbackLevelId = fallbackLevel?.Id ?? ElementId.InvalidElementId;
+                    if (result.Messages.Count > 0)
+                    {
+                        message += "\n\nDetalles:\n" + string.Join("\n", result.Messages.Take(5));
+                    }
 
-                    result = CategoryAssignmentService.ConvertToNativeFloors(
-                        _doc,
-                        itemsToProcess,
-                        selFloorType.Id,
-                        fallbackLevelId,
-                        deleteOriginals);
+                    System.Windows.MessageBox.Show(message, "Resultado de Asignación", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                    // Re-escanear elementos para actualizar la lista
+                    ScanElements(activeViewOnly: false);
                 }
-
-                // Mostrar reporte
-                string message = $"Proceso de Asignación Completado:\n\n" +
-                                 $"• Elementos convertidos con éxito: {result.SuccessCount}\n" +
-                                 $"• Elementos con advertencias/errores: {result.ErrorCount}\n" +
-                                 $"• Categoría asignada: {targetCatItem.DisplayName}\n\n" +
-                                 $"Los elementos ahora adquieren las propiedades, visibilidad y cómputos de la categoría {targetCatItem.DisplayName} en Revit.";
-
-                if (result.Messages.Count > 0)
+                catch (Exception ex)
                 {
-                    message += "\n\nDetalles:\n" + string.Join("\n", result.Messages.Take(5));
+                    System.Windows.MessageBox.Show($"Error durante la asignación: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
-
-                System.Windows.MessageBox.Show(message, "Resultado de Asignación", MessageBoxButton.OK, MessageBoxImage.Information);
-
-                // Re-escanear elementos para actualizar la lista
-                ScanElements(activeViewOnly: false);
-            }
-            catch (Exception ex)
-            {
-                System.Windows.MessageBox.Show($"Error durante la asignación: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+                finally
+                {
+                    btnApplyCategory.IsEnabled = true;
+                }
+            });
         }
     }
 }

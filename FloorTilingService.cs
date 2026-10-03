@@ -273,7 +273,7 @@ namespace RevitToSupabasePlugin
             }
 
             // Desplazar loops hacia abajo para iniciar la extrusión por debajo del piso
-            Transform shiftDown = Transform.CreateTranslation(-normal * (tileThick + deltaZ));
+            Transform shiftDown = Transform.CreateTranslation(-normal * deltaZ);
             List<CurveLoop> shiftedFloorLoops = new List<CurveLoop>();
             foreach (CurveLoop loop in floorLoops)
             {
@@ -382,10 +382,10 @@ namespace RevitToSupabasePlugin
                     }
 
                     // 3. Construir CurveLoop individual de la celda en 3D en la base del acabado
-                    XYZ w0 = localTransform.OfPoint(new XYZ(cu0.X, cu0.Y, -tileThick));
-                    XYZ w1 = localTransform.OfPoint(new XYZ(cu1.X, cu1.Y, -tileThick));
-                    XYZ w2 = localTransform.OfPoint(new XYZ(cu2.X, cu2.Y, -tileThick));
-                    XYZ w3 = localTransform.OfPoint(new XYZ(cu3.X, cu3.Y, -tileThick));
+                    XYZ w0 = localTransform.OfPoint(new XYZ(cu0.X, cu0.Y, 0.0));
+                    XYZ w1 = localTransform.OfPoint(new XYZ(cu1.X, cu1.Y, 0.0));
+                    XYZ w2 = localTransform.OfPoint(new XYZ(cu2.X, cu2.Y, 0.0));
+                    XYZ w3 = localTransform.OfPoint(new XYZ(cu3.X, cu3.Y, 0.0));
 
                     CurveLoop tileBaseLoop = new CurveLoop();
                     tileBaseLoop.Append(Line.CreateBound(w0, w1));
@@ -459,10 +459,10 @@ namespace RevitToSupabasePlugin
                     List<XYZ> verticesUV = new List<XYZ>();
                     XYZ center3D = (w0 + w1 + w2 + w3) / 4.0;
 
-                    // Buscar cara superior del sólido final
+                    // Buscar cara planar del sólido final en contacto con el anfitrión
                     foreach (Face f in finalSolid.Faces)
                     {
-                        if (f is PlanarFace pf && pf.FaceNormal.DotProduct(normal) > 0.8)
+                        if (f is PlanarFace pf && Math.Abs(pf.FaceNormal.DotProduct(normal)) > 0.8)
                         {
                             IList<CurveLoop> cutLoops = pf.GetEdgesAsCurveLoops();
                             if (cutLoops != null && cutLoops.Count > 0)
@@ -472,21 +472,27 @@ namespace RevitToSupabasePlugin
                                     IList<XYZ> tess = c.Tessellate();
                                     for (int m = 0; m < tess.Count - 1; m++)
                                     {
-                                        vertices3D.Add(tess[m]);
-                                        XYZ locPt = localTransform.Inverse.OfPoint(tess[m]);
-                                        verticesUV.Add(new XYZ(locPt.X, locPt.Y, 0));
+                                        XYZ pt = tess[m];
+                                        XYZ locPt = localTransform.Inverse.OfPoint(pt);
+                                        XYZ ptOnFace = localTransform.OfPoint(new XYZ(locPt.X, locPt.Y, 0.0));
+                                        vertices3D.Add(ptOnFace);
+                                        verticesUV.Add(new XYZ(locPt.X, locPt.Y, 0.0));
                                     }
                                 }
                             }
-                            center3D = pf.Origin;
                             break;
                         }
                     }
 
-                    if (vertices3D.Count < 3)
+                    if (vertices3D.Count >= 3)
+                    {
+                        center3D = new XYZ(vertices3D.Average(p => p.X), vertices3D.Average(p => p.Y), vertices3D.Average(p => p.Z));
+                    }
+                    else
                     {
                         vertices3D = new List<XYZ> { w0, w1, w2, w3 };
                         verticesUV = tileCornersUV;
+                        center3D = (w0 + w1 + w2 + w3) / 4.0;
                     }
 
                     double pieceAreaSqFt = finalSolid.Volume / tileThick;

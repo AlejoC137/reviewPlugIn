@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Collections.Generic;
 using Autodesk.Revit.DB;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace RevitToSupabasePlugin
 {
@@ -1086,13 +1087,55 @@ namespace RevitToSupabasePlugin
         {
             using (HttpClient client = new HttpClient())
             {
-                client.Timeout = TimeSpan.FromSeconds(20);
+                client.Timeout = TimeSpan.FromSeconds(30);
                 
                 string endpoint = $"{SUPABASE_URL}/rest/v1/plugin_project_data";
                 client.DefaultRequestHeaders.Add("apikey", SUPABASE_ANON_KEY);
                 client.DefaultRequestHeaders.Add("Authorization", $"Bearer {SUPABASE_ANON_KEY}");
 
-                string json = JsonConvert.SerializeObject(package, Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+                // Construir JObject compatible con las columnas existentes en plugin_project_data de Supabase
+                var payload = new JObject
+                {
+                    ["user_email"] = string.IsNullOrEmpty(package.UserEmail) ? (string.IsNullOrEmpty(AuthenticationService.UserEmail) ? "revit_user@review.com" : AuthenticationService.UserEmail) : package.UserEmail,
+                    ["project_name"] = string.IsNullOrEmpty(package.ProjectName) ? "Proyecto Revit" : package.ProjectName,
+                    ["project_number"] = package.ProjectNumber ?? "",
+                    ["project_address"] = package.ProjectAddress ?? "",
+                    ["exported_at"] = package.ExportedAt ?? DateTime.UtcNow.ToString("o"),
+                    ["created_at"] = DateTime.UtcNow.ToString("o")
+                };
+
+                // project_info (JSONB): Encapsula la metadata del proyecto y preserva rooms/schedules de forma segura
+                var projInfoObj = package.ProjectInfo != null ? JObject.FromObject(package.ProjectInfo) : new JObject();
+                if (package.Rooms != null && package.Rooms.Count > 0)
+                {
+                    projInfoObj["rooms"] = JArray.FromObject(package.Rooms);
+                }
+                if (package.Schedules != null && package.Schedules.Count > 0)
+                {
+                    projInfoObj["schedules"] = JArray.FromObject(package.Schedules);
+                }
+                if (package.SheetsAndViews != null)
+                {
+                    projInfoObj["sheets_and_views"] = JObject.FromObject(package.SheetsAndViews);
+                }
+                payload["project_info"] = projInfoObj;
+
+                if (package.SiteLocation != null)
+                    payload["site_location"] = JObject.FromObject(package.SiteLocation);
+
+                if (package.Levels != null)
+                    payload["levels"] = JArray.FromObject(package.Levels);
+
+                if (package.CategorySummary != null)
+                    payload["category_summary"] = JObject.FromObject(package.CategorySummary);
+
+                if (package.ElementsById != null)
+                    payload["elements_by_id"] = JObject.FromObject(package.ElementsById);
+
+                if (package.Materials != null)
+                    payload["materials"] = JArray.FromObject(package.Materials);
+
+                string json = payload.ToString(Formatting.None);
                 StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 try

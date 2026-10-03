@@ -558,7 +558,7 @@ namespace RevitToSupabasePlugin
 
                 // Para pisos: la cara superior del enchape queda en el N.P.T. (ElevationFt), por lo que el offset base es -tileHFt
                 // Para muros: el enchape se coloca a partir del revoque + pega
-                double normalTileOffset = (host.HostType == HostElementType.Floor) ? -tileHFt : (revoqueFt + beddingFt);
+                double normalTileOffset = (host.HostType == HostElementType.Floor) ? 0.0 : (revoqueFt + beddingFt);
 
                 // Calcular contorno interior de baldosas (restando la junta perimetral)
                 bool hasPerimJoint = GenerateJointMesh && jointPerimFt > 0.0005;
@@ -700,100 +700,106 @@ namespace RevitToSupabasePlugin
                         });
                     }
 
-                    // Juntas acotadas estrictamente a los contornos de las baldosas existentes (CERO líneas infinitas)
+                    // Juntas acotadas y recortadas estrictamente al contorno del área de despiece (CERO líneas excedentes)
                     if (GenerateJointMesh && jointInnerFt > 0.0005)
                     {
                         var tileMap = new HashSet<(int, int)>(tiles.Select(ti => (ti.ColIndex, ti.RowIndex)));
+                        double stepU = tileLFt + jointInnerFt;
+                        double stepV = tileWFt + jointInnerFt;
+                        XYZ dirU_UV = new XYZ(Math.Cos(rotRad), Math.Sin(rotRad), 0);
+                        XYZ dirV_UV = new XYZ(-Math.Sin(rotRad), Math.Cos(rotRad), 0);
 
                         foreach (var t in tiles)
                         {
                             int col = t.ColIndex;
                             int row = t.RowIndex;
 
-                            // Junta Horizontal (a lo largo de U)
-                            if (tileMap.Contains((col, row + 1)))
+                            double rowShiftU = 0.0;
+                            if (SelectedPattern == FloorPatternType.RunningBond50)
                             {
-                                double u0 = col * (tileLFt + jointInnerFt) + offXFt;
-                                double vMid = row * (tileWFt + jointInnerFt) + offYFt + tileWFt + jointInnerFt / 2.0;
-
-                                XYZ pStartUV = RotateAndTranslate2D(new XYZ(u0, vMid, 0), rotRad, 0, 0);
-                                XYZ pEndUV = RotateAndTranslate2D(new XYZ(u0 + tileLFt, vMid, 0), rotRad, 0, 0);
-
-                                XYZ pStart3D = host.LocalToWorld(pStartUV, normalTileOffset);
-                                XYZ pEnd3D = host.LocalToWorld(pEndUV, normalTileOffset);
-
-                                double hw = jointInnerFt / 2.0;
-                                XYZ v0 = RotateAndTranslate2D(new XYZ(u0, vMid - hw, 0), rotRad, 0, 0);
-                                XYZ v1 = RotateAndTranslate2D(new XYZ(u0 + tileLFt, vMid - hw, 0), rotRad, 0, 0);
-                                XYZ v2 = RotateAndTranslate2D(new XYZ(u0 + tileLFt, vMid + hw, 0), rotRad, 0, 0);
-                                XYZ v3 = RotateAndTranslate2D(new XYZ(u0, vMid + hw, 0), rotRad, 0, 0);
-
-                                List<XYZ> jPoly3D = new List<XYZ>
-                                {
-                                    host.LocalToWorld(v0, normalTileOffset),
-                                    host.LocalToWorld(v1, normalTileOffset),
-                                    host.LocalToWorld(v2, normalTileOffset),
-                                    host.LocalToWorld(v3, normalTileOffset)
-                                };
-
-                                LayoutJoints.Add(new JointLayoutItem
-                                {
-                                    IsVertical = false,
-                                    Center3D = (pStart3D + pEnd3D) / 2.0,
-                                    StartPoint3D = pStart3D,
-                                    EndPoint3D = pEnd3D,
-                                    Normal3D = host.Normal3D,
-                                    RotationRad = rotRad,
-                                    LengthFt = tileLFt,
-                                    WidthFt = jointInnerFt,
-                                    DepthFt = tileHFt,
-                                    PolygonVertices3D = jPoly3D,
-                                    MaterialName = GroutMaterial?.Name ?? "Fragua",
-                                    HostFaceRef = host.HostFaceReference
-                                });
+                                if (Math.Abs(row) % 2 == 1) rowShiftU = stepU * 0.5;
+                            }
+                            else if (SelectedPattern == FloorPatternType.ThirdBond33)
+                            {
+                                rowShiftU = (Math.Abs(row) % 3) * (stepU / 3.0);
                             }
 
-                            // Junta Vertical (a lo largo de V)
+                            double localU = col * stepU + rowShiftU;
+                            double localV = row * stepV;
+                            XYZ P = new XYZ(offXFt, offYFt, 0) + dirU_UV * localU + dirV_UV * localV;
+
+                            // Junta Horizontal (a lo largo de U, entre fila row y row+1)
+                            if (tileMap.Contains((col, row + 1)))
+                            {
+                                XYZ j0 = P + dirV_UV * tileWFt;
+                                XYZ j1 = P + dirU_UV * tileLFt + dirV_UV * tileWFt;
+                                XYZ j2 = P + dirU_UV * tileLFt + dirV_UV * (tileWFt + jointInnerFt);
+                                XYZ j3 = P + dirV_UV * (tileWFt + jointInnerFt);
+
+                                List<XYZ> jCornersUV = new List<XYZ> { j0, j1, j2, j3 };
+                                List<XYZ> clippedJointUV = ClipPolygonAgainstConvex(tilingBoundaryUV, jCornersUV);
+
+                                if (clippedJointUV != null && clippedJointUV.Count >= 3)
+                                {
+                                    List<XYZ> jPoly3D = clippedJointUV.Select(pt => host.LocalToWorld(pt, normalTileOffset)).ToList();
+                                    XYZ pStart3D = host.LocalToWorld((j0 + j3) / 2.0, normalTileOffset);
+                                    XYZ pEnd3D = host.LocalToWorld((j1 + j2) / 2.0, normalTileOffset);
+                                    XYZ jCenter3D = new XYZ(jPoly3D.Average(p => p.X), jPoly3D.Average(p => p.Y), jPoly3D.Average(p => p.Z));
+                                    double len = (pEnd3D - pStart3D).GetLength();
+
+                                    LayoutJoints.Add(new JointLayoutItem
+                                    {
+                                        IsVertical = false,
+                                        Center3D = jCenter3D,
+                                        StartPoint3D = pStart3D,
+                                        EndPoint3D = pEnd3D,
+                                        Normal3D = host.Normal3D,
+                                        RotationRad = rotRad,
+                                        LengthFt = len,
+                                        WidthFt = jointInnerFt,
+                                        DepthFt = tileHFt,
+                                        PolygonVertices3D = jPoly3D,
+                                        MaterialName = GroutMaterial?.Name ?? "Fragua",
+                                        HostFaceRef = host.HostFaceReference
+                                    });
+                                }
+                            }
+
+                            // Junta Vertical (a lo largo de V, entre col y col+1)
                             if (tileMap.Contains((col + 1, row)))
                             {
-                                double uMid = col * (tileLFt + jointInnerFt) + offXFt + tileLFt + jointInnerFt / 2.0;
-                                double v0_pos = row * (tileWFt + jointInnerFt) + offYFt;
+                                XYZ k0 = P + dirU_UV * tileLFt;
+                                XYZ k1 = P + dirU_UV * (tileLFt + jointInnerFt);
+                                XYZ k2 = P + dirU_UV * (tileLFt + jointInnerFt) + dirV_UV * tileWFt;
+                                XYZ k3 = P + dirU_UV * tileLFt + dirV_UV * tileWFt;
 
-                                XYZ pStartUV = RotateAndTranslate2D(new XYZ(uMid, v0_pos, 0), rotRad, 0, 0);
-                                XYZ pEndUV = RotateAndTranslate2D(new XYZ(uMid, v0_pos + tileWFt, 0), rotRad, 0, 0);
+                                List<XYZ> kCornersUV = new List<XYZ> { k0, k1, k2, k3 };
+                                List<XYZ> clippedVertJointUV = ClipPolygonAgainstConvex(tilingBoundaryUV, kCornersUV);
 
-                                XYZ pStart3D = host.LocalToWorld(pStartUV, normalTileOffset);
-                                XYZ pEnd3D = host.LocalToWorld(pEndUV, normalTileOffset);
-
-                                double hw = jointInnerFt / 2.0;
-                                XYZ v0 = RotateAndTranslate2D(new XYZ(uMid - hw, v0_pos, 0), rotRad, 0, 0);
-                                XYZ v1 = RotateAndTranslate2D(new XYZ(uMid + hw, v0_pos, 0), rotRad, 0, 0);
-                                XYZ v2 = RotateAndTranslate2D(new XYZ(uMid + hw, v0_pos + tileWFt, 0), rotRad, 0, 0);
-                                XYZ v3 = RotateAndTranslate2D(new XYZ(uMid - hw, v0_pos + tileWFt, 0), rotRad, 0, 0);
-
-                                List<XYZ> jPoly3D = new List<XYZ>
+                                if (clippedVertJointUV != null && clippedVertJointUV.Count >= 3)
                                 {
-                                    host.LocalToWorld(v0, normalTileOffset),
-                                    host.LocalToWorld(v1, normalTileOffset),
-                                    host.LocalToWorld(v2, normalTileOffset),
-                                    host.LocalToWorld(v3, normalTileOffset)
-                                };
+                                    List<XYZ> kPoly3D = clippedVertJointUV.Select(pt => host.LocalToWorld(pt, normalTileOffset)).ToList();
+                                    XYZ pStart3D = host.LocalToWorld((k0 + k1) / 2.0, normalTileOffset);
+                                    XYZ pEnd3D = host.LocalToWorld((k3 + k2) / 2.0, normalTileOffset);
+                                    XYZ kCenter3D = new XYZ(kPoly3D.Average(p => p.X), kPoly3D.Average(p => p.Y), kPoly3D.Average(p => p.Z));
+                                    double len = (pEnd3D - pStart3D).GetLength();
 
-                                LayoutJoints.Add(new JointLayoutItem
-                                {
-                                    IsVertical = true,
-                                    Center3D = (pStart3D + pEnd3D) / 2.0,
-                                    StartPoint3D = pStart3D,
-                                    EndPoint3D = pEnd3D,
-                                    Normal3D = host.Normal3D,
-                                    RotationRad = rotRad + Math.PI / 2.0,
-                                    LengthFt = tileWFt,
-                                    WidthFt = jointInnerFt,
-                                    DepthFt = tileHFt,
-                                    PolygonVertices3D = jPoly3D,
-                                    MaterialName = GroutMaterial?.Name ?? "Fragua",
-                                    HostFaceRef = host.HostFaceReference
-                                });
+                                    LayoutJoints.Add(new JointLayoutItem
+                                    {
+                                        IsVertical = true,
+                                        Center3D = kCenter3D,
+                                        StartPoint3D = pStart3D,
+                                        EndPoint3D = pEnd3D,
+                                        Normal3D = host.Normal3D,
+                                        RotationRad = rotRad + Math.PI / 2.0,
+                                        LengthFt = len,
+                                        WidthFt = jointInnerFt,
+                                        DepthFt = tileHFt,
+                                        PolygonVertices3D = kPoly3D,
+                                        MaterialName = GroutMaterial?.Name ?? "Fragua",
+                                        HostFaceRef = host.HostFaceReference
+                                    });
+                                }
                             }
                         }
                     }
