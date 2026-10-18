@@ -28,10 +28,57 @@ namespace RevitToSupabasePlugin
         public static string ActiveProjectName { get; set; } = "agora click clack";
         public static bool IsLoggedIn => !string.IsNullOrEmpty(UserEmail);
 
+        public static event Action? SessionStateChanged;
+
         private static string SessionFilePath => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "Autodesk", "Revit", "Addins", "2027", "review_session.json"
         );
+
+        public static void SetActiveProject(string projectId, string projectName)
+        {
+            if (!string.IsNullOrWhiteSpace(projectId)) ActiveProjectId = projectId;
+            if (!string.IsNullOrWhiteSpace(projectName)) ActiveProjectName = projectName;
+            SaveSession();
+            SessionStateChanged?.Invoke();
+        }
+
+        public static async Task<System.Collections.Generic.List<SupabaseProjectItem>> FetchProjectsListAsync()
+        {
+            var list = new System.Collections.Generic.List<SupabaseProjectItem>();
+            try
+            {
+                using var client = new HttpClient();
+                client.Timeout = TimeSpan.FromSeconds(8);
+                client.DefaultRequestHeaders.Add("apikey", AnonKey);
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {AnonKey}");
+
+                string url = $"{SupabaseUrl}/rest/v1/projects?select=id,name,description&order=name.asc";
+                var res = await client.GetAsync(url);
+                if (res.IsSuccessStatusCode)
+                {
+                    string json = await res.Content.ReadAsStringAsync();
+                    var arr = JArray.Parse(json);
+                    foreach (var item in arr)
+                    {
+                        list.Add(new SupabaseProjectItem
+                        {
+                            Id = item["id"]?.ToString() ?? "",
+                            Name = item["name"]?.ToString() ?? "Sin nombre",
+                            Description = item["description"]?.ToString() ?? ""
+                        });
+                    }
+                }
+            }
+            catch { }
+
+            if (list.Count == 0)
+            {
+                list.Add(new SupabaseProjectItem { Id = "a1234567-89ab-cdef-0123-456789abcdef", Name = "agora click clack", Description = "Ágora Hotel Click Clack Medellín" });
+                list.Add(new SupabaseProjectItem { Id = "1b177a64-e67d-44a8-b7d4-0a352824832b", Name = "proyecto café", Description = "Proyecto Café Especial" });
+            }
+            return list;
+        }
 
         static AuthenticationService()
         {
@@ -82,6 +129,7 @@ namespace RevitToSupabasePlugin
                 AccessToken = AnonKey;
 
                 SaveSession();
+                SessionStateChanged?.Invoke();
 
                 return (true, $"¡Bienvenido {UserName}! Sesión iniciada correctamente.");
             }
@@ -193,6 +241,8 @@ namespace RevitToSupabasePlugin
                 }
             }
             catch { }
+
+            SessionStateChanged?.Invoke();
         }
 
         private static void SaveSession()
@@ -313,5 +363,13 @@ namespace RevitToSupabasePlugin
 </body>
 </html>";
         }
+    }
+
+    public class SupabaseProjectItem
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public override string ToString() => Name;
     }
 }

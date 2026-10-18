@@ -47,9 +47,11 @@ namespace RevitToSupabasePlugin
         /// <summary>
         /// 1. Extracción del Contorno Base: Obtener el PlanarFace superior del Floor anfitrión.
         /// </summary>
-        public static PlanarFace? GetTopPlanarFace(Floor floor)
+        public static PlanarFace? GetTopPlanarFace(Floor floor) => GetTopPlanarFaceWithRef(floor).face;
+
+        public static (PlanarFace? face, Reference? faceRef) GetTopPlanarFaceWithRef(Floor floor)
         {
-            if (floor == null) return null;
+            if (floor == null) return (null, null);
 
             // Intento 1: HostObjectUtils.GetTopFaces
             try
@@ -62,7 +64,7 @@ namespace RevitToSupabasePlugin
                         GeometryObject geomObj = floor.GetGeometryObjectFromReference(r);
                         if (geomObj is PlanarFace pf && pf.FaceNormal.Z > 0.5)
                         {
-                            return pf;
+                            return (pf, r);
                         }
                     }
                 }
@@ -70,11 +72,12 @@ namespace RevitToSupabasePlugin
             catch { }
 
             // Intento 2: Búsqueda geométrica en sólidos del elemento
-            Options opt = new Options { DetailLevel = ViewDetailLevel.Fine, IncludeNonVisibleObjects = false };
+            Options opt = new Options { DetailLevel = ViewDetailLevel.Fine, IncludeNonVisibleObjects = false, ComputeReferences = true };
             GeometryElement geomElem = floor.get_Geometry(opt);
-            if (geomElem == null) return null;
+            if (geomElem == null) return (null, null);
 
             PlanarFace? bestFace = null;
+            Reference? bestRef = null;
             double maxZ = -1e9;
 
             foreach (GeometryObject obj in geomElem)
@@ -89,13 +92,14 @@ namespace RevitToSupabasePlugin
                             {
                                 maxZ = pf.Origin.Z;
                                 bestFace = pf;
+                                bestRef = pf.Reference;
                             }
                         }
                     }
                 }
             }
 
-            return bestFace;
+            return (bestFace, bestRef);
         }
 
         /// <summary>
@@ -194,6 +198,12 @@ namespace RevitToSupabasePlugin
             if (dirU.GetLength() < 1e-5)
             {
                 dirU = XYZ.BasisX;
+            }
+
+            // Normalizar dirección U para que apunte consistentemente en el semiespacio positivo (+X o +Y)
+            if (dirU.X < -1e-4 || (Math.Abs(dirU.X) < 1e-4 && dirU.Y < -1e-4))
+            {
+                dirU = -dirU;
             }
 
             XYZ normal = topFace.FaceNormal.Normalize();

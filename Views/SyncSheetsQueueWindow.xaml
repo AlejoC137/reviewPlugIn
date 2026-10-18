@@ -1,0 +1,155 @@
+<Window x:Class="reviewPlugIn.Views.SyncSheetsQueueWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="REVIEW BIM — Cola de Cambios de Sheets (Sincronización Inversa)"
+        Height="680" Width="980"
+        WindowStartupLocation="CenterScreen"
+        Background="#0F172A"
+        Foreground="#F8FAFC"
+        FontFamily="Segoe UI">
+
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- HEADER -->
+        <Border Grid.Row="0" Background="#1E293B" CornerRadius="8" Padding="16,12" Margin="0,0,0,12" BorderBrush="#334155" BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="📐 GESTIÓN DE SHEETS EN COLA (REVIEW APP / MCP ➔ REVIT)" FontSize="15" FontWeight="Bold" Foreground="#38BDF8"/>
+                    <TextBlock x:Name="TxtActiveDocument" Text="Documento Revit: Cargando..." FontSize="12" Foreground="#94A3B8" Margin="0,4,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BtnRefreshQueue" Content="🔄 Recargar Cola" Click="BtnRefreshQueue_Click"
+                            Background="#334155" Foreground="White" FontWeight="SemiBold" Padding="12,7" BorderThickness="0" Cursor="Hand" Margin="0,0,8,0"/>
+                    <Button x:Name="BtnSelectAll" Content="☑ Selec. Todo" Click="BtnSelectAll_Click"
+                            Background="#334155" Foreground="#E2E8F0" FontSize="11" Padding="10,7" BorderThickness="0" Cursor="Hand"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- SELECTOR DE COLA -->
+        <Border Grid.Row="1" Background="#1E293B" CornerRadius="8" Padding="14,10" Margin="0,0,0,12" BorderBrush="#334155" BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Cola en Nube:" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#CBD5E1" Margin="0,0,12,0"/>
+                <ComboBox x:Name="CmbQueues" Grid.Column="1" SelectionChanged="CmbQueues_SelectionChanged"
+                          DisplayMemberPath="DisplayTitle" Height="30" VerticalContentAlignment="Center"/>
+                <TextBlock x:Name="TxtQueueSummaryBadge" Grid.Column="2" Text="0 cambios" VerticalAlignment="Center"
+                           FontWeight="Bold" Foreground="#4ADE80" Margin="14,0,0,0"/>
+            </Grid>
+        </Border>
+
+        <!-- TABLA DE CAMBIOS PROPUESTOS -->
+        <Grid Grid.Row="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="#1E293B" CornerRadius="8" Padding="10" BorderBrush="#334155" BorderThickness="1">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="CAMBIOS PROPUESTOS EN PLANOS EXISTENTES (Desmarca los que no desees aplicar)"
+                               FontSize="11" FontWeight="Bold" Foreground="#94A3B8" Margin="4,0,0,8"/>
+
+                    <DataGrid x:Name="GridChanges"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              Background="#0F172A"
+                              RowBackground="#1E293B"
+                              AlternatingRowBackground="#172033"
+                              Foreground="#F8FAFC"
+                              BorderThickness="0"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="#334155"
+                              HeadersVisibility="Column"
+                              RowHeight="32">
+                        <DataGrid.Resources>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#0F172A"/>
+                                <Setter Property="Foreground" Value="#38BDF8"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                                <Setter Property="FontSize" Value="11"/>
+                                <Setter Property="Padding" Value="8,6"/>
+                                <Setter Property="BorderBrush" Value="#334155"/>
+                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                            </Style>
+                        </DataGrid.Resources>
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn Header="Aplicar" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="60"/>
+                            <DataGridTextColumn Header="ElementId" Binding="{Binding ElementId}" IsReadOnly="True" Width="85"/>
+                            <DataGridTextColumn Header="Numeración (Actual ➔ Nuevo)" Binding="{Binding NumberChangeSummary}" IsReadOnly="True" Width="170"/>
+                            <DataGridTextColumn Header="Nombre del Plano (Actual ➔ Nuevo)" Binding="{Binding NameChangeSummary}" IsReadOnly="True" Width="280"/>
+                            <DataGridTextColumn Header="Categoría / Colección" Binding="{Binding CollectionChangeSummary}" IsReadOnly="True" Width="190"/>
+                            <DataGridTextColumn Header="Propiedades / Orden" Binding="{Binding PropertiesSummary}" IsReadOnly="True" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </Border>
+
+            <!-- NUEVOS PLANOS A CREAR (SI HAY EN COLA) -->
+            <Border x:Name="BorderNewSheets" Grid.Row="1" Background="#1E293B" CornerRadius="8" Padding="10" Margin="0,10,0,0" BorderBrush="#334155" BorderThickness="1" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Text="➕ NUEVOS PLANOS EN COLA PARA CREAR AUTOMÁTICAMENTE" FontSize="11" FontWeight="Bold" Foreground="#4ADE80" Margin="4,0,0,6"/>
+                    <DataGrid x:Name="GridNewSheets"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              MaxHeight="130"
+                              Background="#0F172A"
+                              RowBackground="#1E293B"
+                              Foreground="#F8FAFC"
+                              BorderThickness="0"
+                              HeadersVisibility="Column">
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn Header="Crear" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="60"/>
+                            <DataGridTextColumn Header="Número" Binding="{Binding SheetNumber}" IsReadOnly="True" Width="120"/>
+                            <DataGridTextColumn Header="Nombre del Plano" Binding="{Binding SheetName}" IsReadOnly="True" Width="280"/>
+                            <DataGridTextColumn Header="Categoría / Colección" Binding="{Binding SheetCollection}" IsReadOnly="True" Width="180"/>
+                            <DataGridTextColumn Header="Dibujó" Binding="{Binding DrawnBy}" IsReadOnly="True" Width="120"/>
+                            <DataGridTextColumn Header="Revisó" Binding="{Binding CheckedBy}" IsReadOnly="True" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- LOG DE ESTADO -->
+        <Border Grid.Row="3" Background="#090D16" CornerRadius="6" Padding="10,8" Margin="0,12,0,12" BorderBrush="#1E293B" BorderThickness="1">
+            <TextBlock x:Name="TxtStatusLog" Text="Listo para verificar cambios en cola desde Supabase..."
+                       FontFamily="Consolas" FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap"/>
+        </Border>
+
+        <!-- BOTONES DE ACCIÓN -->
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="11" Foreground="#64748B"
+                       Text="Nota: La renumeración se ejecuta en 2 fases anti-colisión dentro de una Transacción de Revit."/>
+
+            <Button Grid.Column="1" Content="Cancelar" Click="BtnClose_Click"
+                    Background="#334155" Foreground="White" Padding="18,10" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"/>
+
+            <Button x:Name="BtnApplyChanges" Grid.Column="2" Content="✅ CONFIRMAR Y APLICAR CAMBIOS EN REVIT"
+                    Click="BtnApplyChanges_Click"
+                    Background="#10B981" Foreground="#052E16" FontWeight="Bold" FontSize="13" Padding="22,10" BorderThickness="0" Cursor="Hand"/>
+        </Grid>
+    </Grid>
+</Window>

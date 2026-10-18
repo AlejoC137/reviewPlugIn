@@ -2,7 +2,7 @@
   <PropertyGroup>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Platforms>x64</Platforms>
@@ -12,16 +12,20 @@
     <Product>ARCA REVIEW</Product>
     <Authors>ALEJANDRO</Authors>
     <Copyright>Copyright © 2026 ARCA REVIEW - ALEJANDRO</Copyright>
-    <Description>ARCA REVIEW Plugin para Revit 2027</Description>
+    <RevitVersion Condition="'$(RevitVersion)' == '' and Exists('C:\Program Files\Autodesk\Revit 2025\RevitAPI.dll')">2025</RevitVersion>
+    <RevitVersion Condition="'$(RevitVersion)' == '' and Exists('C:\Program Files\Autodesk\Revit 2026\RevitAPI.dll')">2026</RevitVersion>
+    <RevitVersion Condition="'$(RevitVersion)' == '' and Exists('C:\Program Files\Autodesk\Revit 2027\RevitAPI.dll')">2027</RevitVersion>
+    <RevitVersion Condition="'$(RevitVersion)' == ''">2025</RevitVersion>
+    <RevitPath>C:\Program Files\Autodesk\Revit $(RevitVersion)</RevitPath>
   </PropertyGroup>
 
   <ItemGroup>
     <Reference Include="RevitAPI">
-      <HintPath>C:\Program Files\Autodesk\Revit 2027\RevitAPI.dll</HintPath>
+      <HintPath>$(RevitPath)\RevitAPI.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="RevitAPIUI">
-      <HintPath>C:\Program Files\Autodesk\Revit 2027\RevitAPIUI.dll</HintPath>
+      <HintPath>$(RevitPath)\RevitAPIUI.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
@@ -41,9 +45,20 @@
     <None Remove="**/*backup*/**" />
   </ItemGroup>
 
-  <!-- Evento Post-Build para copiar automáticamente los archivos a la carpeta de Revit 2027 -->
+  <!-- Evento Post-Build para copiar automáticamente los archivos a las carpetas de Addins de Revit 2025 y 2027 -->
   <Target Name="PostBuild" AfterTargets="Build">
-    <Message Text="Copiando archivos del plugin a la carpeta de Addins de Revit 2027..." Importance="high" />
+    <Message Text="Copiando archivos del plugin a las carpetas de Addins de Revit (2025 y 2027)..." Importance="high" />
+    
+    <!-- Despliegue para Revit 2025 -->
+    <Exec Command="if not exist &quot;$(AppData)\Autodesk\Revit\Addins\2025&quot; mkdir &quot;$(AppData)\Autodesk\Revit\Addins\2025&quot;" />
+    <Exec Command="xcopy &quot;$(TargetDir)*.dll&quot; &quot;$(AppData)\Autodesk\Revit\Addins\2025&quot; /Y /I" IgnoreExitCode="true" />
+    <Exec Command="if exist &quot;$(ProjectDir)*.png&quot; xcopy &quot;$(ProjectDir)*.png&quot; &quot;$(AppData)\Autodesk\Revit\Addins\2025&quot; /Y /I" IgnoreExitCode="true" />
+    <Exec Command="if exist &quot;$(ProjectDir)*.rfa&quot; xcopy &quot;$(ProjectDir)*.rfa&quot; &quot;$(AppData)\Autodesk\Revit\Addins\2025&quot; /Y /I" IgnoreExitCode="true" />
+    <Exec Command="if exist &quot;$(ProjectDir)*.json&quot; xcopy &quot;$(ProjectDir)*.json&quot; &quot;$(AppData)\Autodesk\Revit\Addins\2025&quot; /Y /I" IgnoreExitCode="true" />
+    <Exec Command="if exist &quot;$(ProjectDir)Familias&quot; xcopy &quot;$(ProjectDir)Familias\*.*&quot; &quot;$(AppData)\Autodesk\Revit\Addins\2025\Familias\&quot; /Y /I /E /S" IgnoreExitCode="true" />
+    <Exec Command="copy &quot;$(ProjectDir)RevitToSupabasePlugin.addin&quot; &quot;$(AppData)\Autodesk\Revit\Addins\2025&quot; /Y" IgnoreExitCode="true" />
+
+    <!-- Despliegue para Revit 2027 -->
     <Exec Command="if not exist &quot;$(AppData)\Autodesk\Revit\Addins\2027&quot; mkdir &quot;$(AppData)\Autodesk\Revit\Addins\2027&quot;" />
     <Exec Command="xcopy &quot;$(TargetDir)*.dll&quot; &quot;$(AppData)\Autodesk\Revit\Addins\2027&quot; /Y /I" IgnoreExitCode="true" />
     <Exec Command="if exist &quot;$(ProjectDir)*.png&quot; xcopy &quot;$(ProjectDir)*.png&quot; &quot;$(AppData)\Autodesk\Revit\Addins\2027&quot; /Y /I" IgnoreExitCode="true" />

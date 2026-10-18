@@ -245,183 +245,17 @@ namespace RevitToSupabasePlugin
                     // C. Modelar Baldosas / Enchapes (Instanciación con Tiles Base.rfa para piezas enteras y cortadas)
                     if (window.ModelTiles)
                     {
-                        if (tileSymbol != null)
-                        {
-                            try
-                            {
-                                if (!tileSymbol.IsActive) tileSymbol.Activate();
-                                double nomLFt = (window.TileLengthCm / 100.0) * 3.28084;
-                                double nomWFt = (window.TileWidthCm / 100.0) * 3.28084;
-                                double nomTFt = (window.TileThickCm / 100.0) * 3.28084;
-                                if (nomLFt > 0.001) SetParameterValue(tileSymbol, new[] { "Lenght", "Length", "Largo", "Depth" }, nomLFt);
-                                if (nomWFt > 0.001) SetParameterValue(tileSymbol, new[] { "Width", "Ancho" }, nomWFt);
-                                if (nomTFt > 0.001) SetParameterValue(tileSymbol, new[] { "Thickness", "Height", "Espesor" }, nomTFt);
-                                // NOTA CRÍTICA: NUNCA tocar 'Offset' en tileSymbol porque corrompe la familia Tiles Base.rfa y Revit arroja "Can't make type"
-                            }
-                            catch { }
-                        }
-
-                        foreach (var tile in window.LayoutTiles)
-                        {
-                            if (tile.Length_Ft <= 0.001 || tile.Width_Ft <= 0.001) continue;
-
-                            bool placedAsFamily = false;
-
-                            // Modelar como ejemplar de la familia nativa Tiles Base.rfa exclusivamente para baldosas enteras
-                            if (!window.PreferDirectShapeGeometry && !tile.IsCut && tileSymbol != null)
-                            {
-                                try
-                                {
-                                    FamilyInstance? inst = null;
-                                    // En Tiles Base.rfa el punto de inserción (origen) está en la esquina inferior izquierda (0, 0)
-                                    XYZ rawCorner = (tile.Corner3D != null && tile.Corner3D.GetLength() > 1e-4) ? tile.Corner3D : tile.Center3D;
-                                    XYZ placePoint = rawCorner;
-
-                                    if (tile.HostFaceRef != null)
-                                    {
-                                        try
-                                        {
-                                            Element hostElem = doc.GetElement(tile.HostFaceRef.ElementId);
-                                            if (hostElem != null)
-                                            {
-                                                Face? planarFace = hostElem.GetGeometryObjectFromReference(tile.HostFaceRef) as Face;
-                                                if (planarFace != null)
-                                                {
-                                                    IntersectionResult ir = planarFace.Project(rawCorner);
-                                                    if (ir != null) placePoint = ir.XYZPoint;
-                                                }
-                                            }
-
-                                            inst = doc.Create.NewFamilyInstance(
-                                                tile.HostFaceRef,
-                                                placePoint,
-                                                tile.DirectionU3D,
-                                                tileSymbol);
-                                        }
-                                        catch { }
-                                    }
-
-                                    if (inst == null)
-                                    {
-                                        Level? level = hostInfos.FirstOrDefault()?.Level;
-                                        inst = doc.Create.NewFamilyInstance(
-                                            placePoint,
-                                            tileSymbol,
-                                            level,
-                                            Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
-
-                                        if (inst != null && Math.Abs(tile.RotationRad) > 1e-4)
-                                        {
-                                            try
-                                             {
-                                                Line rotAxis = Line.CreateUnbound(placePoint, tile.Normal3D);
-                                                ElementTransformUtils.RotateElement(doc, inst.Id, rotAxis, tile.RotationRad);
-                                            }
-                                            catch { }
-                                        }
-                                    }
-
-                                    if (inst != null)
-                                    {
-                                        // Parámetros de ejemplar: Cut Lat y Cut Top en pies
-                                        if (tile.IsCut)
-                                        {
-                                            SetParameterValueInstanceOnly(inst, new[] { "Cut Lat", "CutLat", "Cut_Lat", "CutLateral", "Cut Lateral", "Corte Lat", "Corte Lateral", "Recorte Lateral", "RecorteLateral", "CutLat_Depth", "CutLatDepth" }, tile.CutLat_Ft);
-                                            SetParameterValueInstanceOnly(inst, new[] { "Cut Lat Flag", "Cut Lat", "CutLat" }, tile.CutLat_Ft > 0.001 ? 1 : 0);
-
-                                            SetParameterValueInstanceOnly(inst, new[] { "Cut Top", "CutTop", "Cut_Top", "CutTopCut", "CutSuperior", "Cut Superior", "Corte Top", "Corte Superior", "Recorte Superior", "RecorteSuperior", "CutTop_Depth", "CutTopDepth" }, tile.CutTop_Ft);
-                                            SetParameterValueInstanceOnly(inst, new[] { "Cut Top Flag", "Cut Top", "CutTop" }, tile.CutTop_Ft > 0.001 ? 1 : 0);
-
-                                            SetParameterValueInstanceOnly(inst, new[] { "Cut", "Recorte" }, Math.Max(tile.CutLat_Ft, tile.CutTop_Ft));
-                                            SetParameterValueInstanceOnly(inst, new[] { "Cut Flag" }, (tile.CutLat_Ft > 0.001 || tile.CutTop_Ft > 0.001) ? 1 : 0);
-                                        }
-                                        else
-                                        {
-                                            SetParameterValueInstanceOnly(inst, new[] { "Cut Lat", "CutLat", "Cut_Lat", "CutLateral", "Cut Lateral", "Corte Lat", "Corte Lateral", "Recorte Lateral", "RecorteLateral" }, 0.0);
-                                            SetParameterValueInstanceOnly(inst, new[] { "Cut Lat Flag", "Cut Lat", "CutLat" }, 0);
-                                            SetParameterValueInstanceOnly(inst, new[] { "Cut Top", "CutTop", "Cut_Top", "CutTopCut", "CutSuperior", "Cut Superior", "Corte Top", "Corte Superior", "Recorte Superior", "RecorteSuperior" }, 0.0);
-                                            SetParameterValueInstanceOnly(inst, new[] { "Cut Top Flag", "Cut Top", "CutTop" }, 0);
-                                            SetParameterValueInstanceOnly(inst, new[] { "Cut", "Recorte" }, 0.0);
-                                            SetParameterValueInstanceOnly(inst, new[] { "Cut Flag" }, 0);
-                                        }
-
-                                        // Parámetros dimensionales a nivel ejemplar (si la familia los tiene como ejemplar)
-                                        // En Tiles Base.rfa, Width es a lo largo de DirectionU3D (Length_Ft) y Lenght es a lo largo de DirectionV3D (Width_Ft)
-                                        SetParameterValueInstanceOnly(inst, new[] { "Width", "Ancho", "Width (default)", "Ancho (default)" }, tile.Length_Ft);
-                                        SetParameterValueInstanceOnly(inst, new[] { "Lenght", "Length", "Largo", "Lenght (default)", "Length (default)" }, tile.Width_Ft);
-                                        SetParameterValueInstanceOnly(inst, new[] { "Thickness", "Height", "Espesor" }, tile.Thickness_Ft);
-
-// Baldosa colocada exactamente en Center3D
-
-                                        Parameter pComm = inst.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                                        if (pComm != null && !pComm.IsReadOnly)
-                                        {
-                                            pComm.Set(tile.IsCut 
-                                                ? $"ENCHAPE-BALDOSA-CORTADA (CutLat:{tile.CutLat_Ft * 30.48:0.0}cm, CutTop:{tile.CutTop_Ft * 30.48:0.0}cm)" 
-                                                : "ENCHAPE-BALDOSA-ENTERA");
-                                        }
-
-                                        if (tileMatId != ElementId.InvalidElementId)
-                                        {
-                                            Parameter? pMat = inst.LookupParameter("Mat")
-                                                          ?? inst.LookupParameter("Material")
-                                                          ?? inst.get_Parameter(BuiltInParameter.STRUCTURAL_MATERIAL_PARAM)
-                                                          ?? inst.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
-                                            if (pMat != null && !pMat.IsReadOnly) pMat.Set(tileMatId);
-                                        }
-
-                                        MeasurementManager.MeasureAndApply(inst, null, 
-                                            customLengthFt: tile.ActualLength_Ft > 0 ? tile.ActualLength_Ft : tile.Length_Ft, 
-                                            customWidthFt: tile.ActualWidth_Ft > 0 ? tile.ActualWidth_Ft : tile.Width_Ft, 
-                                            customAreaSqFt: tile.ActualAreaSqM * 10.7639, 
-                                            customThicknessFt: tile.Thickness_Ft, 
-                                            customVolumeCuFt: tile.ActualAreaSqM * 10.7639 * tile.Thickness_Ft, 
-                                            units: 1);
-
-                                        if (tile.IsCut) cutTilesCount++;
-                                        else createdTilesCount++;
-                                        placedAsFamily = true;
-                                    }
-                                }
-                                catch { }
-                            }
-
-                            if (!placedAsFamily)
-                            {
-                                Solid? tileSolid = tile.TileSolid ?? CreatePrismFromPolygon(tile.PolygonVertices3D, tile.Normal3D, tile.Thickness_Ft);
-                                if (tileSolid != null)
-                                {
-                                    DirectShape ds = DirectShape.CreateElement(doc, categoryId);
-                                    ds.SetShape(new GeometryObject[] { tileSolid });
-                                    ds.Name = tile.IsCut ? $"Baldosa Cortada ({tile.ActualAreaSqM:0.00}m²)" : $"Baldosa {window.TileLengthCm:0.#}x{window.TileWidthCm:0.#}cm";
-
-                                    DirectShapeType? targetType = tile.IsCut ? dsTypeCut : dsTypeFull;
-                                    if (targetType != null)
-                                    {
-                                        try { ds.SetTypeId(targetType.Id); } catch { }
-                                    }
-
-                                    Parameter pComm = ds.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                                    if (pComm != null && !pComm.IsReadOnly)
-                                    {
-                                        pComm.Set(tile.IsCut 
-                                            ? $"ENCHAPE-BALDOSA-CORTADA (CutLat:{tile.CutLat_Ft * 30.48:0.0}cm, CutTop:{tile.CutTop_Ft * 30.48:0.0}cm)" 
-                                            : "ENCHAPE-BALDOSA-ENTERA");
-                                    }
-
-                                    if (tileMatId != ElementId.InvalidElementId)
-                                    {
-                                        Parameter pMat = ds.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
-                                        if (pMat != null && !pMat.IsReadOnly) pMat.Set(tileMatId);
-                                    }
-
-                                    MeasurementManager.MeasureAndApply(ds, tileSolid, customThicknessFt: tile.Thickness_Ft, units: 1);
-
-                                    if (tile.IsCut) cutTilesCount++;
-                                    else createdTilesCount++;
-                                }
-                            }
-                        }
+                        InstantiateFloorTiles(
+                            doc,
+                            window,
+                            tileSymbol,
+                            categoryId,
+                            tileMatId,
+                            dsTypeFull,
+                            dsTypeCut,
+                            hostInfos,
+                            ref createdTilesCount,
+                            ref cutTilesCount);
                     }
 
                     // D. Modelar Juntas / Fragua (Sólidos exactos B-Rep con DirectShape, idéntico al mortero de Muros)
@@ -532,6 +366,213 @@ namespace RevitToSupabasePlugin
             {
                 message = ex.Message;
                 return Result.Failed;
+            }
+        }
+
+        // =========================================================================================
+        // NUEVA FUNCIÓN: Instanciación Unificada Basada en Esquina (0,0) para Tiles Base.rfa
+        // =========================================================================================
+        private void InstantiateFloorTiles(
+            Document doc,
+            ConvertirPisosWindow window,
+            FamilySymbol? tileSymbol,
+            ElementId categoryId,
+            ElementId tileMatId,
+            DirectShapeType? dsTypeFull,
+            DirectShapeType? dsTypeCut,
+            List<TilingHostInfo> hostInfos,
+            ref int createdTilesCount,
+            ref int cutTilesCount)
+        {
+            if (window.LayoutTiles == null || window.LayoutTiles.Count == 0) return;
+
+            // Asegurar parámetros dimensionales nominales en el símbolo de familia
+            if (tileSymbol != null)
+            {
+                try
+                {
+                    if (!tileSymbol.IsActive) tileSymbol.Activate();
+                    double nomLFt = (window.TileLengthCm / 100.0) * 3.28084;
+                    double nomWFt = (window.TileWidthCm / 100.0) * 3.28084;
+                    double nomTFt = (window.TileThickCm / 100.0) * 3.28084;
+
+                    // En Tiles Base.rfa: Width es X, Lenght es Y
+                    SetParameterValue(tileSymbol, new[] { "Width", "Ancho" }, nomLFt);
+                    SetParameterValue(tileSymbol, new[] { "Lenght", "Length", "Largo" }, nomWFt);
+                    SetParameterValue(tileSymbol, new[] { "Thickness", "Height", "Espesor" }, nomTFt);
+                }
+                catch { }
+            }
+
+            foreach (var tile in window.LayoutTiles)
+            {
+                if (tile.Length_Ft <= 0.001 || tile.Width_Ft <= 0.001) continue;
+
+                bool placedAsFamily = false;
+
+                // 1. Instanciación con Familia Nativa (Tanto para baldosas enteras como cortadas ortogonalmente)
+                if (!window.PreferDirectShapeGeometry && tileSymbol != null)
+                {
+                    try
+                    {
+                        FamilyInstance? inst = null;
+
+                        // En Tiles Base.rfa el origen está en la esquina inferior izquierda (0,0)
+                        XYZ placePoint = tile.Corner3D;
+
+                        if (tile.HostFaceRef != null)
+                        {
+                            Element hostElem = doc.GetElement(tile.HostFaceRef.ElementId);
+                            if (hostElem != null)
+                            {
+                                Face? planarFace = hostElem.GetGeometryObjectFromReference(tile.HostFaceRef) as Face;
+                                if (planarFace != null)
+                                {
+                                    IntersectionResult proj = planarFace.Project(tile.Corner3D);
+                                    if (proj != null)
+                                    {
+                                        placePoint = proj.XYZPoint;
+                                    }
+                                }
+                            }
+
+                            inst = doc.Create.NewFamilyInstance(
+                                tile.HostFaceRef,
+                                placePoint,
+                                tile.DirectionU3D,
+                                tileSymbol);
+                        }
+
+                        // Fallback por nivel si no existiese referencia de cara
+                        if (inst == null && tile.HostFaceRef == null)
+                        {
+                            Level? hostLevel = hostInfos.FirstOrDefault()?.Level;
+                            if (hostLevel != null)
+                            {
+                                inst = doc.Create.NewFamilyInstance(
+                                    placePoint,
+                                    tileSymbol,
+                                    hostLevel,
+                                    Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+
+                                if (inst != null && Math.Abs(tile.RotationRad) > 1e-4)
+                                {
+                                    Line rotAxis = Line.CreateBound(placePoint, placePoint + tile.Normal3D);
+                                    ElementTransformUtils.RotateElement(doc, inst.Id, rotAxis, tile.RotationRad);
+                                }
+                            }
+                        }
+
+                        if (inst != null)
+                        {
+                            // Asignación de dimensiones nominales en ejemplar
+                            SetParameterValueInstanceOnly(inst, new[] { "Width", "Ancho", "Width (default)", "Ancho (default)" }, (window.TileLengthCm / 100.0) * 3.28084);
+                            SetParameterValueInstanceOnly(inst, new[] { "Lenght", "Length", "Largo", "Lenght (default)", "Length (default)" }, (window.TileWidthCm / 100.0) * 3.28084);
+                            SetParameterValueInstanceOnly(inst, new[] { "Thickness", "Height", "Espesor" }, tile.Thickness_Ft);
+
+                            if (tile.IsCut)
+                            {
+                                SetParameterValueInstanceOnly(inst, new[] { "Cut Lat", "CutLat", "Cut_Lat", "CutLateral", "Cut Lateral", "Corte Lat" }, tile.CutLat_Ft);
+                                SetParameterValueInstanceOnly(inst, new[] { "Cut Lat Flag", "Cut Lat", "CutLat" }, tile.CutLat_Ft > 0.001 ? 1 : 0);
+
+                                SetParameterValueInstanceOnly(inst, new[] { "Cut Top", "CutTop", "Cut_Top", "CutTopCut", "CutSuperior", "Cut Superior" }, tile.CutTop_Ft);
+                                SetParameterValueInstanceOnly(inst, new[] { "Cut Top Flag", "Cut Top", "CutTop" }, tile.CutTop_Ft > 0.001 ? 1 : 0);
+
+                                SetParameterValueInstanceOnly(inst, new[] { "Cut", "Recorte" }, Math.Max(tile.CutLat_Ft, tile.CutTop_Ft));
+                                SetParameterValueInstanceOnly(inst, new[] { "Cut Flag" }, (tile.CutLat_Ft > 0.001 || tile.CutTop_Ft > 0.001) ? 1 : 0);
+                            }
+                            else
+                            {
+                                SetParameterValueInstanceOnly(inst, new[] { "Cut Lat", "CutLat", "Cut_Lat", "CutLateral", "Cut Lateral" }, 0.0);
+                                SetParameterValueInstanceOnly(inst, new[] { "Cut Lat Flag", "Cut Lat", "CutLat" }, 0);
+                                SetParameterValueInstanceOnly(inst, new[] { "Cut Top", "CutTop", "Cut_Top", "CutTopCut", "CutSuperior" }, 0.0);
+                                SetParameterValueInstanceOnly(inst, new[] { "Cut Top Flag", "Cut Top", "CutTop" }, 0);
+                                SetParameterValueInstanceOnly(inst, new[] { "Cut", "Recorte" }, 0.0);
+                                SetParameterValueInstanceOnly(inst, new[] { "Cut Flag" }, 0);
+                            }
+
+                            // Comentarios de trazabilidad
+                            Parameter pComm = inst.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                            if (pComm != null && !pComm.IsReadOnly)
+                            {
+                                pComm.Set(tile.IsCut 
+                                    ? $"ENCHAPE-BALDOSA-CORTADA (CutLat:{tile.CutLat_Ft * 30.48:0.0}cm, CutTop:{tile.CutTop_Ft * 30.48:0.0}cm)" 
+                                    : "ENCHAPE-BALDOSA-ENTERA");
+                            }
+
+                            // Asignación de Material
+                            if (tileMatId != ElementId.InvalidElementId)
+                            {
+                                Parameter? pMat = inst.LookupParameter("Mat")
+                                              ?? inst.LookupParameter("Material")
+                                              ?? inst.get_Parameter(BuiltInParameter.STRUCTURAL_MATERIAL_PARAM)
+                                              ?? inst.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
+                                if (pMat != null && !pMat.IsReadOnly) pMat.Set(tileMatId);
+                            }
+
+                            // Registro en gestor de cubicaciones
+                            MeasurementManager.MeasureAndApply(inst, null,
+                                customLengthFt: tile.ActualLength_Ft > 0 ? tile.ActualLength_Ft : tile.Length_Ft,
+                                customWidthFt: tile.ActualWidth_Ft > 0 ? tile.ActualWidth_Ft : tile.Width_Ft,
+                                customAreaSqFt: tile.ActualAreaSqM * 10.7639,
+                                customThicknessFt: tile.Thickness_Ft,
+                                customVolumeCuFt: tile.ActualAreaSqM * 10.7639 * tile.Thickness_Ft,
+                                units: 1);
+
+                            if (tile.IsCut) cutTilesCount++;
+                            else createdTilesCount++;
+                            placedAsFamily = true;
+                        }
+                    }
+                    catch
+                    {
+                        placedAsFamily = false;
+                    }
+                }
+
+                // 2. Respaldo geométrico DirectShape (únicamente si falló la familia o si el usuario eligió modo B-Rep)
+                if (!placedAsFamily)
+                {
+                    Solid? tileSolid = tile.TileSolid ?? CreatePrismFromPolygon(tile.PolygonVertices3D, tile.Normal3D, tile.Thickness_Ft);
+                    if (tileSolid != null && tileSolid.Volume > 1e-6)
+                    {
+                        // Validación estricta de categoría para DirectShape
+                        ElementId validCatId = DirectShape.IsValidCategoryId(categoryId, doc) 
+                            ? categoryId 
+                            : new ElementId(BuiltInCategory.OST_GenericModel);
+
+                        DirectShape ds = DirectShape.CreateElement(doc, validCatId);
+                        ds.SetShape(new GeometryObject[] { tileSolid });
+                        ds.Name = tile.IsCut 
+                            ? $"Baldosa Cortada ({tile.ActualAreaSqM:0.00}m²)" 
+                            : $"Baldosa {window.TileLengthCm:0.#}x{window.TileWidthCm:0.#}cm";
+
+                        DirectShapeType? targetType = tile.IsCut ? dsTypeCut : dsTypeFull;
+                        if (targetType != null)
+                        {
+                            try { ds.SetTypeId(targetType.Id); } catch { }
+                        }
+
+                        Parameter pComm = ds.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                        if (pComm != null && !pComm.IsReadOnly)
+                        {
+                            pComm.Set(tile.IsCut 
+                                ? $"ENCHAPE-BALDOSA-CORTADA (CutLat:{tile.CutLat_Ft * 30.48:0.0}cm, CutTop:{tile.CutTop_Ft * 30.48:0.0}cm)" 
+                                : "ENCHAPE-BALDOSA-ENTERA");
+                        }
+
+                        if (tileMatId != ElementId.InvalidElementId)
+                        {
+                            Parameter pMat = ds.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
+                            if (pMat != null && !pMat.IsReadOnly) pMat.Set(tileMatId);
+                        }
+
+                        MeasurementManager.MeasureAndApply(ds, tileSolid, customThicknessFt: tile.Thickness_Ft, units: 1);
+
+                        if (tile.IsCut) cutTilesCount++;
+                        else createdTilesCount++;
+                    }
+                }
             }
         }
 
@@ -721,8 +762,8 @@ namespace RevitToSupabasePlugin
         {
             Document doc = floor.Document;
 
-            // 1. Extracción del Contorno Base: Obtener el PlanarFace superior
-            PlanarFace? topFace = FloorTilingService.GetTopPlanarFace(floor);
+            // 1. Extracción del Contorno Base: Obtener el PlanarFace superior con su Reference estable
+            var (topFace, faceRef) = FloorTilingService.GetTopPlanarFaceWithRef(floor);
             if (topFace == null) return null;
 
             // 1. Extraer su CurveLoop exterior principal y validar que sea cerrado (curveLoop.IsOpen() == false)
@@ -812,7 +853,7 @@ namespace RevitToSupabasePlugin
                 TotalHostThicknessFt = totalThickFt,
                 AreaSqM = areaSqM,
                 PerimeterM = perimM,
-                HostFaceReference = topFace.Reference,
+                HostFaceReference = faceRef ?? topFace.Reference,
                 DetectedLayers = detectedLayers,
                 Origin3D = localTransform.Origin,
                 BasisU = localTransform.BasisX,

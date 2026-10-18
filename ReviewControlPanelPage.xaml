@@ -1,0 +1,471 @@
+<Page x:Class="RevitToSupabasePlugin.ReviewControlPanelPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+      mc:Ignorable="d" 
+      d:DesignHeight="850" d:DesignWidth="360"
+      Title="Review Control Panel"
+      Background="#18181B" Foreground="#F4F4F5">
+
+    <Page.Resources>
+        <!-- Card Style -->
+        <Style x:Key="CardBorder" TargetType="Border">
+            <Setter Property="Background" Value="#222226"/>
+            <Setter Property="BorderBrush" Value="#333338"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <!-- KPI Card Border -->
+        <Style x:Key="KpiCard" TargetType="Border">
+            <Setter Property="Background" Value="#1F2024"/>
+            <Setter Property="BorderBrush" Value="#2D2E33"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="8"/>
+            <Setter Property="Margin" Value="3"/>
+        </Style>
+
+        <!-- Modern Action Button -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="#5235EF"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="10,7"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#6A4FF5"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#3F24D4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Secondary Button -->
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Background" Value="#2A2A30"/>
+            <Setter Property="Foreground" Value="#E4E4E7"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="5" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#383840"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- TabItem Style -->
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="#A1A1AA"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder" Background="#18181B" BorderThickness="0,0,0,2" BorderBrush="Transparent" Margin="0,0,4,0" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#5235EF"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="#E4E4E7"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- Top Branded Line -->
+            <RowDefinition Height="3"/>
+            <!-- Header bar -->
+            <RowDefinition Height="Auto"/>
+            <!-- User & Status strip -->
+            <RowDefinition Height="Auto"/>
+            <!-- Main Tabs Content -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top Accent Line -->
+        <Rectangle Grid.Row="0" Fill="#5235EF"/>
+
+        <!-- Header Bar -->
+        <Border Grid.Row="1" Background="#1F1F23" Padding="12,10" BorderBrush="#2D2D32" BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="📕" FontSize="16" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <StackPanel>
+                        <TextBlock Text="REVIEW CONTROL PANEL" FontWeight="Bold" FontSize="13" Foreground="#FFFFFF"/>
+                        <TextBlock Text="BIM Hub &amp; Cloud Manager" FontSize="10" Foreground="#A1A1AA"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Live Status Badges -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="#064E3B" CornerRadius="4" Padding="6,2" Margin="0,0,4,0" ToolTip="Servidor MCP Local Activo">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="6" Height="6" Fill="#10B981" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="MCP:8080" FontSize="9" FontWeight="Bold" Foreground="#6EE7B7"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="#1E1B4B" CornerRadius="4" Padding="6,2" ToolTip="Conectado a Supabase Cloud">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="6" Height="6" Fill="#6366F1" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Cloud" FontSize="9" FontWeight="Bold" Foreground="#A5B4FC"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- User & Session Card -->
+        <Border Grid.Row="2" Background="#18181B" Padding="12,8" BorderBrush="#27272A" BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Avatar Circle -->
+                <Border Width="30" Height="30" CornerRadius="15" Background="#5235EF" Margin="0,0,8,0">
+                    <TextBlock x:Name="txtAvatarInitials" Text="AR" FontWeight="Bold" FontSize="11" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+
+                <!-- User Information -->
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="txtUserName" Text="Usuario Review" FontWeight="SemiBold" FontSize="12" Foreground="#FFFFFF"/>
+                        <Border x:Name="badgeRole" Background="#312E81" CornerRadius="3" Padding="4,1" Margin="6,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="txtUserRole" Text="ADMIN" FontSize="8" FontWeight="Bold" Foreground="#C7D2FE"/>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock x:Name="txtUserEmail" Text="usuario@review.com" FontSize="10" Foreground="#71717A" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+
+                <!-- Login / Logout Action -->
+                <Button x:Name="btnToggleAuth" Grid.Column="2" Style="{StaticResource SecondaryButton}" Content="Cambiar Cuenta" Click="BtnToggleAuth_Click" VerticalAlignment="Center" Padding="6,4" FontSize="10"/>
+            </Grid>
+        </Border>
+
+        <!-- Main Tabs -->
+        <TabControl Grid.Row="3" Background="#18181B" BorderThickness="0" Margin="4,4,4,4">
+            
+            <!-- TAB 1: 📁 PROYECTO & CONFIGURACIÓN -->
+            <TabItem Header="📁 Proyecto">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="6,8,6,8">
+
+                        <!-- Active Revit Document -->
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="PROYECTO REVIT LOCAL" FontSize="10" FontWeight="Bold" Foreground="#A1A1AA" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="txtRevitDocTitle" Text="Cargando modelo..." FontSize="13" FontWeight="Bold" Foreground="#38BDF8" TextWrapping="Wrap"/>
+                                <TextBlock x:Name="txtRevitDocNumber" Text="N° Proyecto: --" FontSize="10" Foreground="#71717A" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Supabase Cloud Project Selector -->
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,6">
+                                    <TextBlock Text="PROYECTO SUPABASE VINCULADO" FontSize="10" FontWeight="Bold" Foreground="#A1A1AA" VerticalAlignment="Center"/>
+                                    <Button x:Name="btnRefreshProjects" Style="{StaticResource SecondaryButton}" Content="🔄" Width="24" Height="22" HorizontalAlignment="Right" Padding="0" Click="BtnRefreshProjects_Click" ToolTip="Refrescar lista desde Supabase"/>
+                                </Grid>
+
+                                <ComboBox x:Name="cmbSupabaseProjects" Background="#27272A" Foreground="#FFFFFF" BorderBrush="#3F3F46" Padding="6,4" Margin="0,0,0,8" SelectionChanged="CmbSupabaseProjects_SelectionChanged">
+                                </ComboBox>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="ID en Supabase:" FontSize="9" Foreground="#71717A"/>
+                                        <TextBlock x:Name="txtActiveProjectId" Text="a1234567-..." FontSize="10" Foreground="#E4E4E7" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                    <Button x:Name="btnSaveProjectSelection" Grid.Column="1" Style="{StaticResource PrimaryButton}" Content="💾 Guardar" Padding="10,4" FontSize="10" Click="BtnSaveProjectSelection_Click"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Disciplines Configuration Checklist -->
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="MÓDULOS ACTIVOS DEL PROYECTO" FontSize="10" FontWeight="Bold" Foreground="#A1A1AA" Margin="0,0,0,6"/>
+
+                                <CheckBox x:Name="chkModuloAlbanileria" Content="🧱 Albañilería &amp; Muros Despiezados" IsChecked="True" Foreground="#E4E4E7" FontSize="11" Margin="0,3"/>
+                                <CheckBox x:Name="chkModuloPisos" Content="🪵 Enchapes, Zócalos &amp; Pisos" IsChecked="True" Foreground="#E4E4E7" FontSize="11" Margin="0,3"/>
+                                <CheckBox x:Name="chkModuloSteel" Content="🔩 Steel Decks &amp; Conectores" IsChecked="True" Foreground="#E4E4E7" FontSize="11" Margin="0,3"/>
+                                <CheckBox x:Name="chkModuloRiego" Content="💧 Redes de Riego MEP" IsChecked="True" Foreground="#E4E4E7" FontSize="11" Margin="0,3"/>
+                                <CheckBox x:Name="chkModuloTablas" Content="📊 Cómputos &amp; Schedules IA" IsChecked="True" Foreground="#E4E4E7" FontSize="11" Margin="0,3"/>
+                                <CheckBox x:Name="chkModuloLaminas" Content="📐 Láminas &amp; Plumbing Sheet" IsChecked="True" Foreground="#E4E4E7" FontSize="11" Margin="0,3"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Tolerances / Preferences -->
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="PARÁMETROS DE DESPIECE &amp; TOLERANCIAS" FontSize="10" FontWeight="Bold" Foreground="#A1A1AA" Margin="0,0,0,6"/>
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="Junta Mortero Pega (mm):" Foreground="#A1A1AA" FontSize="10" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="txtJuntaPega" Text="10.0" Width="45" HorizontalAlignment="Right" Background="#27272A" Foreground="#FFFFFF" BorderBrush="#3F3F46" Padding="4,2" FontSize="10" TextAlignment="Center"/>
+                                </Grid>
+                                <Grid Margin="0,4,0,2">
+                                    <TextBlock Text="Desperdicio Estimado (%):" Foreground="#A1A1AA" FontSize="10" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="txtDesperdicio" Text="5.0" Width="45" HorizontalAlignment="Right" Background="#27272A" Foreground="#FFFFFF" BorderBrush="#3F3F46" Padding="4,2" FontSize="10" TextAlignment="Center"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- TAB 2: 📊 MÉTRICAS & SALUD BIM -->
+            <TabItem Header="📊 Métricas">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="6,8,6,8">
+
+                        <!-- Scan / Refresh Bar -->
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="MÉTRICAS DEL MODELO ACTIVO" FontSize="11" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                <TextBlock x:Name="txtLastScan" Text="Último escaneo: No escaneado" FontSize="9" Foreground="#71717A"/>
+                            </StackPanel>
+                            <Button x:Name="btnRefreshMetrics" Grid.Column="1" Style="{StaticResource PrimaryButton}" Content="🔄 Escanear" Click="BtnRefreshMetrics_Click"/>
+                        </Grid>
+
+                        <!-- KPI Grid (2x3) -->
+                        <Grid Margin="0,0,0,10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Card 1: Muros -->
+                            <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource KpiCard}">
+                                <StackPanel>
+                                    <TextBlock Text="🧱 MUROS" FontSize="9" FontWeight="Bold" Foreground="#A78BFA"/>
+                                    <TextBlock x:Name="txtKpiWalls" Text="--" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                    <TextBlock x:Name="txtKpiWallArea" Text="-- m² sup." FontSize="10" Foreground="#71717A"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Card 2: Pisos -->
+                            <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource KpiCard}">
+                                <StackPanel>
+                                    <TextBlock Text="🪵 PISOS / SUELOS" FontSize="9" FontWeight="Bold" Foreground="#34D399"/>
+                                    <TextBlock x:Name="txtKpiFloors" Text="--" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                    <TextBlock x:Name="txtKpiFloorArea" Text="-- m² sup." FontSize="10" Foreground="#71717A"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Card 3: Estructuras -->
+                            <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource KpiCard}">
+                                <StackPanel>
+                                    <TextBlock Text="🔩 ESTRUCTURAS" FontSize="9" FontWeight="Bold" Foreground="#38BDF8"/>
+                                    <TextBlock x:Name="txtKpiStructural" Text="--" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                    <TextBlock Text="Vigas / Columnas" FontSize="10" Foreground="#71717A"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Card 4: Riego / Fontanería -->
+                            <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource KpiCard}">
+                                <StackPanel>
+                                    <TextBlock Text="💧 RIEGO / PIPES" FontSize="9" FontWeight="Bold" Foreground="#60A5FA"/>
+                                    <TextBlock x:Name="txtKpiPlumbing" Text="--" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                    <TextBlock Text="Tramos / Válvulas" FontSize="10" Foreground="#71717A"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Card 5: Habitaciones -->
+                            <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource KpiCard}">
+                                <StackPanel>
+                                    <TextBlock Text="🚪 HABITACIONES" FontSize="9" FontWeight="Bold" Foreground="#FBBF24"/>
+                                    <TextBlock x:Name="txtKpiRooms" Text="--" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                    <TextBlock Text="Espacios arquitectónicos" FontSize="9" Foreground="#71717A"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Card 6: Láminas & Niveles -->
+                            <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource KpiCard}">
+                                <StackPanel>
+                                    <TextBlock Text="📐 LÁMINAS / PLANOS" FontSize="9" FontWeight="Bold" Foreground="#F472B6"/>
+                                    <TextBlock x:Name="txtKpiSheets" Text="--" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                    <TextBlock x:Name="txtKpiLevels" Text="-- Niveles" FontSize="10" Foreground="#71717A"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- Direct Cloud Export Button -->
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="SINCRONIZACIÓN CON SUPABASE" FontSize="10" FontWeight="Bold" Foreground="#A1A1AA" Margin="0,0,0,6"/>
+                                <TextBlock Text="1. Envía el modelo a Review App. 2. Carga y aplica los cambios de Sheets en cola." FontSize="10" Foreground="#71717A" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                <Button x:Name="btnSyncSupabaseNow" Style="{StaticResource PrimaryButton}" Content="☁️ 1. Sincronizar Modelo a Supabase" Click="BtnSyncSupabaseNow_Click" Margin="0,0,0,6"/>
+                                <Button x:Name="btnOpenSheetsQueue" Style="{StaticResource SecondaryButton}" Content="📥 2. Cargar y Aplicar Cola de Sheets" Click="BtnOpenSheetsQueue_Click" BorderBrush="#10B981" Foreground="#34D399"/>
+                                <ProgressBar x:Name="progSync" Height="4" Margin="0,6,0,0" IsIndeterminate="True" Visibility="Collapsed" Foreground="#5235EF"/>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- TAB 3: ⚡ ACCIONES RÁPIDAS -->
+            <TabItem Header="⚡ Acciones">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="6,8,6,8">
+
+                        <TextBlock Text="ACCESOS RÁPIDOS A MÓDULOS REVIEW" FontSize="10" FontWeight="Bold" Foreground="#A1A1AA" Margin="0,0,0,8"/>
+
+                        <Button Style="{StaticResource SecondaryButton}" Margin="0,0,0,6" HorizontalContentAlignment="Left" Padding="10,8" BorderBrush="#10B981" Click="BtnOpenSheetsQueue_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="📐" FontSize="14" Margin="0,0,8,0"/>
+                                <StackPanel>
+                                    <TextBlock Text="Cola de Cambios de Sheets (Review / MCP)" FontWeight="SemiBold" FontSize="11" Foreground="#34D399"/>
+                                    <TextBlock Text="Cargar, confirmar y aplicar numeración, nombres y categorías" FontSize="9" Foreground="#71717A"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Style="{StaticResource SecondaryButton}" Margin="0,0,0,6" HorizontalContentAlignment="Left" Padding="10,8" Click="BtnOpenLadrillos_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🧱" FontSize="14" Margin="0,0,8,0"/>
+                                <StackPanel>
+                                    <TextBlock Text="Gestor Familias de Ladrillos" FontWeight="SemiBold" FontSize="11" Foreground="#FFFFFF"/>
+                                    <TextBlock Text="Crear y configurar ladrillos tolete, hueco, morteros" FontSize="9" Foreground="#71717A"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Style="{StaticResource SecondaryButton}" Margin="0,0,0,6" HorizontalContentAlignment="Left" Padding="10,8" Click="BtnOpenPisos_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🪵" FontSize="14" Margin="0,0,8,0"/>
+                                <StackPanel>
+                                    <TextBlock Text="Gestor Piezas y Baldosas (Pisos)" FontWeight="SemiBold" FontSize="11" Foreground="#FFFFFF"/>
+                                    <TextBlock Text="Despiece, juntas de dilatación y zócalos" FontSize="9" Foreground="#71717A"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Style="{StaticResource SecondaryButton}" Margin="0,0,0,6" HorizontalContentAlignment="Left" Padding="10,8" Click="BtnOpenSteelDeck_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🔩" FontSize="14" Margin="0,0,8,0"/>
+                                <StackPanel>
+                                    <TextBlock Text="Gestor Steel Deck" FontWeight="SemiBold" FontSize="11" Foreground="#FFFFFF"/>
+                                    <TextBlock Text="Láminas colaborantes, perfiles y viguetas" FontSize="9" Foreground="#71717A"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Style="{StaticResource SecondaryButton}" Margin="0,0,0,6" HorizontalContentAlignment="Left" Padding="10,8" Click="BtnOpenSchedulesIA_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="📝" FontSize="14" Margin="0,0,8,0"/>
+                                <StackPanel>
+                                    <TextBlock Text="Asistente Tablas IA" FontWeight="SemiBold" FontSize="11" Foreground="#FFFFFF"/>
+                                    <TextBlock Text="Generar tablas de cómputo y cuantificación" FontSize="9" Foreground="#71717A"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Style="{StaticResource SecondaryButton}" Margin="0,0,0,6" HorizontalContentAlignment="Left" Padding="10,8" Click="BtnOpenGestorCategorias_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🏷️" FontSize="14" Margin="0,0,8,0"/>
+                                <StackPanel>
+                                    <TextBlock Text="Gestor de Categorías BIM" FontWeight="SemiBold" FontSize="11" Foreground="#FFFFFF"/>
+                                    <TextBlock Text="Mapeo de atributos y parámetros compartidos" FontSize="9" Foreground="#71717A"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Style="{StaticResource SecondaryButton}" Margin="0,0,0,6" HorizontalContentAlignment="Left" Padding="10,8" Click="BtnOpenWebApp_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🌐" FontSize="14" Margin="0,0,8,0"/>
+                                <StackPanel>
+                                    <TextBlock Text="Abrir Review Web App" FontWeight="SemiBold" FontSize="11" Foreground="#38BDF8"/>
+                                    <TextBlock Text="Visualizar modelo 3D y presupuesto en el navegador" FontSize="9" Foreground="#71717A"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Button>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- TAB 4: 📝 CONSOLA / LOGS -->
+            <TabItem Header="📝 Consola">
+                <Grid Margin="6,8,6,8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Margin="0,0,0,6">
+                        <TextBlock Text="LOG DE OPERACIONES &amp; MCP" FontSize="10" FontWeight="Bold" Foreground="#A1A1AA" VerticalAlignment="Center"/>
+                        <Button x:Name="btnClearLog" Style="{StaticResource SecondaryButton}" Content="Limpiar" HorizontalAlignment="Right" Padding="6,2" FontSize="9" Click="BtnClearLog_Click"/>
+                    </Grid>
+
+                    <Border Grid.Row="1" Background="#141416" BorderBrush="#27272A" BorderThickness="1" CornerRadius="6" Padding="6">
+                        <ScrollViewer x:Name="scrollLog" VerticalScrollBarVisibility="Auto">
+                            <TextBox x:Name="txtLogConsole" Background="Transparent" Foreground="#A1A1AA" BorderThickness="0" FontFamily="Consolas" FontSize="10" IsReadOnly="True" TextWrapping="Wrap"/>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+        </TabControl>
+    </Grid>
+</Page>

@@ -14,7 +14,18 @@
 
 ## 🛠️ Desglose de Funciones y Capacidades (Paso a Paso)
 
-El plugin se integra de manera nativa en la cinta de opciones (Ribbon) de Revit a través de la pestaña **📕 Review**, dividida en 4 módulos o paneles especializados:
+El plugin se integra de manera nativa en la cinta de opciones (Ribbon) de Revit a través de la pestaña **📕 Review**:
+
+---
+
+### 🎛️ 0. Panel Acoplable: Centro de Control BIM (`cmdToggleControlPanel`)
+
+Panel acoplable nativo (**Revit Dockable Pane**) integrado en la interfaz lateral de Revit (junto al Navegador de Proyectos / Propiedades), diseñado para ser el centro neurálgico de gestión y visualización de datos:
+* **Selector de Proyecto Cloud:** Conecta en vivo con Supabase para listar y cambiar el proyecto activo (`agora click clack`, `proyecto café`, etc.) y persistir la configuración.
+* **Métricas BIM en Tiempo Real:** Escaneo automático de muros ($m^2$ computados), pisos, vigas/columnas, tuberías/riego, habitaciones, tablas y láminas.
+* **Sincronización Directa:** Exportación con un solo clic a la base de datos central de Supabase.
+* **Gestión de Sesión:** Información del usuario autenticado, roles (Admin/Editor) y enlaces directos al servidor Bi-MCP local (puerto 8080).
+* **Consola de Operaciones:** Historial en vivo de operaciones, escaneos y eventos.
 
 ---
 

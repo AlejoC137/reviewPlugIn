@@ -1,34 +1,34 @@
-# Guía de Uso del Plugin en Revit 2027
+# Guía de Uso del Plugin en Revit 2025 / 2027
 
-Este documento detalla los pasos que debes seguir para compilar, instalar y usar el plugin dentro de Revit 2027.
+Este documento detalla los pasos que debes seguir para compilar, instalar y usar el plugin dentro de **Revit 2025** y **Revit 2027**.
 
 ## 1. Prerrequisitos
 
-*   **Revit 2027** instalado en tu computadora.
-*   **Visual Studio 2022** con soporte para desarrollo de escritorio con .NET.
-*   **Local Server en ejecución:** Antes de ejecutar el comando en Revit, asegúrate de que tu servidor local (Node/React/Python) esté encendido y respondiendo en la URL configurada (`http://localhost:3000/api/mcp-data`).
+*   **Autodesk Revit 2025** y/o **Revit 2027** instalado en tu computadora.
+*   **Visual Studio 2022** o **SDK de .NET 8.0 / 10.0**.
+*   **Local Server en ejecución (Opcional si usas MCP):** Asegúrate de que tus servicios locales o puente estén encendidos.
 
-## 2. Compilación e Instalación
+## 2. Compilación e Instalación Automática
 
-1.  Abre el archivo `RevitToSupabasePlugin.csproj` en Visual Studio 2022.
-2.  En el menú superior, ve a **Compilar** -> **Compilar solución** (o presiona `Ctrl + Shift + B`).
-3.  **¡Listo!** Gracias al evento Post-Build que configuramos previamente, los archivos compilados (`.dll` y `.addin`) se han copiado automáticamente a la carpeta correcta de complementos de Revit (`%AppData%\Autodesk\Revit\Addins\2025`).
+1.  Abre el archivo `RevitToSupabasePlugin.csproj` en Visual Studio (o ejecuta `Instalador.bat`).
+2.  Al compilar la solución (`Ctrl + Shift + B` o con `dotnet build`), el evento **Post-Build** copia automáticamente todos los archivos (`.dll`, `.addin`, íconos, bases de datos JSON y familias) a las dos carpetas de complementos:
+    *   `%AppData%\Autodesk\Revit\Addins\2025`
+    *   `%AppData%\Autodesk\Revit\Addins\2027`
 
 ## 3. Instalación para Usuarios Finales (Deploy)
 
-Si deseas compartir este plugin con otra persona (o instalarlo tú mismo sin tener que abrir Visual Studio), puedes crear un "paquete" con los archivos compilados:
-
-1.  Copia el archivo `RevitToSupabasePlugin.dll` y `Newtonsoft.Json.dll` desde `bin\Release\net10.0-windows\` (o Debug).
-2.  Copia el archivo `RevitToSupabasePlugin.addin`.
-3.  Copia el archivo `Instalador.bat`.
-4.  Pon todo en una misma carpeta, dásela a tu usuario y dile que simplemente haga **doble clic en Instalador.bat**. 
-
-El script `.bat` encontrará automáticamente los archivos y los ubicará en la carpeta correcta de su computadora.
+Si deseas compartir este plugin con otra persona (o instalarlo tú mismo sin tener que abrir Visual Studio):
+1.  Distribuye la carpeta con los archivos o el proyecto.
+2.  Ejecuta **`Instalador.bat`**.
+3.  El instalador te permitirá elegir:
+    *   **[1] Instalar en AMBAS (Revit 2025 y Revit 2027)** *(Recomendado)*
+    *   **[2] Solo Revit 2025**
+    *   **[3] Solo Revit 2027**
 
 ## 4. Ejecutar el Plugin en Revit
 
-1.  Abre **Revit 2027**.
-    *   *Nota:* La primera vez que abras Revit después de compilar, puede aparecer una advertencia de seguridad indicando que se ha cargado un nuevo complemento ("Unverified Publisher"). Selecciona **Cargar siempre** (Always Load).
+1.  Abre **Revit 2025** o **Revit 2027**.
+    *   *Nota:* La primera vez que abras Revit después de instalar, puede aparecer una advertencia de seguridad indicando que se ha cargado un nuevo complemento. Selecciona **Cargar siempre** (Always Load).
 2.  Abre un modelo existente o crea uno nuevo.
 3.  Dirígete a la pestaña superior llamada **Complementos** (o **Add-ins** si lo tienes en inglés).
 4.  Busca el panel llamado **Herramientas externas** (External Tools) y despliega el menú haciendo clic.

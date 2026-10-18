@@ -1,6 +1,9 @@
 @echo off
-title Instalador del Plugin Review para Revit 2027
+title Instalador del Plugin Review para Revit 2025 / 2027
 color 0B
+
+:: Asegurar que el SDK de .NET sea accesible si esta en el perfil del usuario
+if exist "%USERPROFILE%\.dotnet\dotnet.exe" set "PATH=%USERPROFILE%\.dotnet;%PATH%"
 
 if exist "%~dp0error.md" del "%~dp0error.md"
 
@@ -23,7 +26,7 @@ echo      '---------------------'
 echo.
 echo ============================================================
 echo         Bienvenido al Instalador de reviewPlugIn
-echo                   (Para Revit 2027)
+echo               (Compatible con Revit 2025 y 2027)
 echo ============================================================
 echo.
 echo  Funcionalidades incluidas en esta version:
@@ -60,9 +63,10 @@ if "%ERRORLEVEL%"=="0" (
     )
 )
 
-set /p user_choice="Deseas continuar con la instalacion? (S/N): "
+set "user_choice=S"
+set /p user_choice="Deseas continuar con la instalacion? (S/N) [Enter = S]: "
 
-if /I "%user_choice%" NEQ "S" (
+if /I not "%user_choice:~0,1%"=="S" (
     echo.
     echo Ok, instalacion cancelada por el usuario. Nos vemos pronto!
     pause
@@ -92,8 +96,6 @@ if exist "%~dp0RevitToSupabasePlugin.csproj" (
     echo ------------------------------------------------------------
 )
 
-set "ADDIN_FOLDER=%AppData%\Autodesk\Revit\Addins\2027"
-
 :: -----------------------------------------------------------
 :: Buscar los archivos compilados en diferentes ubicaciones
 :: -----------------------------------------------------------
@@ -101,79 +103,115 @@ set "DLL_PATH="
 set "ADDIN_PATH="
 set "BUILD_DIR="
 
-:: Caso 1: Los archivos estan en la misma carpeta que el .bat (Paquete distribuido a clientes)
 if exist "%~dp0RevitToSupabasePlugin.dll" (
     set "DLL_PATH=%~dp0RevitToSupabasePlugin.dll"
     set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
     set "BUILD_DIR=%~dp0"
-    echo [INFO] Modo: Paquete distribuido (archivos en la misma carpeta).
-) else if exist "%~dp0bin\Debug\net10.0-windows\RevitToSupabasePlugin.dll" (
-    :: Caso 2: Modo Debug (por defecto despues del dotnet build)
+    echo [INFO] Modo: Paquete distribuido - archivos en la misma carpeta
+    goto :FOUND_BUILD
+)
+if exist "%~dp0bin\Debug\net8.0-windows\RevitToSupabasePlugin.dll" (
+    set "DLL_PATH=%~dp0bin\Debug\net8.0-windows\RevitToSupabasePlugin.dll"
+    set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
+    set "BUILD_DIR=%~dp0bin\Debug\net8.0-windows\"
+    echo [INFO] Modo: Proyecto - Debug net8.0-windows
+    goto :FOUND_BUILD
+)
+if exist "%~dp0bin\Release\net8.0-windows\RevitToSupabasePlugin.dll" (
+    set "DLL_PATH=%~dp0bin\Release\net8.0-windows\RevitToSupabasePlugin.dll"
+    set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
+    set "BUILD_DIR=%~dp0bin\Release\net8.0-windows\"
+    echo [INFO] Modo: Proyecto - Release net8.0-windows
+    goto :FOUND_BUILD
+)
+if exist "%~dp0bin\Debug\net10.0-windows\RevitToSupabasePlugin.dll" (
     set "DLL_PATH=%~dp0bin\Debug\net10.0-windows\RevitToSupabasePlugin.dll"
     set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
     set "BUILD_DIR=%~dp0bin\Debug\net10.0-windows\"
-    echo [INFO] Modo: Proyecto (Debug).
-) else if exist "%~dp0bin\Release\net10.0-windows\RevitToSupabasePlugin.dll" (
-    :: Caso 3: Modo Release
+    echo [INFO] Modo: Proyecto - Debug net10.0-windows
+    goto :FOUND_BUILD
+)
+if exist "%~dp0bin\Release\net10.0-windows\RevitToSupabasePlugin.dll" (
     set "DLL_PATH=%~dp0bin\Release\net10.0-windows\RevitToSupabasePlugin.dll"
     set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
     set "BUILD_DIR=%~dp0bin\Release\net10.0-windows\"
-    echo [INFO] Modo: Proyecto (Release).
-) else (
-    color 0C
-    echo.
-    echo [ERROR] No se encontraron los archivos compilados del plugin.
-    echo.
-    echo  Soluciones posibles:
-    echo   1. Compila el proyecto en Visual Studio (Build ^> Build Solution).
-    echo   2. Asegurate de que el instalador este en la misma carpeta que
-    echo      'RevitToSupabasePlugin.dll' (para distribucion sin codigo fuente).
-    echo.
-    echo # Error de Instalacion > "%~dp0error.md"
-    echo No se encontraron los archivos compilados del plugin. >> "%~dp0error.md"
-    pause
-    exit /b
+    echo [INFO] Modo: Proyecto - Release net10.0-windows
+    goto :FOUND_BUILD
 )
+
+color 0C
+echo.
+echo [ERROR] No se encontraron los archivos compilados del plugin.
+echo.
+echo  Soluciones posibles:
+echo   1. Compila el proyecto en Visual Studio (Build ^> Build Solution).
+echo   2. Asegurate de que el instalador este en la misma carpeta que
+echo      'RevitToSupabasePlugin.dll' (para distribucion sin codigo fuente).
+echo.
+echo # Error de Instalacion > "%~dp0error.md"
+echo No se encontraron los archivos compilados del plugin. >> "%~dp0error.md"
+pause
+exit /b
+
+:FOUND_BUILD
+echo.
+echo ============================================================
+echo   Selecciona la version de Revit donde deseas instalar:
+echo     [1] AMBAS (Revit 2025 y Revit 2027) [Recomendado]
+echo     [2] Solo Revit 2025
+echo     [3] Solo Revit 2027
+echo ============================================================
+set "DEST_CHOICE=1"
+set /p DEST_CHOICE="Elige una opcion (1, 2 o 3) [Enter = 1]: "
+
+if "%DEST_CHOICE:~0,1%"=="2" (
+    call :DO_INSTALL 2025
+    goto :SUCCESS_END
+)
+if "%DEST_CHOICE:~0,1%"=="3" (
+    call :DO_INSTALL 2027
+    goto :SUCCESS_END
+)
+
+call :DO_INSTALL 2025
+call :DO_INSTALL 2027
+goto :SUCCESS_END
+
+:DO_INSTALL
+set "TARGET_REVIT=%~1"
+set "ADDIN_FOLDER=%AppData%\Autodesk\Revit\Addins\%TARGET_REVIT%"
 
 echo.
-echo Paso 1: Verificando directorio de destino en Revit 2027...
+echo ------------------------------------------------------------
+echo [Revit %TARGET_REVIT%] Iniciando copia de archivos...
+echo ------------------------------------------------------------
+
 if not exist "%ADDIN_FOLDER%" (
-    echo   - Creando la carpeta de Addins para Revit 2027...
+    echo   - Creando la carpeta de Addins para Revit %TARGET_REVIT%...
     mkdir "%ADDIN_FOLDER%"
 ) else (
-    echo   - La carpeta de Addins ya existe. Todo en orden.
+    echo   - Carpeta de Addins detectada: %ADDIN_FOLDER%
 )
 
-echo Paso 2: Copiando el manifiesto del plugin (.addin)...
+echo   - Copiando manifiesto .addin...
 copy /Y "%ADDIN_PATH%" "%ADDIN_FOLDER%\" >nul
-if errorlevel 1 (
-    echo   [AVISO] No se pudo copiar el archivo .addin.
-) else (
-    echo   - RevitToSupabasePlugin.addin copiado correctamente.
-)
 
-echo Paso 3: Copiando la DLL principal del plugin...
+echo   - Copiando DLL principal...
 copy /Y "%DLL_PATH%" "%ADDIN_FOLDER%\" >nul
 if errorlevel 1 (
     color 0C
-    echo   [ERROR CRITICO] No se pudo copiar la DLL principal. 
-    echo   Probablemente Revit todavia tiene el archivo bloqueado.
+    echo   [ERROR CRITICO] No se pudo copiar la DLL principal en Revit %TARGET_REVIT%.
+    echo   Revit podria estar en ejecucion y bloqueando el archivo.
     echo # Error de Instalacion > "%~dp0error.md"
-    echo No se pudo copiar la DLL principal. Revit podria estar bloqueando el archivo. >> "%~dp0error.md"
+    echo No se pudo copiar la DLL principal a %ADDIN_FOLDER%. >> "%~dp0error.md"
     pause
-    exit /b
-) else (
-    echo   - RevitToSupabasePlugin.dll copiado correctamente.
+    exit /b 1
 )
 
-echo Paso 4: Copiando dependencias (Newtonsoft.Json, etc.)...
+echo   - Copiando dependencias...
 if exist "%BUILD_DIR%Newtonsoft.Json.dll" (
     copy /Y "%BUILD_DIR%Newtonsoft.Json.dll" "%ADDIN_FOLDER%\" >nul
-    echo   - Newtonsoft.Json.dll copiado.
-) else (
-    echo   [AVISO] Newtonsoft.Json.dll no encontrado en la carpeta de compilacion.
 )
-
 for %%f in ("%BUILD_DIR%*.dll") do (
     if /I not "%%~nxf"=="RevitToSupabasePlugin.dll" (
         if /I not "%%~nxf"=="RevitAPI.dll" (
@@ -184,43 +222,44 @@ for %%f in ("%BUILD_DIR%*.dll") do (
     )
 )
 
-echo Paso 5: Copiando iconos de la interfaz...
-set "ICONS_COPIED=0"
+echo   - Copiando iconos...
 for %%f in ("%~dp0icon_*.png") do (
     copy /Y "%%f" "%ADDIN_FOLDER%\" >nul
-    set /a ICONS_COPIED+=1
 )
-:: Compatibilidad con nombre antiguo
 if exist "%~dp0icon.png" (
     copy /Y "%~dp0icon.png" "%ADDIN_FOLDER%\" >nul
 )
-echo   - Iconos copiados (icon_generador.png, icon_masivo.png, etc.).
 
-echo Paso 6: Copiando bases de datos y catalogos JSON...
+echo   - Sincronizando bases de datos JSON...
 for %%j in ("%~dp0*.json") do (
     copy /Y "%%j" "%ADDIN_FOLDER%\" >nul
 )
-echo   - Bases de datos JSON sincronizadas (TilesDB.json, BricksDB.json, SteelDecksDB.json).
 
-echo Paso 7: Copiando familias RFA del plugin...
+echo   - Copiando familias RFA...
 if exist "%~dp0Familias" (
     xcopy "%~dp0Familias\*.*" "%ADDIN_FOLDER%\Familias\" /Y /I /E /S >nul 2>&1
-    echo   - Carpeta Familias sincronizada.
 )
 for %%r in ("%~dp0*.rfa") do (
     copy /Y "%%r" "%ADDIN_FOLDER%\" >nul 2>&1
 )
-echo   - Familias RFA copiadas correctamente.
 
+echo   [OK] Plugin instalado correctamente para Revit %TARGET_REVIT%!
+exit /b 0
+
+:SUCCESS_END
 echo.
 color 0A
 echo ============================================================
-echo  [EXITO] Plugin Review actualizado e instalado correctamente!
+echo  [EXITO] Proceso completado exitosamente!
 echo.
-echo  Ubicacion de instalacion:
-echo    %ADDIN_FOLDER%
+if "%DEST_CHOICE:~0,1%"=="2" echo   [*] Revit 2025 - %AppData%\Autodesk\Revit\Addins\2025
+if "%DEST_CHOICE:~0,1%"=="3" echo   [*] Revit 2027 - %AppData%\Autodesk\Revit\Addins\2027
+if not "%DEST_CHOICE:~0,1%"=="2" if not "%DEST_CHOICE:~0,1%"=="3" (
+    echo   [*] Revit 2025 - %AppData%\Autodesk\Revit\Addins\2025
+    echo   [*] Revit 2027 - %AppData%\Autodesk\Revit\Addins\2027
+)
 echo.
-echo  Ya puedes iniciar Revit 2027 y usar el plugin.
+echo  Ya puedes abrir Revit y utilizar la pestana ARCA REVIEW.
 echo ============================================================
 echo.
 pause

@@ -16,6 +16,18 @@ namespace RevitToSupabasePlugin
         public Result OnStartup(UIControlledApplication application)
         {
             _uiApp = application;
+
+            // Registrar Panel Acoplable (Dockable Pane) de Review
+            try
+            {
+                var controlPanelPage = new ReviewControlPanelPage();
+                application.RegisterDockablePane(ReviewControlPanelPage.PaneId, "📕 Review - Centro de Control BIM", controlPanelPage);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error registrando Dockable Pane: {ex.Message}");
+            }
+
             InitializeRibbon(application);
 
             // Iniciar Servidor MCP Local de Revit (http://localhost:8080/mcp/)
@@ -126,6 +138,16 @@ namespace RevitToSupabasePlugin
                 {
                     return null!;
                 }
+            }
+
+            // --- Panel 0: 🎛️ Centro de Control ---
+            RibbonPanel panelControl = GetOrCreatePanel("🎛️ Centro de Control");
+            if (panelControl != null && panelControl.GetItems().Count == 0)
+            {
+                PushButtonData btnControl = CreateBtnData("cmdToggleControlPanel", "Panel de\nControl", "CommandToggleControlPanel", "icon_config_plantilla");
+                PushButtonData btnSyncSheets = CreateBtnData("cmdSyncSheetsQueue", "Cola de\nSheets", "CommandSyncSheets", "icon_export_metadata");
+                panelControl.AddItem(btnControl);
+                panelControl.AddItem(btnSyncSheets);
             }
 
             // --- Panel 1: 🤖 Generador IA ---

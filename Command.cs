@@ -140,7 +140,7 @@ namespace RevitToSupabasePlugin
 
             try
             {
-                SchedulesIAWindow window = new SchedulesIAWindow(uidoc.Document);
+                SchedulesIAWindow window = new SchedulesIAWindow(uidoc.Document, uidoc);
                 System.Windows.Interop.WindowInteropHelper helper = new System.Windows.Interop.WindowInteropHelper(window);
                 helper.Owner = uiapp.MainWindowHandle;
                 window.ShowDialog();

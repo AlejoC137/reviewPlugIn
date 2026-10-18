@@ -643,98 +643,136 @@ namespace RevitToSupabasePlugin
 
                     bool hasPega = GenerateJointMesh && jointInnerFt > 0.0005;
                     bool hasPerim = hasPerimJoint;
-                    double startOffsetU = (hasPerim ? jointPerimFt : 0.0) + offXFt;
-                    double startOffsetV = (hasPerim ? jointPerimFt : 0.0) + offYFt;
-                    double maxU = spanU - (hasPerim ? jointPerimFt : 0.0);
-                    double maxV = spanV - (hasPerim ? jointPerimFt : 0.0);
+                    double perimGap = hasPerim ? jointPerimFt : 0.0;
+                    double innerGap = hasPega ? jointInnerFt : 0.0;
 
-                    double currentV = startOffsetV;
-                    int rowIndex = 0;
+                    double stepU = tileLFt + innerGap;
+                    double stepV = tileWFt + innerGap;
+
+                    double netSpanU = spanU - (2.0 * perimGap);
+                    double netSpanV = spanV - (2.0 * perimGap);
+
+                    // 1. Cálculo de Desfase Simétrico respecto a los ejes centrales
+                    double remU = netSpanU % stepU;
+                    double remV = netSpanV % stepV;
+                    double firstCutU = (remU > 0.001) ? (remU / 2.0) : tileLFt;
+                    double firstCutV = (remV > 0.001) ? (remV / 2.0) : tileWFt;
+
+                    // Lista de posiciones U (inicio, fin, longitud) que cubren el 100% del vano neto
+                    var uStrips = new List<(double startU, double lenU, bool isCut)>();
+                    double curU = perimGap + offXFt;
+                    
+                    // Franja de remate inicial en U
+                    if (firstCutU > 0.005)
+                    {
+                        double actualFirstU = Math.Min(firstCutU, spanU - perimGap - curU);
+                        if (actualFirstU > 0.005)
+                        {
+                            uStrips.Add((curU, actualFirstU, actualFirstU < tileLFt - 0.005));
+                            curU += actualFirstU + innerGap;
+                        }
+                    }
+
+                    // Franjas intermedias enteras y remate final en U
+                    while (curU < (spanU - perimGap - 0.005))
+                    {
+                        double remaining = (spanU - perimGap) - curU;
+                        double itemLen = Math.Min(tileLFt, remaining);
+                        if (itemLen <= 0.005) break;
+
+                        bool isCut = (remaining < tileLFt - 0.005);
+                        uStrips.Add((curU, itemLen, isCut));
+                        curU += itemLen + innerGap;
+                    }
+
+                    // Lista de posiciones V (inicio, fin, longitud) que cubren el 100% del vano neto
+                    var vStrips = new List<(double startV, double lenV, bool isCut)>();
+                    double curV = perimGap + offYFt;
+
+                    // Franja de remate inicial en V
+                    if (firstCutV > 0.005)
+                    {
+                        double actualFirstV = Math.Min(firstCutV, spanV - perimGap - curV);
+                        if (actualFirstV > 0.005)
+                        {
+                            vStrips.Add((curV, actualFirstV, actualFirstV < tileWFt - 0.005));
+                            curV += actualFirstV + innerGap;
+                        }
+                    }
+
+                    // Franjas intermedias enteras y remate final en V
+                    while (curV < (spanV - perimGap - 0.005))
+                    {
+                        double remaining = (spanV - perimGap) - curV;
+                        double itemLen = Math.Min(tileWFt, remaining);
+                        if (itemLen <= 0.005) break;
+
+                        bool isCut = (remaining < tileWFt - 0.005);
+                        vStrips.Add((curV, itemLen, isCut));
+                        curV += itemLen + innerGap;
+                    }
+
+                    // 2. Generación de celdas combinando franjas U y V
                     var rowGroups = new List<List<TileLayoutItem>>();
 
-                    while (currentV < maxV - 0.0001)
+                    for (int r = 0; r < vStrips.Count; r++)
                     {
-                        double remainingV = maxV - currentV;
-                        double itemV = Math.Min(tileWFt, remainingV);
-                        bool isCutTop = (remainingV < tileWFt - 0.001);
-                        double topCut = isCutTop ? (tileWFt - itemV) : 0.0;
-                        if (itemV <= 0.001) break;
-
+                        var vStrip = vStrips[r];
                         var thisRow = new List<TileLayoutItem>();
 
-                        // Traba / Desfase entre filas (RunningBond / ThirdBond)
-                        double rowShiftU = 0.0;
-                        if (SelectedPattern == FloorPatternType.RunningBond50)
+                        for (int c = 0; c < uStrips.Count; c++)
                         {
-                            if (rowIndex % 2 != 0) rowShiftU = (tileLFt - (hasPega ? jointInnerFt : 0.0)) / 2.0;
-                        }
-                        else if (SelectedPattern == FloorPatternType.ThirdBond33)
-                        {
-                            rowShiftU = (rowIndex % 3) * ((tileLFt - (hasPega ? jointInnerFt : 0.0)) / 3.0);
-                        }
+                            var uStrip = uStrips[c];
 
-                        if (rowShiftU > 0.001)
-                        {
-                            double firstLen = Math.Min(rowShiftU, maxU - startOffsetU);
-                            if (firstLen > 0.005)
+                            double itemU = uStrip.lenU;
+                            double itemV = vStrip.lenV;
+                            double uPos = uStrip.startU;
+                            double vPos = vStrip.startV;
+
+                            XYZ ti_uv0 = new XYZ(uPos, vPos, 0.0);
+                            XYZ ti_uv1 = new XYZ(uPos + itemU, vPos, 0.0);
+                            XYZ ti_uv2 = new XYZ(uPos + itemU, vPos + itemV, 0.0);
+                            XYZ ti_uv3 = new XYZ(uPos, vPos + itemV, 0.0);
+                            List<XYZ> tiPolyUV = new List<XYZ> { ti_uv0, ti_uv1, ti_uv2, ti_uv3 };
+
+                            // Validación de intersección con el contorno del suelo
+                            int tiInsideCount = 0;
+                            for (int k = 0; k < 4; k++)
                             {
-                                double firstLatCut = tileLFt - firstLen;
-                                XYZ corner3D = host.LocalToWorld(new XYZ(startOffsetU, currentV, 0.0), normalTileOffset);
-                                XYZ center3D = host.LocalToWorld(new XYZ(startOffsetU + firstLen / 2.0, currentV + itemV / 2.0, 0.0), normalTileOffset);
-
-                                XYZ ft_p0 = host.LocalToWorld(new XYZ(startOffsetU, currentV, 0.0), normalTileOffset);
-                                XYZ ft_p1 = host.LocalToWorld(new XYZ(startOffsetU + firstLen, currentV, 0.0), normalTileOffset);
-                                XYZ ft_p2 = host.LocalToWorld(new XYZ(startOffsetU + firstLen, currentV + itemV, 0.0), normalTileOffset);
-                                XYZ ft_p3 = host.LocalToWorld(new XYZ(startOffsetU, currentV + itemV, 0.0), normalTileOffset);
-
-                                var firstTile = new TileLayoutItem
-                                {
-                                    IndexX = -1,
-                                    IndexY = rowIndex,
-                                    CenterU_Ft = startOffsetU + firstLen / 2.0,
-                                    CenterV_Ft = currentV + itemV / 2.0,
-                                    Center3D = center3D,
-                                    Corner3D = corner3D,
-                                    Normal3D = host.Normal3D,
-                                    DirectionU3D = host.BasisU,
-                                    DirectionV3D = host.BasisV,
-                                    Length_Ft = firstLen,
-                                    Width_Ft = itemV,
-                                    Thickness_Ft = tileHFt,
-                                    RotationRad = 0.0,
-                                    IsCut = true,
-                                    CutLat_Ft = firstLatCut,
-                                    CutTop_Ft = topCut,
-                                    ActualLength_Ft = firstLen,
-                                    ActualWidth_Ft = itemV,
-                                    Role = TileRole.CutEdge,
-                                    ActualAreaSqM = firstLen * itemV * 0.092903,
-                                    PolygonVertices3D = new List<XYZ> { ft_p0, ft_p1, ft_p2, ft_p3 },
-                                    HostFaceRef = host.HostFaceReference
-                                };
-                                LayoutTiles.Add(firstTile);
-                                thisRow.Add(firstTile);
-                                cutCount++;
-                                totalCutTilesArea += (firstLen * itemV * 0.092903);
+                                if (IsPointInPolygon2D(tiPolyUV[k], tilingBoundaryUV)) tiInsideCount++;
                             }
-                        }
+                            bool tiEdgesIntersect = DoPolygonsIntersect2D(tiPolyUV, tilingBoundaryUV);
+                            XYZ tiCenterUV = new XYZ(uPos + itemU / 2.0, vPos + itemV / 2.0, 0.0);
+                            bool tiCenterInside = IsPointInPolygon2D(tiCenterUV, tilingBoundaryUV);
 
-                        double currentU = startOffsetU + (rowShiftU > 0.001 ? (rowShiftU + (hasPega ? jointInnerFt : 0.0)) : 0.0);
-                        int colIndex = 0;
+                            if (tiInsideCount == 0 && !tiEdgesIntersect && !tiCenterInside) continue;
 
-                        while (currentU < maxU - 0.0001)
-                        {
-                            double remainingU = maxU - currentU;
-                            double itemU = Math.Min(tileLFt, remainingU);
-                            bool isCutLat = (remainingU < tileLFt - 0.001);
-                            double latCut = isCutLat ? (tileLFt - itemU) : 0.0;
-                            if (itemU <= 0.001) break;
+                            // Comprobación de huecos interiores
+                            bool isInsideVoid = false;
+                            if (host.InnerBoundariesUV != null && host.InnerBoundariesUV.Count > 0)
+                            {
+                                foreach (var inPoly in host.InnerBoundariesUV)
+                                {
+                                    if (inPoly.Count >= 3 && IsPointInPolygon2D(tiCenterUV, inPoly) && tiInsideCount == 4)
+                                    {
+                                        isInsideVoid = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (isInsideVoid) continue;
 
-                            XYZ corner3D = host.LocalToWorld(new XYZ(currentU, currentV, 0.0), normalTileOffset);
-                            XYZ center3D = host.LocalToWorld(new XYZ(currentU + itemU / 2.0, currentV + itemV / 2.0, 0.0), normalTileOffset);
+                            XYZ corner3D = host.LocalToWorld(ti_uv0, normalTileOffset);
+                            XYZ center3D = host.LocalToWorld(tiCenterUV, normalTileOffset);
 
-                            bool isCut = isCutLat || isCutTop;
-                            TileRole role = isCut ? ((isCutLat && isCutTop) ? TileRole.Corner : TileRole.CutEdge) : TileRole.Full;
+                            bool isCut = uStrip.isCut || vStrip.isCut || (tiInsideCount < 4) || tiEdgesIntersect;
+                            double cutLat = tileLFt - itemU;
+                            double cutTop = tileWFt - itemV;
+
+                            if (cutLat < 0.001) cutLat = 0.0;
+                            if (cutTop < 0.001) cutTop = 0.0;
+
+                            TileRole role = isCut ? ((cutLat > 0.001 && cutTop > 0.001) ? TileRole.Corner : TileRole.CutEdge) : TileRole.Full;
 
                             if (isCut)
                             {
@@ -747,17 +785,17 @@ namespace RevitToSupabasePlugin
                                 totalFullTilesArea += (itemU * itemV * 0.092903);
                             }
 
-                            XYZ ti_p0 = host.LocalToWorld(new XYZ(currentU, currentV, 0.0), normalTileOffset);
-                            XYZ ti_p1 = host.LocalToWorld(new XYZ(currentU + itemU, currentV, 0.0), normalTileOffset);
-                            XYZ ti_p2 = host.LocalToWorld(new XYZ(currentU + itemU, currentV + itemV, 0.0), normalTileOffset);
-                            XYZ ti_p3 = host.LocalToWorld(new XYZ(currentU, currentV + itemV, 0.0), normalTileOffset);
+                            XYZ ti_p0 = host.LocalToWorld(ti_uv0, normalTileOffset);
+                            XYZ ti_p1 = host.LocalToWorld(ti_uv1, normalTileOffset);
+                            XYZ ti_p2 = host.LocalToWorld(ti_uv2, normalTileOffset);
+                            XYZ ti_p3 = host.LocalToWorld(ti_uv3, normalTileOffset);
 
                             var tileItem = new TileLayoutItem
                             {
-                                IndexX = colIndex,
-                                IndexY = rowIndex,
-                                CenterU_Ft = currentU + itemU / 2.0,
-                                CenterV_Ft = currentV + itemV / 2.0,
+                                IndexX = c,
+                                IndexY = r,
+                                CenterU_Ft = uPos + itemU / 2.0,
+                                CenterV_Ft = vPos + itemV / 2.0,
                                 Center3D = center3D,
                                 Corner3D = corner3D,
                                 Normal3D = host.Normal3D,
@@ -766,28 +804,24 @@ namespace RevitToSupabasePlugin
                                 Length_Ft = itemU,
                                 Width_Ft = itemV,
                                 Thickness_Ft = tileHFt,
-                                RotationRad = 0.0,
+                                RotationRad = Math.Atan2(host.BasisU.Y, host.BasisU.X),
                                 IsCut = isCut,
-                                CutLat_Ft = latCut,
-                                CutTop_Ft = topCut,
+                                CutLat_Ft = cutLat,
+                                CutTop_Ft = cutTop,
                                 ActualLength_Ft = itemU,
                                 ActualWidth_Ft = itemV,
                                 Role = role,
                                 ActualAreaSqM = itemU * itemV * 0.092903,
+                                PolygonVerticesUV = tiPolyUV,
                                 PolygonVertices3D = new List<XYZ> { ti_p0, ti_p1, ti_p2, ti_p3 },
                                 HostFaceRef = host.HostFaceReference
                             };
+
                             LayoutTiles.Add(tileItem);
                             thisRow.Add(tileItem);
-
-                            currentU += (itemU + (hasPega ? jointInnerFt : 0.0));
-                            colIndex++;
                         }
 
                         if (thisRow.Count > 0) rowGroups.Add(thisRow);
-
-                        currentV += (itemV + (hasPega ? jointInnerFt : 0.0));
-                        rowIndex++;
                     }
 
                     // Generar Fraguas / Juntas (Idéntico a CommandConvertirMurosALadrillos)
@@ -800,14 +834,16 @@ namespace RevitToSupabasePlugin
                             if (rItems.Count == 0) continue;
 
                             double vMaxOfRow = rItems.Max(t => t.CenterV_Ft + t.Width_Ft / 2.0);
-                            double hLen = maxU - startOffsetU;
-                            XYZ jStart3D = host.LocalToWorld(new XYZ(startOffsetU, vMaxOfRow, 0.0), normalTileOffset);
-                            XYZ jEnd3D = host.LocalToWorld(new XYZ(maxU, vMaxOfRow, 0.0), normalTileOffset);
+                            double minRowU = rItems.Min(t => t.CenterU_Ft - t.Length_Ft / 2.0);
+                            double maxRowU = rItems.Max(t => t.CenterU_Ft + t.Length_Ft / 2.0);
+                            double hLen = maxRowU - minRowU;
+                            XYZ jStart3D = host.LocalToWorld(new XYZ(minRowU, vMaxOfRow, 0.0), normalTileOffset);
+                            XYZ jEnd3D = host.LocalToWorld(new XYZ(maxRowU, vMaxOfRow, 0.0), normalTileOffset);
 
-                            XYZ jh0 = host.LocalToWorld(new XYZ(startOffsetU, vMaxOfRow, 0.0), normalTileOffset);
-                            XYZ jh1 = host.LocalToWorld(new XYZ(maxU, vMaxOfRow, 0.0), normalTileOffset);
-                            XYZ jh2 = host.LocalToWorld(new XYZ(maxU, vMaxOfRow + jointInnerFt, 0.0), normalTileOffset);
-                            XYZ jh3 = host.LocalToWorld(new XYZ(startOffsetU, vMaxOfRow + jointInnerFt, 0.0), normalTileOffset);
+                            XYZ jh0 = host.LocalToWorld(new XYZ(minRowU, vMaxOfRow, 0.0), normalTileOffset);
+                            XYZ jh1 = host.LocalToWorld(new XYZ(maxRowU, vMaxOfRow, 0.0), normalTileOffset);
+                            XYZ jh2 = host.LocalToWorld(new XYZ(maxRowU, vMaxOfRow + jointInnerFt, 0.0), normalTileOffset);
+                            XYZ jh3 = host.LocalToWorld(new XYZ(minRowU, vMaxOfRow + jointInnerFt, 0.0), normalTileOffset);
 
                             LayoutJoints.Add(new JointLayoutItem
                             {
