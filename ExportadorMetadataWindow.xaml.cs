@@ -20,6 +20,15 @@ namespace RevitToSupabasePlugin
             _extEvent = extEvent;
             _handler = handler;
             _handler.SetWindowReference(this);
+
+            txtEmailDisplay.Text = AuthenticationService.IsLoggedIn 
+                ? AuthenticationService.UserEmail 
+                : "Modo Invitado (Sin sesión activa)";
+        }
+
+        private void BtnClose_Click(object sender, RoutedEventArgs e)
+        {
+            this.Close();
         }
 
         private void BtnPreview_Click(object sender, RoutedEventArgs e)
@@ -42,7 +51,7 @@ namespace RevitToSupabasePlugin
                     null
                 );
 
-                package.UserEmail = txtEmail.Text.Trim();
+                package.UserEmail = AuthenticationService.UserEmail;
 
                 string jsonPreview = JsonConvert.SerializeObject(package, Formatting.Indented);
                 txtPreview.Text = jsonPreview;
@@ -52,36 +61,6 @@ namespace RevitToSupabasePlugin
             {
                 txtPreview.Text = "Error al generar vista previa: " + ex.Message;
             }
-        }
-
-        private void BtnExport_Click(object sender, RoutedEventArgs e)
-        {
-            string email = txtEmail.Text.Trim();
-            if (string.IsNullOrEmpty(email))
-            {
-                System.Windows.MessageBox.Show("Por favor ingresa tu correo electrónico.", "Campo Requerido", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
-                return;
-            }
-
-            // Configurar manejador Nonica
-            _handler.UserEmail = email;
-            _handler.UserPassword = txtPassword.Password;
-            _handler.IncludeProjectInfo = chkProjectInfo.IsChecked == true;
-            _handler.IncludeSiteLocation = chkSiteLocation.IsChecked == true;
-            _handler.IncludeLevels = chkLevels.IsChecked == true;
-            _handler.IncludeCategorySummary = chkCategorySummary.IsChecked == true;
-            _handler.IncludeElementDetails = chkElementDetails.IsChecked == true;
-            _handler.IncludeRooms = chkRooms.IsChecked == true;
-            _handler.IncludeSchedules = chkSchedules.IsChecked == true;
-            _handler.IncludeSheetsAndViews = chkSheetsViews.IsChecked == true;
-            _handler.IncludeMaterials = chkMaterials.IsChecked == true;
-            _handler.IncludeWeb3dModel = chkWeb3dModel.IsChecked == true;
-
-            // Ocultar ventana principal
-            this.Hide();
-
-            // Disparar ExternalEvent
-            _extEvent.Raise();
         }
 
         private void BtnSaveJson_Click(object sender, RoutedEventArgs e)
@@ -170,7 +149,7 @@ namespace RevitToSupabasePlugin
         {
             try
             {
-                var ifcJsonDoc = IfcJsonExporterService.ExportDocumentToIfcJson(_doc, txtEmail.Text.Trim());
+                var ifcJsonDoc = IfcJsonExporterService.ExportDocumentToIfcJson(_doc, AuthenticationService.UserEmail);
                 string ifcJsonText = IfcJsonExporterService.ToJsonString(ifcJsonDoc);
                 txtPreview.Text = ifcJsonText;
 

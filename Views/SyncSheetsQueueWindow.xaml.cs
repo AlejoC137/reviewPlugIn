@@ -40,7 +40,7 @@ namespace reviewPlugIn.Views
             {
                 BtnRefreshQueue.IsEnabled = false;
                 BtnApplyChanges.IsEnabled = false;
-                TxtStatusLog.Text = "⏳ Conectando con Supabase para consultar colas de Sheets pendientes...";
+                TxtStatusLog.Text = "⏳ Conectando con Supabase para consultar solicitudes de cambios pendientes...";
 
                 string projName = _doc.ProjectInformation?.Name;
                 if (string.IsNullOrWhiteSpace(projName) || projName == "Project Name")
@@ -52,7 +52,7 @@ namespace reviewPlugIn.Views
                 if (_queues.Count > 0)
                 {
                     CmbQueues.SelectedIndex = 0;
-                    TxtStatusLog.Text = $"✔ Se encontraron {_queues.Count} cola(s) en Supabase. Revisa los cambios propuestos y haz clic en 'Confirmar y Aplicar Cambios en Revit'.";
+                    TxtStatusLog.Text = $"✔ Se encontraron {_queues.Count} solicitud(es) de cambios en Supabase. Revisa los cambios propuestos y haz clic en 'Confirmar y Aplicar Cambios en Revit'.";
                     BtnApplyChanges.IsEnabled = true;
                 }
                 else
@@ -60,8 +60,8 @@ namespace reviewPlugIn.Views
                     GridChanges.ItemsSource = null;
                     GridNewSheets.ItemsSource = null;
                     BorderNewSheets.Visibility = System.Windows.Visibility.Collapsed;
-                    TxtQueueSummaryBadge.Text = "Sin colas";
-                    TxtStatusLog.Text = "ℹ No hay colas de cambios de Sheets registradas en Supabase. Envía cambios desde Review Web (Documentos -> Gestión de Sheets) o desde el MCP de Gemini.";
+                    TxtQueueSummaryBadge.Text = "Sin cambios";
+                    TxtStatusLog.Text = "ℹ No hay solicitudes de cambios pendientes en Supabase. Envía cambios desde la App de Review (Láminas, parámetros o revisiones) o desde el MCP de Gemini.";
                 }
             }
             catch (Exception ex)

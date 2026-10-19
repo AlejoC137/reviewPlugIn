@@ -4,52 +4,68 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
       mc:Ignorable="d" 
-      d:DesignHeight="850" d:DesignWidth="360"
+      d:DesignHeight="880" d:DesignWidth="360"
       Title="Review Control Panel"
-      Background="#18181B" Foreground="#F4F4F5">
+      Background="#FCF9F4" Foreground="#1C1C19"
+      FontFamily="Segoe UI, Inter, sans-serif">
 
     <Page.Resources>
-        <!-- Card Style -->
+        <!-- ARCA REVIEW Color Palette -->
+        <SolidColorBrush x:Key="ArcaBg" Color="#FCF9F4"/>
+        <SolidColorBrush x:Key="ArcaSurface" Color="#F6F3EE"/>
+        <SolidColorBrush x:Key="ArcaSurfaceHighlight" Color="#E5E2DD"/>
+        <SolidColorBrush x:Key="ArcaPrimary" Color="#0F4369"/>
+        <SolidColorBrush x:Key="ArcaPrimaryContainer" Color="#D1E4F9"/>
+        <SolidColorBrush x:Key="ArcaInk" Color="#1C1C19"/>
+        <SolidColorBrush x:Key="ArcaMuted" Color="#72777F"/>
+        <SolidColorBrush x:Key="ArcaBorder" Color="#1C1C19"/>
+        <SolidColorBrush x:Key="ArcaOutlineVariant" Color="#C2C7CF"/>
+        <SolidColorBrush x:Key="ArcaSuccess" Color="#059669"/>
+        <SolidColorBrush x:Key="ArcaSuccessBg" Color="#D1FAE5"/>
+
+        <!-- Card Container Style (ARCA Blueprint Sharp Card) -->
         <Style x:Key="CardBorder" TargetType="Border">
-            <Setter Property="Background" Value="#222226"/>
-            <Setter Property="BorderBrush" Value="#333338"/>
+            <Setter Property="Background" Value="#F6F3EE"/>
+            <Setter Property="BorderBrush" Value="#1C1C19"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="CornerRadius" Value="0"/>
             <Setter Property="Padding" Value="10"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
         </Style>
 
-        <!-- KPI Card Border -->
+        <!-- KPI Metric Card (Technical Metric Box) -->
         <Style x:Key="KpiCard" TargetType="Border">
-            <Setter Property="Background" Value="#1F2024"/>
-            <Setter Property="BorderBrush" Value="#2D2E33"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#1C1C19"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="CornerRadius" Value="0"/>
             <Setter Property="Padding" Value="8"/>
-            <Setter Property="Margin" Value="3"/>
+            <Setter Property="Margin" Value="2"/>
         </Style>
 
-        <!-- Modern Action Button -->
+        <!-- Primary Action Button (Navy Blueprint) -->
         <Style x:Key="PrimaryButton" TargetType="Button">
-            <Setter Property="Background" Value="#5235EF"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Padding" Value="10,7"/>
-            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background" Value="#0F4369"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#1C1C19"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <Border x:Name="btnBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="0" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#6A4FF5"/>
+                                <Setter Property="Background" Value="#1C1C19"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#3F24D4"/>
+                                <Setter Property="Background" Value="#09283F"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -57,25 +73,30 @@
             </Setter>
         </Style>
 
-        <!-- Secondary Button -->
+        <!-- Secondary Button (Warm Surface + Ink Border) -->
         <Style x:Key="SecondaryButton" TargetType="Button">
-            <Setter Property="Background" Value="#2A2A30"/>
-            <Setter Property="Foreground" Value="#E4E4E7"/>
-            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Background" Value="#F6F3EE"/>
+            <Setter Property="Foreground" Value="#1C1C19"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="Padding" Value="8,5"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="BorderBrush" Value="#1C1C19"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="5" Padding="{TemplateBinding Padding}">
+                        <Border x:Name="btnBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="0" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#383840"/>
+                                <Setter Property="Background" Value="#E5E2DD"/>
+                                <Setter Property="BorderBrush" Value="#0F4369"/>
+                                <Setter Property="Foreground" Value="#0F4369"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#D1E4F9"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -83,36 +104,246 @@
             </Setter>
         </Style>
 
-        <!-- TabItem Style -->
+        <!-- Technical Action Card Button -->
+        <Style x:Key="ActionCardButton" TargetType="Button">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="#1C1C19"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#1C1C19"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="0" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#F6F3EE"/>
+                                <Setter Property="BorderBrush" Value="#0F4369"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#D1E4F9"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- TabItem Style (ARCA Blueprint Segmented Tabs) -->
         <Style TargetType="TabItem">
-            <Setter Property="Foreground" Value="#A1A1AA"/>
-            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#72777F"/>
+            <Setter Property="FontSize" Value="10"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Padding" Value="2,5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="TabBorder" Background="#18181B" BorderThickness="0,0,0,2" BorderBrush="Transparent" Margin="0,0,4,0" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <Border x:Name="TabBorder" Background="#F6F3EE" BorderThickness="1" BorderBrush="#C2C7CF" Margin="1,0,1,3" Padding="{TemplateBinding Padding}" CornerRadius="2">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <ContentPresenter.Resources>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                    </Style>
+                                </ContentPresenter.Resources>
+                            </ContentPresenter>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#5235EF"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
-                            </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Foreground" Value="#E4E4E7"/>
+                                <Setter TargetName="TabBorder" Property="Background" Value="#E5E2DD"/>
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#0F4369"/>
+                                <Setter Property="Foreground" Value="#1C1C19"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#0F4369"/>
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#0F4369"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- Technical CheckBox (Crisp Square Blueprint Check) -->
+        <Style x:Key="ArcaCheckBox" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#1C1C19"/>
+            <Setter Property="FontSize" Value="10.5"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,3"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <BulletDecorator Background="Transparent">
+                            <BulletDecorator.Bullet>
+                                <Border x:Name="BoxBorder" Width="15" Height="15" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1.5" CornerRadius="0">
+                                    <Path x:Name="CheckGlyph" Data="M 3 7 L 6 11 L 12 3" Stroke="#0F4369" StrokeThickness="2" Visibility="Collapsed"/>
+                                </Border>
+                            </BulletDecorator.Bullet>
+                            <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </BulletDecorator>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="CheckGlyph" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="BoxBorder" Property="Background" Value="#D1E4F9"/>
+                                <Setter TargetName="BoxBorder" Property="BorderBrush" Value="#0F4369"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="BoxBorder" Property="BorderBrush" Value="#0F4369"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Technical TextBox -->
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="#1C1C19"/>
+            <Setter Property="BorderBrush" Value="#1C1C19"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="CaretBrush" Value="#0F4369"/>
+            <Setter Property="SelectionBrush" Value="#0F4369"/>
+            <Setter Property="SelectionOpacity" Value="0.4"/>
+        </Style>
+
+        <!-- Robust ARCA ComboBox -->
+        <ControlTemplate x:Key="ArcaComboBoxToggleButton" TargetType="ToggleButton">
+            <Border x:Name="ToggleBorder" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1" CornerRadius="0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="22"/>
+                    </Grid.ColumnDefinitions>
+                    <Path Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M 0 0 L 4 4 L 8 0 Z" Fill="#0F4369"/>
+                </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="ToggleBorder" Property="BorderBrush" Value="#0F4369"/>
+                    <Setter TargetName="ToggleBorder" Property="Background" Value="#F6F3EE"/>
+                </Trigger>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter TargetName="ToggleBorder" Property="BorderBrush" Value="#0F4369"/>
+                    <Setter TargetName="ToggleBorder" Property="Background" Value="#E5E2DD"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <Style x:Key="ArcaComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Foreground" Value="#1C1C19"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#1C1C19"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="SnapsToDevicePixels" Value="True"/>
+                        <Setter Property="Foreground" Value="#1C1C19"/>
+                        <Setter Property="Background" Value="#FFFFFF"/>
+                        <Setter Property="Padding" Value="8,6"/>
+                        <Setter Property="Cursor" Value="Hand"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ComboBoxItem">
+                                    <Border x:Name="ItemBorder" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center">
+                                            <ContentPresenter.Resources>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=ComboBoxItem}}"/>
+                                                    <Setter Property="FontSize" Value="11"/>
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                </Style>
+                                            </ContentPresenter.Resources>
+                                        </ContentPresenter>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsHighlighted" Value="True">
+                                            <Setter TargetName="ItemBorder" Property="Background" Value="#D1E4F9"/>
+                                            <Setter Property="Foreground" Value="#0F4369"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="ItemBorder" Property="Background" Value="#0F4369"/>
+                                            <Setter Property="Foreground" Value="#FFFFFF"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton Template="{StaticResource ArcaComboBoxToggleButton}"
+                                          Focusable="False"
+                                          IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          ClickMode="Press"/>
+                            <ContentPresenter Name="ContentSite"
+                                              IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                              Margin="8,4,24,4"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Left">
+                                <ContentPresenter.Resources>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#1C1C19"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                        <Setter Property="FontSize" Value="11"/>
+                                    </Style>
+                                </ContentPresenter.Resources>
+                            </ContentPresenter>
+                            <Popup Name="PART_Popup"
+                                   Placement="Bottom"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="Slide">
+                                <Grid Name="DropDown"
+                                      SnapsToDevicePixels="True"
+                                      MinWidth="{TemplateBinding ActualWidth}"
+                                      MaxHeight="220">
+                                    <Border Background="#FFFFFF"
+                                            BorderBrush="#1C1C19"
+                                            BorderThickness="1"
+                                            Margin="0,1,0,4">
+                                        <Border.Effect>
+                                            <DropShadowEffect BlurRadius="4" ShadowDepth="2" Direction="270" Color="#1C1C19" Opacity="0.15"/>
+                                        </Border.Effect>
+                                        <ScrollViewer SnapsToDevicePixels="True">
+                                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Grid>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Page.Resources>
 
-    <Grid>
+    <Grid Background="#FCF9F4">
         <Grid.RowDefinitions>
-            <!-- Top Branded Line -->
+            <!-- Top Branded Technical Blue Line -->
             <RowDefinition Height="3"/>
             <!-- Header bar -->
             <RowDefinition Height="Auto"/>
@@ -123,10 +354,10 @@
         </Grid.RowDefinitions>
 
         <!-- Top Accent Line -->
-        <Rectangle Grid.Row="0" Fill="#5235EF"/>
+        <Rectangle Grid.Row="0" Fill="#0F4369"/>
 
         <!-- Header Bar -->
-        <Border Grid.Row="1" Background="#1F1F23" Padding="12,10" BorderBrush="#2D2D32" BorderThickness="0,0,0,1">
+        <Border Grid.Row="1" Background="#FCF9F4" Padding="12,10" BorderBrush="#1C1C19" BorderThickness="0,0,0,2">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -136,23 +367,23 @@
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="📕" FontSize="16" VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <StackPanel>
-                        <TextBlock Text="REVIEW CONTROL PANEL" FontWeight="Bold" FontSize="13" Foreground="#FFFFFF"/>
-                        <TextBlock Text="BIM Hub &amp; Cloud Manager" FontSize="10" Foreground="#A1A1AA"/>
+                        <TextBlock Text="REVIEW CONTROL PANEL" FontWeight="Bold" FontSize="13" Foreground="#0F4369"/>
+                        <TextBlock Text="BIM Hub &amp; Cloud Manager" FontSize="10" FontWeight="SemiBold" Foreground="#72777F"/>
                     </StackPanel>
                 </StackPanel>
 
                 <!-- Live Status Badges -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Background="#064E3B" CornerRadius="4" Padding="6,2" Margin="0,0,4,0" ToolTip="Servidor MCP Local Activo">
+                    <Border x:Name="badgeMcpStatus" Background="#D1FAE5" BorderBrush="#059669" BorderThickness="1" CornerRadius="0" Padding="6,2" Margin="0,0,4,0" ToolTip="Conexión Segura Review Cloud (HTTPS)">
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="6" Height="6" Fill="#10B981" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="MCP:8080" FontSize="9" FontWeight="Bold" Foreground="#6EE7B7"/>
+                            <Ellipse x:Name="dotMcpStatus" Width="6" Height="6" Fill="#10B981" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="txtBadgeMcpPort" Text="CLOUD:HTTPS" FontSize="9" FontWeight="Bold" Foreground="#065F46"/>
                         </StackPanel>
                     </Border>
-                    <Border Background="#1E1B4B" CornerRadius="4" Padding="6,2" ToolTip="Conectado a Supabase Cloud">
+                    <Border Background="#D1E4F9" BorderBrush="#0F4369" BorderThickness="1" CornerRadius="0" Padding="6,2" ToolTip="Conectado a Supabase Cloud">
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="6" Height="6" Fill="#6366F1" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="Cloud" FontSize="9" FontWeight="Bold" Foreground="#A5B4FC"/>
+                            <Ellipse Width="6" Height="6" Fill="#0F4369" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Cloud" FontSize="9" FontWeight="Bold" Foreground="#0F4369"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -160,7 +391,7 @@
         </Border>
 
         <!-- User & Session Card -->
-        <Border Grid.Row="2" Background="#18181B" Padding="12,8" BorderBrush="#27272A" BorderThickness="0,0,0,1">
+        <Border Grid.Row="2" Background="#F6F3EE" Padding="12,8" BorderBrush="#1C1C19" BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -168,41 +399,46 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Avatar Circle -->
-                <Border Width="30" Height="30" CornerRadius="15" Background="#5235EF" Margin="0,0,8,0">
-                    <TextBlock x:Name="txtAvatarInitials" Text="AR" FontWeight="Bold" FontSize="11" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <!-- Avatar Square -->
+                <Border Width="28" Height="28" Background="#0F4369" BorderBrush="#1C1C19" BorderThickness="1" CornerRadius="0" Margin="0,0,8,0">
+                    <TextBlock x:Name="txtAvatarInitials" Text="AR" FontWeight="Bold" FontSize="11" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
 
                 <!-- User Information -->
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock x:Name="txtUserName" Text="Usuario Review" FontWeight="SemiBold" FontSize="12" Foreground="#FFFFFF"/>
-                        <Border x:Name="badgeRole" Background="#312E81" CornerRadius="3" Padding="4,1" Margin="6,0,0,0" VerticalAlignment="Center">
-                            <TextBlock x:Name="txtUserRole" Text="ADMIN" FontSize="8" FontWeight="Bold" Foreground="#C7D2FE"/>
+                        <TextBlock x:Name="txtUserName" Text="Usuario Review" FontWeight="Bold" FontSize="12" Foreground="#1C1C19"/>
+                        <Border x:Name="badgeRole" Background="#0F4369" BorderBrush="#1C1C19" BorderThickness="1" CornerRadius="0" Padding="4,1" Margin="6,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="txtUserRole" Text="ADMIN" FontSize="8" FontWeight="Bold" Foreground="#FFFFFF"/>
                         </Border>
                     </StackPanel>
-                    <TextBlock x:Name="txtUserEmail" Text="usuario@review.com" FontSize="10" Foreground="#71717A" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="txtUserEmail" Text="usuario@review.com" FontSize="10" Foreground="#72777F" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
 
-                <!-- Login / Logout Action -->
+                <!-- Login / Logout Action (100% In-App) -->
                 <Button x:Name="btnToggleAuth" Grid.Column="2" Style="{StaticResource SecondaryButton}" Content="Cambiar Cuenta" Click="BtnToggleAuth_Click" VerticalAlignment="Center" Padding="6,4" FontSize="10"/>
             </Grid>
         </Border>
 
         <!-- Main Tabs -->
-        <TabControl Grid.Row="3" Background="#18181B" BorderThickness="0" Margin="4,4,4,4">
+        <TabControl x:Name="mainTabControl" Grid.Row="3" Background="#FCF9F4" BorderThickness="0" Margin="4,4,4,4">
+            <TabControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Rows="2" Columns="3"/>
+                </ItemsPanelTemplate>
+            </TabControl.ItemsPanel>
             
-            <!-- TAB 1: 📁 PROYECTO & CONFIGURACIÓN -->
-            <TabItem Header="📁 Proyecto">
+            <!-- TAB 1: 📁 PROYECTO -->
+            <TabItem Header="📁 Proyecto" ToolTip="Configuración del Proyecto y Supabase">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="6,8,6,8">
 
                         <!-- Active Revit Document -->
                         <Border Style="{StaticResource CardBorder}">
                             <StackPanel>
-                                <TextBlock Text="PROYECTO REVIT LOCAL" FontSize="10" FontWeight="Bold" Foreground="#A1A1AA" Margin="0,0,0,4"/>
-                                <TextBlock x:Name="txtRevitDocTitle" Text="Cargando modelo..." FontSize="13" FontWeight="Bold" Foreground="#38BDF8" TextWrapping="Wrap"/>
-                                <TextBlock x:Name="txtRevitDocNumber" Text="N° Proyecto: --" FontSize="10" Foreground="#71717A" Margin="0,2,0,0"/>
+                                <TextBlock Text="PROYECTO REVIT LOCAL" FontSize="10" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="txtRevitDocTitle" Text="Cargando modelo..." FontSize="13" FontWeight="Bold" Foreground="#1C1C19" TextWrapping="Wrap"/>
+                                <TextBlock x:Name="txtRevitDocNumber" Text="N° Proyecto: --" FontSize="10" Foreground="#72777F" Margin="0,2,0,0"/>
                             </StackPanel>
                         </Border>
 
@@ -210,11 +446,15 @@
                         <Border Style="{StaticResource CardBorder}">
                             <StackPanel>
                                 <Grid Margin="0,0,0,6">
-                                    <TextBlock Text="PROYECTO SUPABASE VINCULADO" FontSize="10" FontWeight="Bold" Foreground="#A1A1AA" VerticalAlignment="Center"/>
+                                    <TextBlock Text="PROYECTO SUPABASE VINCULADO" FontSize="10" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
                                     <Button x:Name="btnRefreshProjects" Style="{StaticResource SecondaryButton}" Content="🔄" Width="24" Height="22" HorizontalAlignment="Right" Padding="0" Click="BtnRefreshProjects_Click" ToolTip="Refrescar lista desde Supabase"/>
                                 </Grid>
 
-                                <ComboBox x:Name="cmbSupabaseProjects" Background="#27272A" Foreground="#FFFFFF" BorderBrush="#3F3F46" Padding="6,4" Margin="0,0,0,8" SelectionChanged="CmbSupabaseProjects_SelectionChanged">
+                                <ComboBox x:Name="cmbSupabaseProjects"
+                                          Style="{StaticResource ArcaComboBoxStyle}"
+                                          DisplayMemberPath="Name"
+                                          Margin="0,0,0,8"
+                                          SelectionChanged="CmbSupabaseProjects_SelectionChanged">
                                 </ComboBox>
 
                                 <Grid Margin="0,0,0,6">
@@ -223,8 +463,8 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="ID en Supabase:" FontSize="9" Foreground="#71717A"/>
-                                        <TextBlock x:Name="txtActiveProjectId" Text="a1234567-..." FontSize="10" Foreground="#E4E4E7" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="ID en Supabase:" FontSize="9" Foreground="#72777F"/>
+                                        <TextBlock x:Name="txtActiveProjectId" Text="a1234567-..." FontSize="10" FontWeight="Bold" FontFamily="Consolas, monospace" Foreground="#1C1C19" TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
                                     <Button x:Name="btnSaveProjectSelection" Grid.Column="1" Style="{StaticResource PrimaryButton}" Content="💾 Guardar" Padding="10,4" FontSize="10" Click="BtnSaveProjectSelection_Click"/>
                                 </Grid>
@@ -234,28 +474,28 @@
                         <!-- Disciplines Configuration Checklist -->
                         <Border Style="{StaticResource CardBorder}">
                             <StackPanel>
-                                <TextBlock Text="MÓDULOS ACTIVOS DEL PROYECTO" FontSize="10" FontWeight="Bold" Foreground="#A1A1AA" Margin="0,0,0,6"/>
+                                <TextBlock Text="MÓDULOS ACTIVOS DEL PROYECTO" FontSize="10" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,0,6"/>
 
-                                <CheckBox x:Name="chkModuloAlbanileria" Content="🧱 Albañilería &amp; Muros Despiezados" IsChecked="True" Foreground="#E4E4E7" FontSize="11" Margin="0,3"/>
-                                <CheckBox x:Name="chkModuloPisos" Content="🪵 Enchapes, Zócalos &amp; Pisos" IsChecked="True" Foreground="#E4E4E7" FontSize="11" Margin="0,3"/>
-                                <CheckBox x:Name="chkModuloSteel" Content="🔩 Steel Decks &amp; Conectores" IsChecked="True" Foreground="#E4E4E7" FontSize="11" Margin="0,3"/>
-                                <CheckBox x:Name="chkModuloRiego" Content="💧 Redes de Riego MEP" IsChecked="True" Foreground="#E4E4E7" FontSize="11" Margin="0,3"/>
-                                <CheckBox x:Name="chkModuloTablas" Content="📊 Cómputos &amp; Schedules IA" IsChecked="True" Foreground="#E4E4E7" FontSize="11" Margin="0,3"/>
-                                <CheckBox x:Name="chkModuloLaminas" Content="📐 Láminas &amp; Plumbing Sheet" IsChecked="True" Foreground="#E4E4E7" FontSize="11" Margin="0,3"/>
+                                <CheckBox x:Name="chkModuloAlbanileria" Style="{StaticResource ArcaCheckBox}" Content="🧱 Albañilería &amp; Muros Despiezados" IsChecked="True"/>
+                                <CheckBox x:Name="chkModuloPisos" Style="{StaticResource ArcaCheckBox}" Content="🪵 Enchapes, Zócalos &amp; Pisos" IsChecked="True"/>
+                                <CheckBox x:Name="chkModuloSteel" Style="{StaticResource ArcaCheckBox}" Content="🔩 Steel Decks &amp; Conectores" IsChecked="True"/>
+                                <CheckBox x:Name="chkModuloRiego" Style="{StaticResource ArcaCheckBox}" Content="💧 Redes de Riego MEP" IsChecked="True"/>
+                                <CheckBox x:Name="chkModuloTablas" Style="{StaticResource ArcaCheckBox}" Content="📊 Cómputos &amp; Schedules IA" IsChecked="True"/>
+                                <CheckBox x:Name="chkModuloLaminas" Style="{StaticResource ArcaCheckBox}" Content="📐 Láminas &amp; Plumbing Sheet" IsChecked="True"/>
                             </StackPanel>
                         </Border>
 
                         <!-- Tolerances / Preferences -->
                         <Border Style="{StaticResource CardBorder}">
                             <StackPanel>
-                                <TextBlock Text="PARÁMETROS DE DESPIECE &amp; TOLERANCIAS" FontSize="10" FontWeight="Bold" Foreground="#A1A1AA" Margin="0,0,0,6"/>
+                                <TextBlock Text="PARÁMETROS DE DESPIECE &amp; TOLERANCIAS" FontSize="10" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,0,6"/>
                                 <Grid Margin="0,2">
-                                    <TextBlock Text="Junta Mortero Pega (mm):" Foreground="#A1A1AA" FontSize="10" VerticalAlignment="Center"/>
-                                    <TextBox x:Name="txtJuntaPega" Text="10.0" Width="45" HorizontalAlignment="Right" Background="#27272A" Foreground="#FFFFFF" BorderBrush="#3F3F46" Padding="4,2" FontSize="10" TextAlignment="Center"/>
+                                    <TextBlock Text="Junta Mortero Pega (mm):" Foreground="#1C1C19" FontSize="10" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="txtJuntaPega" Text="10.0" Width="45" HorizontalAlignment="Right" Padding="4,2" FontSize="10" TextAlignment="Center"/>
                                 </Grid>
                                 <Grid Margin="0,4,0,2">
-                                    <TextBlock Text="Desperdicio Estimado (%):" Foreground="#A1A1AA" FontSize="10" VerticalAlignment="Center"/>
-                                    <TextBox x:Name="txtDesperdicio" Text="5.0" Width="45" HorizontalAlignment="Right" Background="#27272A" Foreground="#FFFFFF" BorderBrush="#3F3F46" Padding="4,2" FontSize="10" TextAlignment="Center"/>
+                                    <TextBlock Text="Desperdicio Estimado (%):" Foreground="#1C1C19" FontSize="10" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="txtDesperdicio" Text="5.0" Width="45" HorizontalAlignment="Right" Padding="4,2" FontSize="10" TextAlignment="Center"/>
                                 </Grid>
                             </StackPanel>
                         </Border>
@@ -264,8 +504,87 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- TAB 2: 📊 MÉTRICAS & SALUD BIM -->
-            <TabItem Header="📊 Métricas">
+            <!-- TAB 2: 📋 PLANTILLAS & MEGA-PROMPT (Requisitos compilados) -->
+            <TabItem Header="📋 Plantillas" ToolTip="Compilador de Plantillas, ID, Tablas de BM y Mega-Prompt">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="6,8,6,8">
+
+                        <!-- ID & Proyecto Vinculado -->
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="ID Y PROYECTO DE LA PLANTILLA" FontSize="10" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,0,4"/>
+                                <Grid Margin="0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Proyecto:" FontSize="10" Foreground="#72777F" Margin="0,0,6,0"/>
+                                    <TextBlock x:Name="txtPromptProjectName" Grid.Column="1" Text="agora click clack" FontWeight="Bold" FontSize="11" Foreground="#1C1C19"/>
+                                </Grid>
+                                <Grid Margin="0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="ID Supabase:" FontSize="10" Foreground="#72777F" Margin="0,0,6,0"/>
+                                    <TextBlock x:Name="txtPromptProjectId" Grid.Column="1" Text="a1234567-89ab-cdef-0123-456789abcdef" FontFamily="Consolas, monospace" FontSize="10" Foreground="#0F4369"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Tablas de BM (Base de Modelado / DB) -->
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,6">
+                                    <TextBlock Text="TABLAS DE BASE DE DATOS (BM)" FontSize="10" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button Content="✓ Todas" Style="{StaticResource SecondaryButton}" Padding="4,2" FontSize="9" Margin="0,0,4,0" Click="BtnSelectAllBmTables_Click"/>
+                                        <Button Content="✗ Ninguna" Style="{StaticResource SecondaryButton}" Padding="4,2" FontSize="9" Click="BtnDeselectAllBmTables_Click"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <CheckBox x:Name="chkBmPluginData" Style="{StaticResource ArcaCheckBox}" Content="plugin_project_data (Modelo &amp; Cuantificación)" IsChecked="True"/>
+                                <CheckBox x:Name="chkBmProjects" Style="{StaticResource ArcaCheckBox}" Content="projects (Metadatos del Proyecto)" IsChecked="True"/>
+                                <CheckBox x:Name="chkBmComponentes" Style="{StaticResource ArcaCheckBox}" Content="Catalogo_Componentes (Familias BIM)" IsChecked="True"/>
+                                <CheckBox x:Name="chkBmMateriales" Style="{StaticResource ArcaCheckBox}" Content="Materiales (Acabados &amp; Pega)" IsChecked="True"/>
+                                <CheckBox x:Name="chkBmTeam" Style="{StaticResource ArcaCheckBox}" Content="bep_team (Equipo BEP &amp; Roles)" IsChecked="False"/>
+                                <CheckBox x:Name="chkBmDict" Style="{StaticResource ArcaCheckBox}" Content="bim_dictionary (Estándares &amp; Parámetros)" IsChecked="False"/>
+                                <CheckBox x:Name="chkBmActions" Style="{StaticResource ArcaCheckBox}" Content="actions (Bitácora de Tareas)" IsChecked="False"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Generador de Mega-Prompt -->
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="COMPILADOR DE MEGA-PROMPT IA" FontSize="10" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,0,6"/>
+                                <TextBlock Text="Compila el ID de plantilla, tablas seleccionadas e información del modelo Revit en un prompt optimizado." FontSize="9.5" Foreground="#72777F" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button x:Name="btnCompileMegaPrompt" Grid.Column="0" Style="{StaticResource PrimaryButton}" Content="⚡ 1. Compilar Prompt" Click="BtnCompileMegaPrompt_Click" Margin="0,0,3,0"/>
+                                    <Button x:Name="btnCopyMegaPrompt" Grid.Column="1" Style="{StaticResource SecondaryButton}" Content="📋 2. Copiar Prompt" Click="BtnCopyMegaPrompt_Click" Margin="3,0,0,0" Background="#D1FAE5" BorderBrush="#059669" Foreground="#065F46"/>
+                                </Grid>
+
+                                <TextBox x:Name="txtMegaPromptResult" Height="140" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" FontFamily="Consolas, monospace" FontSize="9.5" Margin="0,4,0,8" Text="Presiona '⚡ 1. Compilar Prompt' para generar el Mega-Prompt completo con los datos de Supabase y Revit."/>
+
+                                <Button Style="{StaticResource ActionCardButton}" Click="BtnOpenPlantillasWin_Click" Margin="0,2,0,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="🚀" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Abrir Asistente Completo de Plantillas" FontSize="10" FontWeight="Bold"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- TAB 3: 📊 MÉTRICAS & SYNC UNIFICADO -->
+            <TabItem Header="📊 Métricas" ToolTip="Métricas del Modelo y Sincronización Solidificada">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="6,8,6,8">
 
@@ -276,8 +595,8 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="MÉTRICAS DEL MODELO ACTIVO" FontSize="11" FontWeight="Bold" Foreground="#FFFFFF"/>
-                                <TextBlock x:Name="txtLastScan" Text="Último escaneo: No escaneado" FontSize="9" Foreground="#71717A"/>
+                                <TextBlock Text="MÉTRICAS DEL MODELO ACTIVO" FontSize="11" FontWeight="Bold" Foreground="#1C1C19"/>
+                                <TextBlock x:Name="txtLastScan" Text="Último escaneo: No escaneado" FontSize="9" Foreground="#72777F"/>
                             </StackPanel>
                             <Button x:Name="btnRefreshMetrics" Grid.Column="1" Style="{StaticResource PrimaryButton}" Content="🔄 Escanear" Click="BtnRefreshMetrics_Click"/>
                         </Grid>
@@ -294,69 +613,65 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- Card 1: Muros -->
                             <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource KpiCard}">
                                 <StackPanel>
-                                    <TextBlock Text="🧱 MUROS" FontSize="9" FontWeight="Bold" Foreground="#A78BFA"/>
-                                    <TextBlock x:Name="txtKpiWalls" Text="--" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF"/>
-                                    <TextBlock x:Name="txtKpiWallArea" Text="-- m² sup." FontSize="10" Foreground="#71717A"/>
+                                    <TextBlock Text="🧱 MUROS" FontSize="9" FontWeight="Bold" Foreground="#0F4369"/>
+                                    <TextBlock x:Name="txtKpiWalls" Text="--" FontSize="18" FontWeight="Bold" Foreground="#1C1C19"/>
+                                    <TextBlock x:Name="txtKpiWallArea" Text="-- m² sup." FontSize="10" Foreground="#72777F"/>
                                 </StackPanel>
                             </Border>
 
-                            <!-- Card 2: Pisos -->
                             <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource KpiCard}">
                                 <StackPanel>
-                                    <TextBlock Text="🪵 PISOS / SUELOS" FontSize="9" FontWeight="Bold" Foreground="#34D399"/>
-                                    <TextBlock x:Name="txtKpiFloors" Text="--" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF"/>
-                                    <TextBlock x:Name="txtKpiFloorArea" Text="-- m² sup." FontSize="10" Foreground="#71717A"/>
+                                    <TextBlock Text="🪵 PISOS / SUELOS" FontSize="9" FontWeight="Bold" Foreground="#0F4369"/>
+                                    <TextBlock x:Name="txtKpiFloors" Text="--" FontSize="18" FontWeight="Bold" Foreground="#1C1C19"/>
+                                    <TextBlock x:Name="txtKpiFloorArea" Text="-- m² sup." FontSize="10" Foreground="#72777F"/>
                                 </StackPanel>
                             </Border>
 
-                            <!-- Card 3: Estructuras -->
                             <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource KpiCard}">
                                 <StackPanel>
-                                    <TextBlock Text="🔩 ESTRUCTURAS" FontSize="9" FontWeight="Bold" Foreground="#38BDF8"/>
-                                    <TextBlock x:Name="txtKpiStructural" Text="--" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF"/>
-                                    <TextBlock Text="Vigas / Columnas" FontSize="10" Foreground="#71717A"/>
+                                    <TextBlock Text="🔩 ESTRUCTURAS" FontSize="9" FontWeight="Bold" Foreground="#0F4369"/>
+                                    <TextBlock x:Name="txtKpiStructural" Text="--" FontSize="18" FontWeight="Bold" Foreground="#1C1C19"/>
+                                    <TextBlock Text="Vigas / Columnas" FontSize="10" Foreground="#72777F"/>
                                 </StackPanel>
                             </Border>
 
-                            <!-- Card 4: Riego / Fontanería -->
                             <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource KpiCard}">
                                 <StackPanel>
-                                    <TextBlock Text="💧 RIEGO / PIPES" FontSize="9" FontWeight="Bold" Foreground="#60A5FA"/>
-                                    <TextBlock x:Name="txtKpiPlumbing" Text="--" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF"/>
-                                    <TextBlock Text="Tramos / Válvulas" FontSize="10" Foreground="#71717A"/>
+                                    <TextBlock Text="💧 RIEGO / PIPES" FontSize="9" FontWeight="Bold" Foreground="#0F4369"/>
+                                    <TextBlock x:Name="txtKpiPlumbing" Text="--" FontSize="18" FontWeight="Bold" Foreground="#1C1C19"/>
+                                    <TextBlock Text="Tramos / Válvulas" FontSize="10" Foreground="#72777F"/>
                                 </StackPanel>
                             </Border>
 
-                            <!-- Card 5: Habitaciones -->
                             <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource KpiCard}">
                                 <StackPanel>
-                                    <TextBlock Text="🚪 HABITACIONES" FontSize="9" FontWeight="Bold" Foreground="#FBBF24"/>
-                                    <TextBlock x:Name="txtKpiRooms" Text="--" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF"/>
-                                    <TextBlock Text="Espacios arquitectónicos" FontSize="9" Foreground="#71717A"/>
+                                    <TextBlock Text="🚪 HABITACIONES" FontSize="9" FontWeight="Bold" Foreground="#0F4369"/>
+                                    <TextBlock x:Name="txtKpiRooms" Text="--" FontSize="18" FontWeight="Bold" Foreground="#1C1C19"/>
+                                    <TextBlock Text="Espacios arquitectónicos" FontSize="9" Foreground="#72777F"/>
                                 </StackPanel>
                             </Border>
 
-                            <!-- Card 6: Láminas & Niveles -->
                             <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource KpiCard}">
                                 <StackPanel>
-                                    <TextBlock Text="📐 LÁMINAS / PLANOS" FontSize="9" FontWeight="Bold" Foreground="#F472B6"/>
-                                    <TextBlock x:Name="txtKpiSheets" Text="--" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF"/>
-                                    <TextBlock x:Name="txtKpiLevels" Text="-- Niveles" FontSize="10" Foreground="#71717A"/>
+                                    <TextBlock Text="📐 LÁMINAS / PLANOS" FontSize="9" FontWeight="Bold" Foreground="#0F4369"/>
+                                    <TextBlock x:Name="txtKpiSheets" Text="--" FontSize="18" FontWeight="Bold" Foreground="#1C1C19"/>
+                                    <TextBlock x:Name="txtKpiLevels" Text="-- Niveles" FontSize="10" Foreground="#72777F"/>
                                 </StackPanel>
                             </Border>
                         </Grid>
 
-                        <!-- Direct Cloud Export Button -->
+                        <!-- Solidified Synchronization Center -->
                         <Border Style="{StaticResource CardBorder}">
                             <StackPanel>
-                                <TextBlock Text="SINCRONIZACIÓN CON SUPABASE" FontSize="10" FontWeight="Bold" Foreground="#A1A1AA" Margin="0,0,0,6"/>
-                                <TextBlock Text="1. Envía el modelo a Review App. 2. Carga y aplica los cambios de Sheets en cola." FontSize="10" Foreground="#71717A" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                                <Button x:Name="btnSyncSupabaseNow" Style="{StaticResource PrimaryButton}" Content="☁️ 1. Sincronizar Modelo a Supabase" Click="BtnSyncSupabaseNow_Click" Margin="0,0,0,6"/>
-                                <Button x:Name="btnOpenSheetsQueue" Style="{StaticResource SecondaryButton}" Content="📥 2. Cargar y Aplicar Cola de Sheets" Click="BtnOpenSheetsQueue_Click" BorderBrush="#10B981" Foreground="#34D399"/>
-                                <ProgressBar x:Name="progSync" Height="4" Margin="0,6,0,0" IsIndeterminate="True" Visibility="Collapsed" Foreground="#5235EF"/>
+                                <TextBlock Text="CENTRO DE SINCRONIZACIÓN SOLIDIFICADO" FontSize="10" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,0,4"/>
+                                <TextBlock Text="Un único pipeline de sincronización bidireccional vinculado a la cuenta activa." FontSize="9.5" Foreground="#72777F" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                                <Button x:Name="btnSyncSupabaseNow" Style="{StaticResource PrimaryButton}" Content="☁️ 1. Sincronizar Modelo Completo a Supabase" Click="BtnSyncSupabaseNow_Click" Margin="0,0,0,6"/>
+                                <Button x:Name="btnSyncMaterialsNow" Style="{StaticResource SecondaryButton}" Content="🎨 2. Sincronizar Materiales desde Review Cloud" Click="BtnSyncMaterialsNow_Click" Margin="0,0,0,6"/>
+                                <Button x:Name="btnOpenSheetsQueue" Style="{StaticResource SecondaryButton}" Content="📥 3. Cargar y Aplicar Cola de Sheets" Click="BtnOpenSheetsQueue_Click" Background="#D1FAE5" BorderBrush="#059669" Foreground="#065F46"/>
+                                <ProgressBar x:Name="progSync" Height="4" Margin="0,6,0,0" IsIndeterminate="True" Visibility="Collapsed" Foreground="#0F4369" Background="#E5E2DD"/>
                             </StackPanel>
                         </Border>
 
@@ -364,103 +679,245 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- TAB 3: ⚡ ACCIONES RÁPIDAS -->
-            <TabItem Header="⚡ Acciones">
+            <!-- TAB 4: 📤 EXPORTAR METADATA & ARCHIVOS (Sin sincronización con BD) -->
+            <TabItem x:Name="tabExportar" Header="📤 Exportar" ToolTip="Exportación de ifcJSON, Modelo 3D Web y Metadata completa a Archivos">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="6,8,6,8">
 
-                        <TextBlock Text="ACCESOS RÁPIDOS A MÓDULOS REVIEW" FontSize="10" FontWeight="Bold" Foreground="#A1A1AA" Margin="0,0,0,8"/>
-
-                        <Button Style="{StaticResource SecondaryButton}" Margin="0,0,0,6" HorizontalContentAlignment="Left" Padding="10,8" BorderBrush="#10B981" Click="BtnOpenSheetsQueue_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="📐" FontSize="14" Margin="0,0,8,0"/>
-                                <StackPanel>
-                                    <TextBlock Text="Cola de Cambios de Sheets (Review / MCP)" FontWeight="SemiBold" FontSize="11" Foreground="#34D399"/>
-                                    <TextBlock Text="Cargar, confirmar y aplicar numeración, nombres y categorías" FontSize="9" Foreground="#71717A"/>
-                                </StackPanel>
+                        <!-- Banner Explicativo -->
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="EXPORTADOR DE ARCHIVOS &amp; METADATA" FontSize="10" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,0,2"/>
+                                <TextBlock Text="Exportación directa a archivos locales para IA, estándares IFC y visores 3D Web. No realiza sincronizaciones innecesarias a la base de datos." FontSize="9.5" Foreground="#72777F" TextWrapping="Wrap"/>
+                                
+                                <Border Background="#D1E4F9" BorderBrush="#0F4369" BorderThickness="1" Padding="6,4" Margin="0,6,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="👤 Sesión Única:" FontSize="9.5" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,4,0"/>
+                                        <TextBlock x:Name="txtExportUserEmail" Grid.Column="1" Text="usuario@review.com" FontSize="9.5" Foreground="#1C1C19" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                    </Grid>
+                                </Border>
                             </StackPanel>
-                        </Button>
+                        </Border>
 
-                        <Button Style="{StaticResource SecondaryButton}" Margin="0,0,0,6" HorizontalContentAlignment="Left" Padding="10,8" Click="BtnOpenLadrillos_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="🧱" FontSize="14" Margin="0,0,8,0"/>
-                                <StackPanel>
-                                    <TextBlock Text="Gestor Familias de Ladrillos" FontWeight="SemiBold" FontSize="11" Foreground="#FFFFFF"/>
-                                    <TextBlock Text="Crear y configurar ladrillos tolete, hueco, morteros" FontSize="9" Foreground="#71717A"/>
-                                </StackPanel>
-                            </StackPanel>
-                        </Button>
+                        <!-- Acciones de Exportación Directa a Archivo -->
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="EXPORTACIÓN A ARCHIVOS LOCALES" FontSize="10" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,0,6"/>
 
-                        <Button Style="{StaticResource SecondaryButton}" Margin="0,0,0,6" HorizontalContentAlignment="Left" Padding="10,8" Click="BtnOpenPisos_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="🪵" FontSize="14" Margin="0,0,8,0"/>
-                                <StackPanel>
-                                    <TextBlock Text="Gestor Piezas y Baldosas (Pisos)" FontWeight="SemiBold" FontSize="11" Foreground="#FFFFFF"/>
-                                    <TextBlock Text="Despiece, juntas de dilatación y zócalos" FontSize="9" Foreground="#71717A"/>
-                                </StackPanel>
-                            </StackPanel>
-                        </Button>
+                                <!-- 1. ifcJSON -->
+                                <Button x:Name="btnExportIfcJson" Style="{StaticResource ActionCardButton}" Click="BtnExportIfcJson_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="28"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="🏗️" FontSize="14" VerticalAlignment="Center"/>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Exportar ifcJSON Standard (.ifcjson)" FontWeight="Bold" FontSize="10.5" Foreground="#0F4369"/>
+                                            <TextBlock Text="Formato abierto ifcJSON-4 para IA y visores BIM" FontSize="9" Foreground="#72777F"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
 
-                        <Button Style="{StaticResource SecondaryButton}" Margin="0,0,0,6" HorizontalContentAlignment="Left" Padding="10,8" Click="BtnOpenSteelDeck_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="🔩" FontSize="14" Margin="0,0,8,0"/>
-                                <StackPanel>
-                                    <TextBlock Text="Gestor Steel Deck" FontWeight="SemiBold" FontSize="11" Foreground="#FFFFFF"/>
-                                    <TextBlock Text="Láminas colaborantes, perfiles y viguetas" FontSize="9" Foreground="#71717A"/>
-                                </StackPanel>
-                            </StackPanel>
-                        </Button>
+                                <!-- 2. Modelo 3D Web -->
+                                <Button x:Name="btnExport3dModel" Style="{StaticResource ActionCardButton}" Click="BtnExport3dModel_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="28"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="🎨" FontSize="14" VerticalAlignment="Center"/>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Exportar Modelo 3D Web (.json)" FontWeight="Bold" FontSize="10.5" Foreground="#0F4369"/>
+                                            <TextBlock Text="Escena estilizada para Three.js / React Three Fiber" FontSize="9" Foreground="#72777F"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
 
-                        <Button Style="{StaticResource SecondaryButton}" Margin="0,0,0,6" HorizontalContentAlignment="Left" Padding="10,8" Click="BtnOpenSchedulesIA_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="📝" FontSize="14" Margin="0,0,8,0"/>
-                                <StackPanel>
-                                    <TextBlock Text="Asistente Tablas IA" FontWeight="SemiBold" FontSize="11" Foreground="#FFFFFF"/>
-                                    <TextBlock Text="Generar tablas de cómputo y cuantificación" FontSize="9" Foreground="#71717A"/>
-                                </StackPanel>
+                                <!-- 3. JSON Completo -->
+                                <Button x:Name="btnExportFullJson" Style="{StaticResource ActionCardButton}" Click="BtnExportFullJson_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="28"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="💾" FontSize="14" VerticalAlignment="Center"/>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Exportar JSON Completo de Metadata" FontWeight="Bold" FontSize="10.5" Foreground="#0F4369"/>
+                                            <TextBlock Text="Guarda el paquete completo de datos según el checklist" FontSize="9" Foreground="#72777F"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
                             </StackPanel>
-                        </Button>
+                        </Border>
 
-                        <Button Style="{StaticResource SecondaryButton}" Margin="0,0,0,6" HorizontalContentAlignment="Left" Padding="10,8" Click="BtnOpenGestorCategorias_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="🏷️" FontSize="14" Margin="0,0,8,0"/>
-                                <StackPanel>
-                                    <TextBlock Text="Gestor de Categorías BIM" FontWeight="SemiBold" FontSize="11" Foreground="#FFFFFF"/>
-                                    <TextBlock Text="Mapeo de atributos y parámetros compartidos" FontSize="9" Foreground="#71717A"/>
-                                </StackPanel>
-                            </StackPanel>
-                        </Button>
+                        <!-- Checklist de Contenido del Paquete JSON -->
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,6">
+                                    <TextBlock Text="CONTENIDO DEL PAQUETE DE METADATA" FontSize="10" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button Content="✓ Todos" Style="{StaticResource SecondaryButton}" Padding="4,2" FontSize="9" Margin="0,0,4,0" Click="BtnSelectAllExportChecks_Click"/>
+                                        <Button Content="✗ Ninguno" Style="{StaticResource SecondaryButton}" Padding="4,2" FontSize="9" Click="BtnDeselectAllExportChecks_Click"/>
+                                    </StackPanel>
+                                </Grid>
 
-                        <Button Style="{StaticResource SecondaryButton}" Margin="0,0,0,6" HorizontalContentAlignment="Left" Padding="10,8" Click="BtnOpenWebApp_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="🌐" FontSize="14" Margin="0,0,8,0"/>
-                                <StackPanel>
-                                    <TextBlock Text="Abrir Review Web App" FontWeight="SemiBold" FontSize="11" Foreground="#38BDF8"/>
-                                    <TextBlock Text="Visualizar modelo 3D y presupuesto en el navegador" FontSize="9" Foreground="#71717A"/>
-                                </StackPanel>
+                                <CheckBox x:Name="chkExpProjectInfo" Style="{StaticResource ArcaCheckBox}" Content="Información del Proyecto &amp; Dirección" IsChecked="True"/>
+                                <CheckBox x:Name="chkExpSiteLocation" Style="{StaticResource ArcaCheckBox}" Content="Ubicación / Georreferenciación (SiteLocation)" IsChecked="True"/>
+                                <CheckBox x:Name="chkExpLevels" Style="{StaticResource ArcaCheckBox}" Content="Niveles del Modelo" IsChecked="True"/>
+                                <CheckBox x:Name="chkExpCategorySummary" Style="{StaticResource ArcaCheckBox}" Content="Resumen por Categorías" IsChecked="True"/>
+                                <CheckBox x:Name="chkExpElementDetails" Style="{StaticResource ArcaCheckBox}" Content="Detalle Paramétrico de Elementos por ElementId" IsChecked="True"/>
+                                <CheckBox x:Name="chkExpRooms" Style="{StaticResource ArcaCheckBox}" Content="Habitaciones &amp; Espacios (Rooms)" IsChecked="True"/>
+                                <CheckBox x:Name="chkExpSchedules" Style="{StaticResource ArcaCheckBox}" Content="Tablas de Planificación / Datos (Schedules)" IsChecked="True"/>
+                                <CheckBox x:Name="chkExpSheets" Style="{StaticResource ArcaCheckBox}" Content="Planos &amp; Vistas (Sheets/Views)" IsChecked="True"/>
+                                <CheckBox x:Name="chkExpMaterials" Style="{StaticResource ArcaCheckBox}" Content="Materiales del Modelo" IsChecked="True"/>
+                                <CheckBox x:Name="chkExpWeb3d" Style="{StaticResource ArcaCheckBox}" Content="🌐 Escena 3D Web (FlatShading / Bajo Peso)" IsChecked="True"/>
                             </StackPanel>
-                        </Button>
+                        </Border>
+
+                        <!-- Vista Previa de Estructura JSON -->
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,6">
+                                    <TextBlock Text="VISTA PREVIA DEL PAQUETE JSON" FontSize="10" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button x:Name="btnPreviewExport" Style="{StaticResource SecondaryButton}" Content="🔍 Previsualizar" Padding="6,2" FontSize="9" Margin="0,0,4,0" Click="BtnPreviewExport_Click"/>
+                                        <Button x:Name="btnCopyExportPreview" Style="{StaticResource SecondaryButton}" Content="📋 Copiar" Padding="6,2" FontSize="9" Click="BtnCopyExportPreview_Click"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Border Background="#1C1C19" BorderBrush="#0F4369" BorderThickness="1" Padding="6">
+                                    <TextBox x:Name="txtExportPreview" Background="Transparent" Foreground="#E5E2DD" BorderThickness="0" FontFamily="Consolas, monospace" FontSize="9.5" Height="130" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Text="Presiona '🔍 Previsualizar' para inspeccionar la estructura del JSON en memoria antes de guardarlo a archivo."/>
+                                </Border>
+                            </StackPanel>
+                        </Border>
 
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
 
-            <!-- TAB 4: 📝 CONSOLA / LOGS -->
-            <TabItem Header="📝 Consola">
+            <!-- TAB 5: ☁️ REVIEW CLOUD & IA (Dentro del panel de control) -->
+            <TabItem x:Name="tabBiMcp" Header="☁️ Review IA" ToolTip="Conectividad Review Cloud (HTTPS) y Gestor de Cambios">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="6,8,6,8">
+
+                        <!-- Cloud Live Status -->
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,6">
+                                    <TextBlock Text="ARCA REVIEW CLOUD (HTTPS)" FontSize="10" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
+                                    <Border x:Name="boxMcpRunning" Background="#D1FAE5" BorderBrush="#059669" BorderThickness="1" Padding="6,2" HorizontalAlignment="Right">
+                                        <TextBlock x:Name="txtMcpRunningState" Text="🟢 EN LÍNEA (TLS/HTTPS)" FontSize="9" FontWeight="Bold" Foreground="#065F46"/>
+                                    </Border>
+                                </Grid>
+
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="Protocolo IA:" FontSize="10" Foreground="#72777F"/>
+                                    <TextBlock x:Name="txtMcpPort" Text="HTTPS Seguro / Supabase REST" HorizontalAlignment="Right" FontWeight="Bold" FontSize="10" Foreground="#1C1C19"/>
+                                </Grid>
+
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="Web App Review:" FontSize="10" Foreground="#72777F"/>
+                                    <TextBlock Text="https://arca-review.vercel.app" HorizontalAlignment="Right" FontFamily="Consolas" FontSize="9" Foreground="#0F4369"/>
+                                </Grid>
+
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="MCP Cloud Endpoint:" FontSize="10" Foreground="#72777F"/>
+                                    <TextBlock Text="https://arca-review.vercel.app/mcp" HorizontalAlignment="Right" FontFamily="Consolas" FontSize="9" Foreground="#0F4369"/>
+                                </Grid>
+
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="Usuario Vinculado:" FontSize="10" Foreground="#72777F"/>
+                                    <TextBlock x:Name="txtMcpActiveUser" Text="usuario@review.com" HorizontalAlignment="Right" FontWeight="Bold" FontSize="9.5" Foreground="#1C1C19"/>
+                                </Grid>
+
+                                <Button x:Name="btnPingMcp" Style="{StaticResource SecondaryButton}" Content="🔄 Probar Conexión Cloud (HTTPS)" Margin="0,8,0,0" Click="BtnPingMcp_Click"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Gemini & Gestor de Cambios Info -->
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,6">
+                                    <TextBlock Text="CONFIGURACIÓN REVIEW CLOUD (HTTPS)" FontSize="10" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
+                                    <Button x:Name="btnCopyMcpConfig" Style="{StaticResource SecondaryButton}" Content="📋 Copiar JSON" Padding="6,2" FontSize="9" HorizontalAlignment="Right" Click="BtnCopyMcpConfig_Click"/>
+                                </Grid>
+
+                                <TextBlock Text="El servidor HTTP local 8080 ha sido desmontado para evitar restricciones de seguridad de Gemini Desktop. La interacción segura ahora opera mediante la web app de Review / Supabase o mediante la ventana 'Acciones Directas IA'."
+                                           FontSize="9" Foreground="#5A5D62" TextWrapping="Wrap" Margin="0,0,0,6"/>
+
+                                <Border Background="#1C1C19" BorderBrush="#0F4369" BorderThickness="1" Padding="6">
+                                    <TextBox x:Name="txtMcpConfigJson" Background="Transparent" Foreground="#E5E2DD" BorderThickness="0" FontFamily="Consolas, monospace" FontSize="9.5" IsReadOnly="True" TextWrapping="Wrap"/>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- TAB 5: ⚡ MÓDULOS & CONSOLA -->
+            <TabItem Header="⚡ Módulos" ToolTip="Accesos Rápidos a Módulos Review y Consola">
                 <Grid Margin="6,8,6,8">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <Grid Margin="0,0,0,6">
-                        <TextBlock Text="LOG DE OPERACIONES &amp; MCP" FontSize="10" FontWeight="Bold" Foreground="#A1A1AA" VerticalAlignment="Center"/>
+                    <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                        <TextBlock Text="ACCESOS RÁPIDOS A MÓDULOS REVIEW" FontSize="10" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,0,6"/>
+
+                        <Button Style="{StaticResource ActionCardButton}" Click="BtnOpenLadrillos_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🧱" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Gestor Familias de Ladrillos" FontWeight="Bold" FontSize="10.5"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Style="{StaticResource ActionCardButton}" Click="BtnOpenPisos_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🪵" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Gestor Piezas y Baldosas (Pisos)" FontWeight="Bold" FontSize="10.5"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Style="{StaticResource ActionCardButton}" Click="BtnOpenSteelDeck_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🔩" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Gestor Steel Deck" FontWeight="Bold" FontSize="10.5"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Style="{StaticResource ActionCardButton}" Click="BtnOpenGestorCategorias_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🏷️" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Gestor de Categorías BIM" FontWeight="Bold" FontSize="10.5"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Style="{StaticResource ActionCardButton}" BorderBrush="#0F4369" Click="BtnOpenWebApp_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🌐" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Abrir Review Web App" FontWeight="Bold" FontSize="10.5" Foreground="#0F4369"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Console Header -->
+                    <Grid Grid.Row="1" Margin="0,4,0,4">
+                        <TextBlock Text="LOG DE OPERACIONES" FontSize="10" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
                         <Button x:Name="btnClearLog" Style="{StaticResource SecondaryButton}" Content="Limpiar" HorizontalAlignment="Right" Padding="6,2" FontSize="9" Click="BtnClearLog_Click"/>
                     </Grid>
 
-                    <Border Grid.Row="1" Background="#141416" BorderBrush="#27272A" BorderThickness="1" CornerRadius="6" Padding="6">
+                    <!-- Console Terminal Box -->
+                    <Border Grid.Row="2" Background="#1C1C19" BorderBrush="#0F4369" BorderThickness="1" CornerRadius="0" Padding="6">
                         <ScrollViewer x:Name="scrollLog" VerticalScrollBarVisibility="Auto">
-                            <TextBox x:Name="txtLogConsole" Background="Transparent" Foreground="#A1A1AA" BorderThickness="0" FontFamily="Consolas" FontSize="10" IsReadOnly="True" TextWrapping="Wrap"/>
+                            <TextBox x:Name="txtLogConsole" Background="Transparent" Foreground="#E5E2DD" BorderThickness="0" FontFamily="Consolas, monospace" FontSize="9.5" IsReadOnly="True" TextWrapping="Wrap"/>
                         </ScrollViewer>
                     </Border>
                 </Grid>

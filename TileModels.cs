@@ -183,14 +183,17 @@ namespace RevitToSupabasePlugin
         public bool IsPerimeter { get; set; }
         public bool IsVertical { get; set; }
         public XYZ Center3D { get; set; } = XYZ.Zero;
+        public XYZ Corner3D { get; set; } = XYZ.Zero;
         public XYZ StartPoint3D { get; set; } = XYZ.Zero;
         public XYZ EndPoint3D { get; set; } = XYZ.Zero;
+        public XYZ DirectionU3D { get; set; } = XYZ.BasisX;
         public XYZ Normal3D { get; set; } = XYZ.BasisZ;
         public double RotationRad { get; set; }
         public double LengthFt { get; set; }
         public double WidthFt { get; set; }
         public double DepthFt { get; set; }
         public string MaterialName { get; set; } = "Fragua";
+        public ElementId MaterialId { get; set; } = ElementId.InvalidElementId;
         public List<XYZ> PolygonVertices3D { get; set; } = new List<XYZ>();
         public Reference? HostFaceRef { get; set; }
     }
@@ -199,11 +202,16 @@ namespace RevitToSupabasePlugin
     {
         public XYZ StartPoint { get; set; } = XYZ.Zero;
         public XYZ EndPoint { get; set; } = XYZ.Zero;
+        public XYZ Corner3D { get; set; } = XYZ.Zero;
+        public XYZ Direction3D { get; set; } = XYZ.BasisX;
+        public XYZ Normal3D { get; set; } = XYZ.BasisZ;
         public double HeightFt { get; set; }
         public double ThicknessFt { get; set; }
         public double BevelFt { get; set; }
         public double BaseElevationFt { get; set; }
         public double LengthFt => StartPoint.DistanceTo(EndPoint);
         public string MaterialName { get; set; } = "Zócalo";
+        public ElementId MaterialId { get; set; } = ElementId.InvalidElementId;
+        public Reference? HostFaceRef { get; set; }
     }
 }

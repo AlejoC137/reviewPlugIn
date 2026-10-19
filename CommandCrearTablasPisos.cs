@@ -20,35 +20,7 @@ namespace RevitToSupabasePlugin
                 using (Transaction t = new Transaction(doc, "Crear Tablas de Cómputos de Enchapes"))
                 {
                     t.Start();
-
-                    // Asegurar que los parámetros compartidos de medición existan y estén vinculados en el proyecto
-                    MeasurementManager.EnsureMeasurementParameters(doc);
-
-                    // 1. Detectar en qué categorías existen elementos de enchape en el modelo actual
-                    List<BuiltInCategory> targetCategories = DetectPluginCategories(doc);
-
-                    // 2. Generar o actualizar las tablas para cada categoría activa (por defecto Suelos / OST_Floors)
-                    foreach (BuiltInCategory cat in targetCategories)
-                    {
-                        ElementId categoryId = new ElementId(cat);
-                        string suffix = cat == BuiltInCategory.OST_Walls ? " (Muros)" : "";
-
-                        // Tabla 1: Enchapes y Baldosas
-                        string tileSchedName = $"📊 Cómputo de Enchapes y Baldosas{suffix}";
-                        ViewSchedule schedTiles = CreateOrGetSchedule(doc, categoryId, tileSchedName);
-                        PopulateTileScheduleFields(doc, schedTiles);
-
-                        // Tabla 2: Pega, Mortero y Fragua
-                        string pegaSchedName = $"📊 Cómputo de Pega y Fragua{suffix}";
-                        ViewSchedule schedPega = CreateOrGetSchedule(doc, categoryId, pegaSchedName);
-                        PopulatePegaScheduleFields(doc, schedPega);
-
-                        // Tabla 3: Zócalos y Rodapiés
-                        string skirtingSchedName = $"📊 Cómputo de Zócalos y Rodapiés{suffix}";
-                        ViewSchedule schedSkirting = CreateOrGetSchedule(doc, categoryId, skirtingSchedName);
-                        PopulateSkirtingScheduleFields(doc, schedSkirting);
-                    }
-
+                    var cats = CreatePisosSchedules(doc);
                     t.Commit();
 
                     Autodesk.Revit.UI.TaskDialog.Show(
@@ -57,7 +29,7 @@ namespace RevitToSupabasePlugin
                         "• 📊 Cómputo de Enchapes y Baldosas (Área m² calculada por Medida_Area, piezas y cortes)\n" +
                         "• 📊 Cómputo de Pega y Fragua (Volumen m³ de mortero/fragua y tramos)\n" +
                         "• 📊 Cómputo de Zócalos y Rodapiés (Metros lineales de rodapié y despiece)\n\n" +
-                        "Categorías vinculadas: " + string.Join(", ", targetCategories.Select(c => c.ToString())));
+                        "Categorías vinculadas: " + string.Join(", ", cats.Select(c => c.ToString())));
                 }
                 return Result.Succeeded;
             }
@@ -68,7 +40,37 @@ namespace RevitToSupabasePlugin
             }
         }
 
-        private List<BuiltInCategory> DetectPluginCategories(Document doc)
+        public static List<BuiltInCategory> CreatePisosSchedules(Document doc)
+        {
+            MeasurementManager.EnsureMeasurementParameters(doc);
+
+            List<BuiltInCategory> targetCategories = DetectPluginCategories(doc);
+
+            foreach (BuiltInCategory cat in targetCategories)
+            {
+                ElementId categoryId = new ElementId(cat);
+                string suffix = cat == BuiltInCategory.OST_Walls ? " (Muros)" : "";
+
+                // Tabla 1: Enchapes y Baldosas
+                string tileSchedName = $"📊 Cómputo de Enchapes y Baldosas{suffix}";
+                ViewSchedule schedTiles = CreateOrGetSchedule(doc, categoryId, tileSchedName);
+                PopulateTileScheduleFields(doc, schedTiles);
+
+                // Tabla 2: Pega, Mortero y Fragua
+                string pegaSchedName = $"📊 Cómputo de Pega y Fragua{suffix}";
+                ViewSchedule schedPega = CreateOrGetSchedule(doc, categoryId, pegaSchedName);
+                PopulatePegaScheduleFields(doc, schedPega);
+
+                // Tabla 3: Zócalos y Rodapiés
+                string skirtingSchedName = $"📊 Cómputo de Zócalos y Rodapiés{suffix}";
+                ViewSchedule schedSkirting = CreateOrGetSchedule(doc, categoryId, skirtingSchedName);
+                PopulateSkirtingScheduleFields(doc, schedSkirting);
+            }
+
+            return targetCategories;
+        }
+
+        private static List<BuiltInCategory> DetectPluginCategories(Document doc)
         {
             HashSet<BuiltInCategory> detected = new HashSet<BuiltInCategory>();
 
@@ -91,7 +93,6 @@ namespace RevitToSupabasePlugin
                 }
             }
 
-            // Fallback arquitectónico: Por defecto los enchapes se modelan en Suelos (OST_Floors)
             if (detected.Count == 0)
             {
                 detected.Add(BuiltInCategory.OST_Floors);
@@ -100,7 +101,7 @@ namespace RevitToSupabasePlugin
             return detected.ToList();
         }
 
-        private ViewSchedule CreateOrGetSchedule(Document doc, ElementId catId, string scheduleName)
+        private static ViewSchedule CreateOrGetSchedule(Document doc, ElementId catId, string scheduleName)
         {
             var existing = new FilteredElementCollector(doc)
                 .OfClass(typeof(ViewSchedule))
@@ -114,7 +115,7 @@ namespace RevitToSupabasePlugin
             return vsNew;
         }
 
-        private void PopulateTileScheduleFields(Document doc, ViewSchedule schedule)
+        private static void PopulateTileScheduleFields(Document doc, ViewSchedule schedule)
         {
             ScheduleDefinition def = schedule.Definition;
             if (def.GetFieldOrder().Count > 0) return;
@@ -163,7 +164,7 @@ namespace RevitToSupabasePlugin
             def.ShowGrandTotalCount = true;
         }
 
-        private void PopulatePegaScheduleFields(Document doc, ViewSchedule schedule)
+        private static void PopulatePegaScheduleFields(Document doc, ViewSchedule schedule)
         {
             ScheduleDefinition def = schedule.Definition;
             if (def.GetFieldOrder().Count > 0) return;
@@ -198,7 +199,7 @@ namespace RevitToSupabasePlugin
             def.ShowGrandTotal = true;
         }
 
-        private void PopulateSkirtingScheduleFields(Document doc, ViewSchedule schedule)
+        private static void PopulateSkirtingScheduleFields(Document doc, ViewSchedule schedule)
         {
             ScheduleDefinition def = schedule.Definition;
             if (def.GetFieldOrder().Count > 0) return;

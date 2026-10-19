@@ -68,7 +68,7 @@ namespace RevitToSupabasePlugin
 
                 if (selectedRefs.Count == 0) return Result.Cancelled;
 
-                // 2. Extraer geometría y capas compuestas de los anfitriones seleccionados
+                // 2. Extraer geometría, Span Direction y capas compuestas de los anfitriones seleccionados
                 List<TilingHostInfo> hostInfos = new List<TilingHostInfo>();
 
                 foreach (Reference r in selectedRefs)
@@ -98,7 +98,7 @@ namespace RevitToSupabasePlugin
                     return Result.Cancelled;
                 }
 
-                // 3. Abrir Ventana de Configuración y Despiece
+                // 3. Abrir Ventana de Configuración y Despiece Cartesiano (0,0)
                 ConvertirPisosWindow window = new ConvertirPisosWindow(hostInfos, doc);
                 bool? dialogRes = window.ShowDialog();
 
@@ -107,12 +107,21 @@ namespace RevitToSupabasePlugin
                     return Result.Cancelled;
                 }
 
-                // 4. Cargar familias Face-Based reales desde Familias/Floors-Tiles/
-                FamilySymbol? tileSymbol = window.SelectedTile?.FamilySymbol ?? LoadOrFindFamilySymbol(doc, "Tiles Base", new[] { "Tiles Base" });
-                FamilySymbol? pegaSymbol = LoadOrFindFamilySymbol(doc, "Base Tiles Pega", new[] { "Base Tiles Pega" });
+                // 4. Cargar familias cargables (.rfa) desde Familias/Floors-Tiles/
+                FamilySymbol? tileSymbol = window.SelectedTile?.FamilySymbol ?? LoadOrFindFamilySymbol(doc, "Tiles Base", new[] { "Tiles Base", "Base Tiles" });
+                FamilySymbol? pegaSymbol = LoadOrFindFamilySymbol(doc, "Base Tiles Pega", new[] { "Base Tiles Pega", "Tiles Pega", "Pega Base" });
+                FamilySymbol? skirtingSymbol = LoadOrFindFamilySymbol(doc, "Zocalo Base", new[] { "Zocalo Base", "Base Zocalo", "Zocalo", "Base Tiles Zocalo", "Tiles Zocalo" }) ?? pegaSymbol ?? tileSymbol;
 
-                // 5. Instanciar en Revit dentro de una Transacción
-                using (Transaction t = new Transaction(doc, "Generar Enchapes, Capas y Fragua"))
+                if (tileSymbol == null)
+                {
+                    Autodesk.Revit.UI.TaskDialog.Show(
+                        "Familia Requerida",
+                        "No se encontró la familia cargable 'Tiles Base.rfa' en Familias/Floors-Tiles/. Asegúrate de que esté presente para instanciar el piso sin DirectShape.");
+                    return Result.Cancelled;
+                }
+
+                // 5. Instanciar en Revit dentro de una Transacción (100% Familias Cargables, CERO DirectShape)
+                using (Transaction t = new Transaction(doc, "Generar Piso por Familias desde (0,0)"))
                 {
                     t.Start();
 
@@ -125,24 +134,12 @@ namespace RevitToSupabasePlugin
                     // Asegurar parámetros de medición en el proyecto
                     MeasurementManager.EnsureMeasurementParameters(doc);
 
-                    ElementId categoryId = new ElementId(window.TargetSystemCategory);
-                    if (!DirectShape.IsValidCategoryId(categoryId, doc))
-                    {
-                        categoryId = new ElementId(BuiltInCategory.OST_GenericModel);
-                    }
                     ElementId tileMatId = window.TileMaterial?.Id ?? ElementId.InvalidElementId;
                     ElementId revoqueMatId = window.RevoqueMaterial?.Id ?? ElementId.InvalidElementId;
                     ElementId beddingMatId = window.BeddingMaterial?.Id ?? ElementId.InvalidElementId;
                     ElementId groutMatId = window.GroutMaterial?.Id ?? ElementId.InvalidElementId;
+                    ElementId perimMatId = window.PerimeterJointMaterial?.Id ?? groutMatId;
                     ElementId skirtingMatId = window.SkirtingMaterial?.Id ?? tileMatId;
-
-                    // Tipos de DirectShape con nombre explícito para la categoría destino (ej. Suelos)
-                    DirectShapeType? dsTypeFull = CategoryAssignmentService.GetOrCreateDirectShapeType(doc, categoryId, $"Baldosa {window.TileLengthCm:0.#}x{window.TileWidthCm:0.#}cm");
-                    DirectShapeType? dsTypeCut = CategoryAssignmentService.GetOrCreateDirectShapeType(doc, categoryId, $"Baldosa Cortada {window.TileLengthCm:0.#}x{window.TileWidthCm:0.#}cm");
-                    DirectShapeType? dsTypeJoint = CategoryAssignmentService.GetOrCreateDirectShapeType(doc, categoryId, "Fragua - Juntas");
-                    DirectShapeType? dsTypeMortero = CategoryAssignmentService.GetOrCreateDirectShapeType(doc, categoryId, "Mortero de Nivelación");
-                    DirectShapeType? dsTypeBedding = CategoryAssignmentService.GetOrCreateDirectShapeType(doc, categoryId, "Cama de Pega");
-                    DirectShapeType? dsTypeSkirting = CategoryAssignmentService.GetOrCreateDirectShapeType(doc, categoryId, "Zócalo Perimetral");
 
                     int createdTilesCount = 0;
                     int cutTilesCount = 0;
@@ -151,182 +148,100 @@ namespace RevitToSupabasePlugin
                     double revoqueFt = window.ModelRevoque ? (window.RevoqueThickCm / 100.0) * 3.28084 : 0.0;
                     double beddingFt = window.ModelBeddingMortar ? (window.BeddingThickMm / 1000.0) * 3.28084 : 0.0;
 
-                    // A. Modelar Capa de Mortero de Nivel / Solado / Revoque Base
+                    // A. Modelar Capa de Mortero de Nivel / Solado como Floor nativo de Revit (sin DirectShape)
                     if (window.ModelRevoque && revoqueFt > 0.001)
                     {
                         foreach (var host in window.SelectedHosts)
                         {
-                            List<XYZ> revBoundary;
-                            if (host.HostType == HostElementType.Floor)
+                            if (host.HostType == HostElementType.Floor && host.OuterCurveLoop != null && host.Level != null)
                             {
-                                // Mortero nivelador directamente sobre la losa
-                                double revOffset = 0.0;
-                                revBoundary = host.OuterBoundary3D.Select(p => p + host.Normal3D * revOffset).ToList();
-                            }
-                            else
-                            {
-                                revBoundary = host.OuterBoundary3D;
-                            }
-
-                            Solid? revSolid = CreatePrismFromPolygon(revBoundary, host.Normal3D, revoqueFt);
-                            if (revSolid != null)
-                            {
-                                DirectShape dsRev = DirectShape.CreateElement(doc, categoryId);
-                                dsRev.SetShape(new GeometryObject[] { revSolid });
-                                dsRev.Name = SanitizeRevitName($"Mortero Base - {host.Name}", "Mortero Base");
-
-                                if (dsTypeMortero != null)
+                                try
                                 {
-                                    try { dsRev.SetTypeId(dsTypeMortero.Id); } catch { }
+                                    ElementId floorTypeId = GetOrCreateLayerFloorType(doc, $"Mortero Base ({window.RevoqueThickCm:0.#}cm)", revoqueFt, revoqueMatId);
+                                    if (floorTypeId != ElementId.InvalidElementId)
+                                    {
+                                        Floor revFloor = Floor.Create(doc, new List<CurveLoop> { host.OuterCurveLoop }, floorTypeId, host.Level.Id);
+                                        Parameter? pOff = revFloor.get_Parameter(BuiltInParameter.FLOOR_HEIGHTABOVELEVEL_PARAM);
+                                        if (pOff != null && !pOff.IsReadOnly)
+                                        {
+                                            pOff.Set((host.ElevationFt - host.Level.Elevation) - tileHFt - beddingFt);
+                                        }
+                                        Parameter? pComm = revFloor.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                                        if (pComm != null && !pComm.IsReadOnly) pComm.Set("ENCHAPE-MORTERO-BASE");
+                                        MeasurementManager.MeasureAndApply(revFloor, null, customAreaSqFt: host.AreaSqM * 10.7639, customThicknessFt: revoqueFt, customVolumeCuFt: host.AreaSqM * 10.7639 * revoqueFt, units: 1);
+                                    }
                                 }
-
-                                Parameter pComm = dsRev.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                                if (pComm != null && !pComm.IsReadOnly) pComm.Set("ENCHAPE-MORTERO-BASE");
-
-                                if (revoqueMatId != ElementId.InvalidElementId)
-                                {
-                                    Parameter pMat = dsRev.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
-                                    if (pMat != null && !pMat.IsReadOnly) pMat.Set(revoqueMatId);
-                                }
-
-                                MeasurementManager.MeasureAndApply(dsRev, revSolid, customThicknessFt: revoqueFt);
+                                catch { }
                             }
                         }
                     }
 
-                    // B. Modelar Cama de Pega / Adhesivo
+                    // B. Modelar Cama de Pega / Adhesivo como Floor nativo de Revit (sin DirectShape)
                     if (window.ModelBeddingMortar && beddingFt > 0.0005)
                     {
-                        double jointPerimFt = (window.JointPerimMm / 1000.0) * 3.28084;
                         foreach (var host in window.SelectedHosts)
                         {
-                            List<XYZ> bedBoundary;
-                            if (host.HostType == HostElementType.Floor)
+                            if (host.HostType == HostElementType.Floor && host.OuterCurveLoop != null && host.Level != null)
                             {
-                                // Cama de pega con setback perimetral: queda estrictamente confinada dentro de la junta perimetral
-                                double bedOffset = revoqueFt;
-                                List<XYZ> boundaryUV = (host.TilingBoundaryUV != null && host.TilingBoundaryUV.Count >= 3)
-                                    ? host.TilingBoundaryUV
-                                    : InsetPolygon2D(host.OuterBoundaryUV, jointPerimFt);
-
-                                bedBoundary = boundaryUV.Select(uv => host.LocalToWorld(uv, bedOffset)).ToList();
-                            }
-                            else
-                            {
-                                bedBoundary = host.OuterBoundary3D.Select(p => p + host.Normal3D * revoqueFt).ToList();
-                            }
-
-                            Solid? bedSolid = CreatePrismFromPolygon(bedBoundary, host.Normal3D, beddingFt);
-                            if (bedSolid != null)
-                            {
-                                DirectShape dsBed = DirectShape.CreateElement(doc, categoryId);
-                                dsBed.SetShape(new GeometryObject[] { bedSolid });
-                                dsBed.Name = SanitizeRevitName($"Cama de Pega - {host.Name}", "Cama de Pega");
-
-                                if (dsTypeBedding != null)
+                                try
                                 {
-                                    try { dsBed.SetTypeId(dsTypeBedding.Id); } catch { }
+                                    ElementId floorTypeId = GetOrCreateLayerFloorType(doc, $"Cama de Pega ({window.BeddingThickMm:0.#}mm)", beddingFt, beddingMatId);
+                                    if (floorTypeId != ElementId.InvalidElementId)
+                                    {
+                                        Floor bedFloor = Floor.Create(doc, new List<CurveLoop> { host.OuterCurveLoop }, floorTypeId, host.Level.Id);
+                                        Parameter? pOff = bedFloor.get_Parameter(BuiltInParameter.FLOOR_HEIGHTABOVELEVEL_PARAM);
+                                        if (pOff != null && !pOff.IsReadOnly)
+                                        {
+                                            pOff.Set((host.ElevationFt - host.Level.Elevation) - tileHFt);
+                                        }
+                                        Parameter? pComm = bedFloor.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                                        if (pComm != null && !pComm.IsReadOnly) pComm.Set("ENCHAPE-PEGA-CAMA");
+                                        MeasurementManager.MeasureAndApply(bedFloor, null, customAreaSqFt: host.AreaSqM * 10.7639, customThicknessFt: beddingFt, customVolumeCuFt: host.AreaSqM * 10.7639 * beddingFt, units: 1);
+                                    }
                                 }
-
-                                Parameter pComm = dsBed.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                                if (pComm != null && !pComm.IsReadOnly) pComm.Set("ENCHAPE-PEGA-CAMA");
-
-                                if (beddingMatId != ElementId.InvalidElementId)
-                                {
-                                    Parameter pMat = dsBed.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
-                                    if (pMat != null && !pMat.IsReadOnly) pMat.Set(beddingMatId);
-                                }
-
-                                MeasurementManager.MeasureAndApply(dsBed, bedSolid, customThicknessFt: beddingFt);
+                                catch { }
                             }
                         }
                     }
 
-                    // C. Modelar Baldosas / Enchapes (Instanciación con Tiles Base.rfa para piezas enteras y cortadas)
+                    // C. Modelar Baldosas / Enchapes (Exclusivamente con familia cargable Tiles Base.rfa desde el (0,0) de cada celda)
                     if (window.ModelTiles)
                     {
                         InstantiateFloorTiles(
                             doc,
                             window,
                             tileSymbol,
-                            categoryId,
                             tileMatId,
-                            dsTypeFull,
-                            dsTypeCut,
                             hostInfos,
                             ref createdTilesCount,
                             ref cutTilesCount);
                     }
 
-                    // D. Modelar Juntas / Fragua (Sólidos exactos B-Rep con DirectShape, idéntico al mortero de Muros)
+                    // D. Modelar Juntas Perimetrales (5mm) e Internas (3-4mm) exclusivamente con familia cargable Base Tiles Pega.rfa
                     int jointCount = 0;
-                    if (window.GenerateJointMesh && window.LayoutJoints.Count > 0)
+                    if (window.GenerateJointMesh && window.LayoutJoints.Count > 0 && pegaSymbol != null)
                     {
-                        foreach (var j in window.LayoutJoints)
-                        {
-                            if (j.PolygonVertices3D != null && j.PolygonVertices3D.Count >= 3)
-                            {
-                                Solid? jSolid = CreatePrismFromPolygon(j.PolygonVertices3D, j.Normal3D, j.DepthFt);
-                                if (jSolid != null)
-                                {
-                                    DirectShape dsJ = DirectShape.CreateElement(doc, categoryId);
-                                    dsJ.SetShape(new GeometryObject[] { jSolid });
-                                    dsJ.Name = j.IsPerimeter ? "Junta Perimetral" : "Fragua de Junta";
-
-                                    if (dsTypeJoint != null)
-                                    {
-                                        try { dsJ.SetTypeId(dsTypeJoint.Id); } catch { }
-                                    }
-
-                                    Parameter pComm = dsJ.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                                    if (pComm != null && !pComm.IsReadOnly) pComm.Set(j.IsPerimeter ? "ENCHAPE-JUNTA-PERIMETRAL" : "ENCHAPE-PEGA-FRAGUA");
-
-                                    if (groutMatId != ElementId.InvalidElementId)
-                                    {
-                                        Parameter pMat = dsJ.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
-                                        if (pMat != null && !pMat.IsReadOnly) pMat.Set(groutMatId);
-                                    }
-
-                                    MeasurementManager.MeasureAndApply(dsJ, jSolid, customLengthFt: j.LengthFt, customWidthFt: j.WidthFt, customThicknessFt: j.DepthFt, units: 1);
-
-                                    jointCount++;
-                                }
-                            }
-                        }
+                        InstantiateFloorJoints(
+                            doc,
+                            window,
+                            pegaSymbol,
+                            groutMatId,
+                            perimMatId,
+                            hostInfos,
+                            ref jointCount);
                     }
 
-                    // E. Modelar Zócalos perimetrales sobre nivel de piso terminado
+                    // E. Modelar Zócalos perimetrales desde el (0,0) usando familia cargable
                     int skirtingSegCount = 0;
-                    if (window.EnableSkirting && window.SkirtingSegments.Count > 0)
+                    if (window.EnableSkirting && window.SkirtingSegments.Count > 0 && skirtingSymbol != null)
                     {
-                        foreach (var seg in window.SkirtingSegments)
-                        {
-                            Solid? skSolid = CreateSkirtingSolid(seg);
-                            if (skSolid != null)
-                            {
-                                DirectShape dsSk = DirectShape.CreateElement(doc, categoryId);
-                                dsSk.SetShape(new GeometryObject[] { skSolid });
-                                dsSk.Name = "Zocalo Perimetral";
-
-                                if (dsTypeSkirting != null)
-                                {
-                                    try { dsSk.SetTypeId(dsTypeSkirting.Id); } catch { }
-                                }
-
-                                Parameter pComm = dsSk.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                                if (pComm != null && !pComm.IsReadOnly) pComm.Set("ZOCALO-PERIMETRAL");
-
-                                if (skirtingMatId != ElementId.InvalidElementId)
-                                {
-                                    Parameter pMat = dsSk.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
-                                    if (pMat != null && !pMat.IsReadOnly) pMat.Set(skirtingMatId);
-                                }
-
-                                MeasurementManager.MeasureAndApply(dsSk, skSolid, customLengthFt: seg.LengthFt, units: 1);
-
-                                skirtingSegCount++;
-                            }
-                        }
+                        InstantiateFloorSkirting(
+                            doc,
+                            window,
+                            skirtingSymbol,
+                            skirtingMatId,
+                            hostInfos,
+                            ref skirtingSegCount);
                     }
 
                     // F. Eliminar Suelo Inicial si se seleccionó la opción de reemplazo total de torta de piso
@@ -349,15 +264,14 @@ namespace RevitToSupabasePlugin
 
                     Autodesk.Revit.UI.TaskDialog.Show(
                         "Enchapes Generados con Éxito",
-                        $"Se ha completado el modelado en Revit:\n\n" +
-                        $"• Modo de Geometría: {(window.PreferDirectShapeGeometry ? "DirectShape B-Rep (Fiel al Preview 3D)" : "Familias (.rfa) + Sólidos")}\n" +
-                        $"• Baldosas Enteras: {createdTilesCount} unidades\n" +
-                        $"• Baldosas Cortadas: {cutTilesCount} unidades\n" +
-                        $"• Fragua / Juntas 3D: {jointCount} tramos\n" +
+                        $"Se ha completado el modelado paramétrico desde el origen (0,0):\n\n" +
+                        $"• Modo de Geometría: 100% Familias Cargables (.rfa) [Cero DirectShape]\n" +
+                        $"• Baldosas Enteras (Tiles Base.rfa): {createdTilesCount} unidades\n" +
+                        $"• Baldosas con Recorte (Cut Lat / Cut Top): {cutTilesCount} unidades\n" +
+                        $"• Juntas / Pegas (Base Tiles Pega.rfa): {jointCount} tramos sin solape\n" +
                         $"• Mortero Base: {(window.ModelRevoque ? "Modelado (" + window.RevoqueThickCm + " cm)" : "No")}\n" +
                         $"• Cama de Pega: {(window.ModelBeddingMortar ? "Modelada (" + window.BeddingThickMm + " mm)" : "No")}\n" +
-                        $"• Zócalos sobre Piso: {skirtingSegCount} tramos\n" +
-                        $"• Categoría de Revit asignada: {window.TargetSystemCategory}");
+                        $"• Zócalos Perimetrales: {skirtingSegCount} tramos");
                 }
 
                 return Result.Succeeded;
@@ -370,209 +284,548 @@ namespace RevitToSupabasePlugin
         }
 
         // =========================================================================================
-        // NUEVA FUNCIÓN: Instanciación Unificada Basada en Esquina (0,0) para Tiles Base.rfa
+        // INSTANCIACIÓN DE BALDOSAS: Tiles Base.rfa desde el (0,0) de cada espacio entre juntas
         // =========================================================================================
         private void InstantiateFloorTiles(
             Document doc,
             ConvertirPisosWindow window,
             FamilySymbol? tileSymbol,
-            ElementId categoryId,
             ElementId tileMatId,
-            DirectShapeType? dsTypeFull,
-            DirectShapeType? dsTypeCut,
             List<TilingHostInfo> hostInfos,
             ref int createdTilesCount,
             ref int cutTilesCount)
         {
-            if (window.LayoutTiles == null || window.LayoutTiles.Count == 0) return;
+            if (window.LayoutTiles == null || window.LayoutTiles.Count == 0 || tileSymbol == null) return;
 
-            // Asegurar parámetros dimensionales nominales en el símbolo de familia
-            if (tileSymbol != null)
-            {
-                try
-                {
-                    if (!tileSymbol.IsActive) tileSymbol.Activate();
-                    double nomLFt = (window.TileLengthCm / 100.0) * 3.28084;
-                    double nomWFt = (window.TileWidthCm / 100.0) * 3.28084;
-                    double nomTFt = (window.TileThickCm / 100.0) * 3.28084;
+            double nomLFt = (window.TileLengthCm / 100.0) * 3.28084;
+            double nomWFt = (window.TileWidthCm / 100.0) * 3.28084;
+            double nomTFt = (window.TileThickCm / 100.0) * 3.28084;
 
-                    // En Tiles Base.rfa: Width es X, Lenght es Y
-                    SetParameterValue(tileSymbol, new[] { "Width", "Ancho" }, nomLFt);
-                    SetParameterValue(tileSymbol, new[] { "Lenght", "Length", "Largo" }, nomWFt);
-                    SetParameterValue(tileSymbol, new[] { "Thickness", "Height", "Espesor" }, nomTFt);
-                }
-                catch { }
-            }
+            // Configurar o duplicar el tipo de familia Tiles Base.rfa con las dimensiones nominales exactas
+            FamilySymbol activeTileSymbol = GetOrCreateConfiguredSymbol(
+                doc,
+                tileSymbol,
+                $"Tiles Base {window.TileLengthCm:0.#}x{window.TileWidthCm:0.#}x{window.TileThickCm:0.#}cm",
+                nomLFt,
+                nomWFt,
+                nomTFt,
+                tileMatId);
 
             foreach (var tile in window.LayoutTiles)
             {
-                if (tile.Length_Ft <= 0.001 || tile.Width_Ft <= 0.001) continue;
+                if (tile.ActualLength_Ft <= 0.001 || tile.ActualWidth_Ft <= 0.001) continue;
 
-                bool placedAsFamily = false;
-
-                // 1. Instanciación con Familia Nativa (Tanto para baldosas enteras como cortadas ortogonalmente)
-                if (!window.PreferDirectShapeGeometry && tileSymbol != null)
+                try
                 {
-                    try
+                    FamilyInstance? inst = null;
+
+                    // El origen de Tiles Base.rfa es el (0,0) inferior-izquierdo de la baldosa
+                    XYZ placePoint = tile.Corner3D;
+
+                    if (tile.HostFaceRef != null)
                     {
-                        FamilyInstance? inst = null;
-
-                        // En Tiles Base.rfa el origen está en la esquina inferior izquierda (0,0)
-                        XYZ placePoint = tile.Corner3D;
-
-                        if (tile.HostFaceRef != null)
+                        Element hostElem = doc.GetElement(tile.HostFaceRef.ElementId);
+                        if (hostElem != null)
                         {
-                            Element hostElem = doc.GetElement(tile.HostFaceRef.ElementId);
-                            if (hostElem != null)
+                            Face? planarFace = hostElem.GetGeometryObjectFromReference(tile.HostFaceRef) as Face;
+                            if (planarFace != null)
                             {
-                                Face? planarFace = hostElem.GetGeometryObjectFromReference(tile.HostFaceRef) as Face;
-                                if (planarFace != null)
+                                IntersectionResult proj = planarFace.Project(tile.Corner3D);
+                                if (proj != null)
                                 {
-                                    IntersectionResult proj = planarFace.Project(tile.Corner3D);
-                                    if (proj != null)
-                                    {
-                                        placePoint = proj.XYZPoint;
-                                    }
+                                    placePoint = proj.XYZPoint;
                                 }
                             }
+                        }
 
+                        inst = doc.Create.NewFamilyInstance(
+                            tile.HostFaceRef,
+                            placePoint,
+                            tile.DirectionU3D,
+                            activeTileSymbol);
+                    }
+
+                    // Fallback por nivel si no existiese referencia de cara
+                    if (inst == null)
+                    {
+                        Level? hostLevel = hostInfos.FirstOrDefault()?.Level;
+                        if (hostLevel != null)
+                        {
                             inst = doc.Create.NewFamilyInstance(
-                                tile.HostFaceRef,
                                 placePoint,
-                                tile.DirectionU3D,
-                                tileSymbol);
-                        }
+                                activeTileSymbol,
+                                hostLevel,
+                                Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
 
-                        // Fallback por nivel si no existiese referencia de cara
-                        if (inst == null && tile.HostFaceRef == null)
-                        {
-                            Level? hostLevel = hostInfos.FirstOrDefault()?.Level;
-                            if (hostLevel != null)
+                            if (inst != null && Math.Abs(tile.RotationRad) > 1e-4)
                             {
-                                inst = doc.Create.NewFamilyInstance(
-                                    placePoint,
-                                    tileSymbol,
-                                    hostLevel,
-                                    Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
-
-                                if (inst != null && Math.Abs(tile.RotationRad) > 1e-4)
-                                {
-                                    Line rotAxis = Line.CreateBound(placePoint, placePoint + tile.Normal3D);
-                                    ElementTransformUtils.RotateElement(doc, inst.Id, rotAxis, tile.RotationRad);
-                                }
+                                Line rotAxis = Line.CreateBound(placePoint, placePoint + tile.Normal3D);
+                                ElementTransformUtils.RotateElement(doc, inst.Id, rotAxis, tile.RotationRad);
                             }
-                        }
-
-                        if (inst != null)
-                        {
-                            // Asignación de dimensiones nominales en ejemplar
-                            SetParameterValueInstanceOnly(inst, new[] { "Width", "Ancho", "Width (default)", "Ancho (default)" }, (window.TileLengthCm / 100.0) * 3.28084);
-                            SetParameterValueInstanceOnly(inst, new[] { "Lenght", "Length", "Largo", "Lenght (default)", "Length (default)" }, (window.TileWidthCm / 100.0) * 3.28084);
-                            SetParameterValueInstanceOnly(inst, new[] { "Thickness", "Height", "Espesor" }, tile.Thickness_Ft);
-
-                            if (tile.IsCut)
-                            {
-                                SetParameterValueInstanceOnly(inst, new[] { "Cut Lat", "CutLat", "Cut_Lat", "CutLateral", "Cut Lateral", "Corte Lat" }, tile.CutLat_Ft);
-                                SetParameterValueInstanceOnly(inst, new[] { "Cut Lat Flag", "Cut Lat", "CutLat" }, tile.CutLat_Ft > 0.001 ? 1 : 0);
-
-                                SetParameterValueInstanceOnly(inst, new[] { "Cut Top", "CutTop", "Cut_Top", "CutTopCut", "CutSuperior", "Cut Superior" }, tile.CutTop_Ft);
-                                SetParameterValueInstanceOnly(inst, new[] { "Cut Top Flag", "Cut Top", "CutTop" }, tile.CutTop_Ft > 0.001 ? 1 : 0);
-
-                                SetParameterValueInstanceOnly(inst, new[] { "Cut", "Recorte" }, Math.Max(tile.CutLat_Ft, tile.CutTop_Ft));
-                                SetParameterValueInstanceOnly(inst, new[] { "Cut Flag" }, (tile.CutLat_Ft > 0.001 || tile.CutTop_Ft > 0.001) ? 1 : 0);
-                            }
-                            else
-                            {
-                                SetParameterValueInstanceOnly(inst, new[] { "Cut Lat", "CutLat", "Cut_Lat", "CutLateral", "Cut Lateral" }, 0.0);
-                                SetParameterValueInstanceOnly(inst, new[] { "Cut Lat Flag", "Cut Lat", "CutLat" }, 0);
-                                SetParameterValueInstanceOnly(inst, new[] { "Cut Top", "CutTop", "Cut_Top", "CutTopCut", "CutSuperior" }, 0.0);
-                                SetParameterValueInstanceOnly(inst, new[] { "Cut Top Flag", "Cut Top", "CutTop" }, 0);
-                                SetParameterValueInstanceOnly(inst, new[] { "Cut", "Recorte" }, 0.0);
-                                SetParameterValueInstanceOnly(inst, new[] { "Cut Flag" }, 0);
-                            }
-
-                            // Comentarios de trazabilidad
-                            Parameter pComm = inst.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                            if (pComm != null && !pComm.IsReadOnly)
-                            {
-                                pComm.Set(tile.IsCut 
-                                    ? $"ENCHAPE-BALDOSA-CORTADA (CutLat:{tile.CutLat_Ft * 30.48:0.0}cm, CutTop:{tile.CutTop_Ft * 30.48:0.0}cm)" 
-                                    : "ENCHAPE-BALDOSA-ENTERA");
-                            }
-
-                            // Asignación de Material
-                            if (tileMatId != ElementId.InvalidElementId)
-                            {
-                                Parameter? pMat = inst.LookupParameter("Mat")
-                                              ?? inst.LookupParameter("Material")
-                                              ?? inst.get_Parameter(BuiltInParameter.STRUCTURAL_MATERIAL_PARAM)
-                                              ?? inst.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
-                                if (pMat != null && !pMat.IsReadOnly) pMat.Set(tileMatId);
-                            }
-
-                            // Registro en gestor de cubicaciones
-                            MeasurementManager.MeasureAndApply(inst, null,
-                                customLengthFt: tile.ActualLength_Ft > 0 ? tile.ActualLength_Ft : tile.Length_Ft,
-                                customWidthFt: tile.ActualWidth_Ft > 0 ? tile.ActualWidth_Ft : tile.Width_Ft,
-                                customAreaSqFt: tile.ActualAreaSqM * 10.7639,
-                                customThicknessFt: tile.Thickness_Ft,
-                                customVolumeCuFt: tile.ActualAreaSqM * 10.7639 * tile.Thickness_Ft,
-                                units: 1);
-
-                            if (tile.IsCut) cutTilesCount++;
-                            else createdTilesCount++;
-                            placedAsFamily = true;
                         }
                     }
-                    catch
+
+                    if (inst != null)
                     {
-                        placedAsFamily = false;
-                    }
-                }
+                        // En Tiles Base.rfa:
+                        // - Width (Tipo) = dimensión nominal en X (Span Direction U)
+                        // - Lenght (Tipo) = dimensión nominal en Y (V)
+                        // - Offset (Tipo) = holgura exterior (5mm) de la extrusión de vacío en L (¡NUNCA poner en 0.0!)
+                        // - Cut (Ejemplar, Sí/No) = activa/desactiva el corte de la extrusión de vacío en L
+                        // - Cut Lat (Ejemplar) = cota entre planos de referencia en X desde el borde derecho (no puede ser 0.0 ni menor que ShortCurveTolerance ~0.8mm en Revit)
+                        // - Cut Top (Ejemplar) = cota entre planos de referencia en Y desde el borde superior (no puede ser 0.0 ni menor que ShortCurveTolerance ~0.8mm en Revit)
+                        double defaultFiveMmFt = (5.0 / 1000.0) * 3.28084;
+                        double minValidCutFt = (1.0 / 1000.0) * 3.28084; // 1.0 mm (> ShortCurveTolerance 0.794 mm)
 
-                // 2. Respaldo geométrico DirectShape (únicamente si falló la familia o si el usuario eligió modo B-Rep)
-                if (!placedAsFamily)
-                {
-                    Solid? tileSolid = tile.TileSolid ?? CreatePrismFromPolygon(tile.PolygonVertices3D, tile.Normal3D, tile.Thickness_Ft);
-                    if (tileSolid != null && tileSolid.Volume > 1e-6)
-                    {
-                        // Validación estricta de categoría para DirectShape
-                        ElementId validCatId = DirectShape.IsValidCategoryId(categoryId, doc) 
-                            ? categoryId 
-                            : new ElementId(BuiltInCategory.OST_GenericModel);
+                        double rawCutLatFt = tile.IsCut ? Math.Max(0.0, tile.CutLat_Ft) : 0.0;
+                        double rawCutTopFt = tile.IsCut ? Math.Max(0.0, tile.CutTop_Ft) : 0.0;
+                        bool hasEffectiveCut = tile.IsCut && (rawCutLatFt > 0.0005 || rawCutTopFt > 0.0005);
 
-                        DirectShape ds = DirectShape.CreateElement(doc, validCatId);
-                        ds.SetShape(new GeometryObject[] { tileSolid });
-                        ds.Name = tile.IsCut 
-                            ? $"Baldosa Cortada ({tile.ActualAreaSqM:0.00}m²)" 
-                            : $"Baldosa {window.TileLengthCm:0.#}x{window.TileWidthCm:0.#}cm";
-
-                        DirectShapeType? targetType = tile.IsCut ? dsTypeCut : dsTypeFull;
-                        if (targetType != null)
+                        if (hasEffectiveCut)
                         {
-                            try { ds.SetTypeId(targetType.Id); } catch { }
+                            // Activar el corte del vacío en L
+                            SetParameterValueInstanceOnly(inst, new[] { "Cut", "Corte", "Cortar", "IsCut" }, 1);
+
+                            // Garantizar que ninguna de las dos cotas de planos de referencia del vacío en L colapse a 0.0
+                            double safeCutLatFt = rawCutLatFt > minValidCutFt
+                                ? Math.Min(rawCutLatFt, Math.Max(minValidCutFt, nomLFt - minValidCutFt))
+                                : minValidCutFt;
+                            double safeCutTopFt = rawCutTopFt > minValidCutFt
+                                ? Math.Min(rawCutTopFt, Math.Max(minValidCutFt, nomWFt - minValidCutFt))
+                                : minValidCutFt;
+
+                            SetParameterValueInstanceOnly(inst, new[] { "Cut Lat", "CutLat", "Cut_Lat", "CutLateral", "Cut Lateral", "Corte Lat" }, safeCutLatFt);
+                            SetParameterValueInstanceOnly(inst, new[] { "Cut Top", "CutTop", "Cut_Top", "CutTopCut", "CutSuperior", "Cut Superior" }, safeCutTopFt);
+                        }
+                        else
+                        {
+                            // Pieza entera: desactivar el corte del vacío ("Cut" = 0) y mantener cotas internas en 5mm para no invalidar el boceto del vacío
+                            SetParameterValueInstanceOnly(inst, new[] { "Cut", "Corte", "Cortar", "IsCut" }, 0);
+                            SetParameterValueInstanceOnly(inst, new[] { "Cut Lat", "CutLat", "Cut_Lat", "CutLateral", "Cut Lateral", "Corte Lat" }, defaultFiveMmFt);
+                            SetParameterValueInstanceOnly(inst, new[] { "Cut Top", "CutTop", "Cut_Top", "CutTopCut", "CutSuperior", "Cut Superior" }, defaultFiveMmFt);
                         }
 
-                        Parameter pComm = ds.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                        // Banderas opcionales (IMPORTANTE: nunca incluir "Cut Lat" ni "Cut Top" aquí para no sobrescribir el valor en pies con 1.0 ft)
+                        SetParameterValueInstanceOnly(inst, new[] { "Cut Lat Flag", "IsCutLat" }, rawCutLatFt > 0.0005 ? 1 : 0);
+                        SetParameterValueInstanceOnly(inst, new[] { "Cut Top Flag", "IsCutTop" }, rawCutTopFt > 0.0005 ? 1 : 0);
+
+                        // Comentarios de trazabilidad
+                        Parameter? pComm = inst.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
                         if (pComm != null && !pComm.IsReadOnly)
                         {
-                            pComm.Set(tile.IsCut 
-                                ? $"ENCHAPE-BALDOSA-CORTADA (CutLat:{tile.CutLat_Ft * 30.48:0.0}cm, CutTop:{tile.CutTop_Ft * 30.48:0.0}cm)" 
-                                : "ENCHAPE-BALDOSA-ENTERA");
+                            pComm.Set(hasEffectiveCut
+                                ? $"ENCHAPE-BALDOSA-CORTADA [Fila:{tile.IndexY + 1}, Col:{tile.IndexX + 1}] (CutLat:{rawCutLatFt * 30.48:0.1}cm, CutTop:{rawCutTopFt * 30.48:0.1}cm)"
+                                : $"ENCHAPE-BALDOSA-ENTERA [Fila:{tile.IndexY + 1}, Col:{tile.IndexX + 1}]");
                         }
 
+                        // Asignación de Material ("Mat" en Tiles Base.rfa)
                         if (tileMatId != ElementId.InvalidElementId)
                         {
-                            Parameter pMat = ds.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
-                            if (pMat != null && !pMat.IsReadOnly) pMat.Set(tileMatId);
+                            SetMaterialParameter(inst, tileMatId);
                         }
 
-                        MeasurementManager.MeasureAndApply(ds, tileSolid, customThicknessFt: tile.Thickness_Ft, units: 1);
+                        // Registro en gestor de cubicaciones
+                        MeasurementManager.MeasureAndApply(inst, null,
+                            customLengthFt: tile.ActualLength_Ft > 0 ? tile.ActualLength_Ft : tile.Length_Ft,
+                            customWidthFt: tile.ActualWidth_Ft > 0 ? tile.ActualWidth_Ft : tile.Width_Ft,
+                            customAreaSqFt: tile.ActualAreaSqM * 10.7639,
+                            customThicknessFt: tile.Thickness_Ft,
+                            customVolumeCuFt: tile.ActualAreaSqM * 10.7639 * tile.Thickness_Ft,
+                            units: 1);
 
-                        if (tile.IsCut) cutTilesCount++;
+                        if (hasEffectiveCut) cutTilesCount++;
                         else createdTilesCount++;
                     }
                 }
+                catch { }
+            }
+        }
+
+        // =========================================================================================
+        // INSTANCIACIÓN DE JUNTAS (PERIMETRALES 5mm + HORIZONTALES SPAN + SUB-OBJETOS VERTICALES):
+        // Exclusivamente con Base Tiles Pega.rfa desde el (0,0) de cada junta sin solapamiento
+        // =========================================================================================
+        private void InstantiateFloorJoints(
+            Document doc,
+            ConvertirPisosWindow window,
+            FamilySymbol pegaSymbol,
+            ElementId groutMatId,
+            ElementId perimMatId,
+            List<TilingHostInfo> hostInfos,
+            ref int jointCount)
+        {
+            double jointInnerFt = (window.JointInnerMm / 1000.0) * 3.28084;
+            double jointPerimFt = (window.JointPerimMm / 1000.0) * 3.28084;
+            double tileHFt = (window.TileThickCm / 100.0) * 3.28084;
+
+            // Crear tipos dedicados en Base Tiles Pega.rfa para junta interna (3-4mm) y junta perimetral (5mm)
+            FamilySymbol innerJointSymbol = GetOrCreateConfiguredJointSymbol(
+                doc,
+                pegaSymbol,
+                $"Pega Interna {window.JointInnerMm:0.#}mm",
+                jointInnerFt,
+                tileHFt,
+                groutMatId);
+
+            FamilySymbol perimJointSymbol = (Math.Abs(jointPerimFt - jointInnerFt) > 1e-5 || perimMatId != groutMatId)
+                ? GetOrCreateConfiguredJointSymbol(
+                    doc,
+                    pegaSymbol,
+                    $"Pega Perimetral {window.JointPerimMm:0.#}mm",
+                    jointPerimFt,
+                    tileHFt,
+                    perimMatId)
+                : innerJointSymbol;
+
+            foreach (var j in window.LayoutJoints)
+            {
+                if (j.LengthFt <= 0.001 || j.WidthFt <= 0.0001) continue;
+
+                try
+                {
+                    FamilySymbol targetSymbol = j.IsPerimeter ? perimJointSymbol : innerJointSymbol;
+                    FamilyInstance? inst = null;
+
+                    XYZ placePoint = j.Corner3D;
+                    XYZ refDir = (j.DirectionU3D != null && j.DirectionU3D.GetLength() > 0.1)
+                        ? j.DirectionU3D.Normalize()
+                        : XYZ.BasisX;
+
+                    if (j.HostFaceRef != null)
+                    {
+                        Element hostElem = doc.GetElement(j.HostFaceRef.ElementId);
+                        if (hostElem != null)
+                        {
+                            Face? planarFace = hostElem.GetGeometryObjectFromReference(j.HostFaceRef) as Face;
+                            if (planarFace != null)
+                            {
+                                IntersectionResult proj = planarFace.Project(j.Corner3D);
+                                if (proj != null)
+                                {
+                                    placePoint = proj.XYZPoint;
+                                }
+                            }
+                        }
+
+                        inst = doc.Create.NewFamilyInstance(
+                            j.HostFaceRef,
+                            placePoint,
+                            refDir,
+                            targetSymbol);
+                    }
+
+                    if (inst == null)
+                    {
+                        Level? hostLevel = hostInfos.FirstOrDefault()?.Level;
+                        if (hostLevel != null)
+                        {
+                            inst = doc.Create.NewFamilyInstance(
+                                placePoint,
+                                targetSymbol,
+                                hostLevel,
+                                Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+
+                            if (inst != null && Math.Abs(j.RotationRad) > 1e-4)
+                            {
+                                Line rotAxis = Line.CreateBound(placePoint, placePoint + j.Normal3D);
+                                ElementTransformUtils.RotateElement(doc, inst.Id, rotAxis, j.RotationRad);
+                            }
+                        }
+                    }
+
+                    if (inst != null)
+                    {
+                        // En Base Tiles Pega.rfa:
+                        // - "Lenght" (Ejemplar) controla el largo del tramo de junta (2m en horizontales, 60cm en sub-objetos verticales)
+                        // - "Width" controla el espesor de la junta (3-4mm interna o 5mm perimetral)
+                        // - "Thickness" controla la profundidad de la junta
+                        SetParameterValueInstanceOnly(inst, new[] { "Lenght", "Length", "Largo", "Longitud" }, j.LengthFt);
+                        SetParameterValueInstanceOnly(inst, new[] { "Width", "Ancho", "Espesor Junta" }, j.WidthFt);
+                        SetParameterValueInstanceOnly(inst, new[] { "Thickness", "Height", "Espesor", "Profundidad" }, j.DepthFt);
+                        SetParameterValueInstanceOnly(inst, new[] { "Cut Lat", "CutLat", "Cut Top", "CutTop" }, 0.0);
+
+                        ElementId matIdToUse = j.MaterialId != ElementId.InvalidElementId
+                            ? j.MaterialId
+                            : (j.IsPerimeter ? perimMatId : groutMatId);
+
+                        if (matIdToUse != ElementId.InvalidElementId)
+                        {
+                            SetMaterialParameter(inst, matIdToUse);
+                        }
+
+                        Parameter? pComm = inst.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                        if (pComm != null && !pComm.IsReadOnly)
+                        {
+                            string kind = j.IsPerimeter
+                                ? "ENCHAPE-JUNTA-PERIMETRAL"
+                                : (j.IsVertical ? "ENCHAPE-PEGA-VERTICAL-SUBOBJETO" : "ENCHAPE-PEGA-HORIZONTAL-SPAN");
+                            pComm.Set($"{kind} (L:{j.LengthFt * 30.48:0.1}cm, W:{j.WidthFt * 304.8:0.1}mm)");
+                        }
+
+                        double areaSqFt = j.LengthFt * j.WidthFt;
+                        MeasurementManager.MeasureAndApply(inst, null,
+                            customLengthFt: j.LengthFt,
+                            customWidthFt: j.WidthFt,
+                            customAreaSqFt: areaSqFt,
+                            customThicknessFt: j.DepthFt,
+                            customVolumeCuFt: areaSqFt * j.DepthFt,
+                            units: 1);
+
+                        jointCount++;
+                    }
+                }
+                catch { }
+            }
+        }
+
+        // =========================================================================================
+        // INSTANCIACIÓN DE ZÓCALOS DESDE EL (0,0) PERIMETRAL CON FAMILIA CARGABLE
+        // =========================================================================================
+        private void InstantiateFloorSkirting(
+            Document doc,
+            ConvertirPisosWindow window,
+            FamilySymbol skirtingSymbol,
+            ElementId skirtingMatId,
+            List<TilingHostInfo> hostInfos,
+            ref int skirtingSegCount)
+        {
+            double skHeightFt = (window.SkirtingHeightCm / 100.0) * 3.28084;
+            double skThickFt = (window.SkirtingThickCm / 100.0) * 3.28084;
+            double skBevelFt = (window.SkirtingBevelMm / 1000.0) * 3.28084;
+
+            FamilySymbol activeSkirtingSymbol = GetOrCreateConfiguredJointSymbol(
+                doc,
+                skirtingSymbol,
+                $"Zocalo {window.SkirtingHeightCm:0.#}x{window.SkirtingThickCm:0.#}cm",
+                skThickFt,
+                skHeightFt,
+                skirtingMatId);
+
+            foreach (var seg in window.SkirtingSegments)
+            {
+                if (seg.LengthFt <= 0.005) continue;
+
+                try
+                {
+                    FamilyInstance? inst = null;
+                    XYZ placePoint = seg.Corner3D;
+                    XYZ dirLen = (seg.Direction3D != null && seg.Direction3D.GetLength() > 0.1)
+                        ? seg.Direction3D.Normalize()
+                        : (seg.EndPoint - seg.StartPoint).Normalize();
+
+                    // Si el símbolo proviene de Base Tiles Pega / Tiles Base (donde +Y es Lenght y +X es Width),
+                    // orientar +X hacia el interior del piso y +Y a lo largo del tramo del zócalo
+                    bool isTileOrPegaFamily = activeSkirtingSymbol.FamilyName.IndexOf("Tiles", StringComparison.OrdinalIgnoreCase) >= 0;
+                    XYZ refDir = isTileOrPegaFamily
+                        ? dirLen.CrossProduct(seg.Normal3D).Normalize()
+                        : dirLen;
+
+                    if (seg.HostFaceRef != null)
+                    {
+                        Element hostElem = doc.GetElement(seg.HostFaceRef.ElementId);
+                        if (hostElem != null)
+                        {
+                            Face? planarFace = hostElem.GetGeometryObjectFromReference(seg.HostFaceRef) as Face;
+                            if (planarFace != null)
+                            {
+                                IntersectionResult proj = planarFace.Project(placePoint);
+                                if (proj != null)
+                                {
+                                    placePoint = proj.XYZPoint;
+                                }
+                            }
+                        }
+
+                        inst = doc.Create.NewFamilyInstance(
+                            seg.HostFaceRef,
+                            placePoint,
+                            refDir,
+                            activeSkirtingSymbol);
+                    }
+
+                    if (inst == null)
+                    {
+                        Level? hostLevel = hostInfos.FirstOrDefault()?.Level;
+                        if (hostLevel != null)
+                        {
+                            inst = doc.Create.NewFamilyInstance(
+                                placePoint,
+                                activeSkirtingSymbol,
+                                hostLevel,
+                                Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+                        }
+                    }
+
+                    if (inst != null)
+                    {
+                        SetParameterValueInstanceOnly(inst, new[] { "Lenght", "Length", "Largo", "Longitud" }, seg.LengthFt);
+                        SetParameterValueInstanceOnly(inst, new[] { "Width", "Ancho", "Espesor" }, seg.ThicknessFt);
+                        SetParameterValueInstanceOnly(inst, new[] { "Thickness", "Height", "Altura", "Alto" }, seg.HeightFt);
+                        SetParameterValueInstanceOnly(inst, new[] { "Bevel", "Chaflan", "Bisel" }, skBevelFt);
+                        SetParameterValueInstanceOnly(inst, new[] { "Cut Lat", "CutLat", "Cut Top", "CutTop" }, 0.0);
+
+                        if (skirtingMatId != ElementId.InvalidElementId)
+                        {
+                            SetMaterialParameter(inst, skirtingMatId);
+                        }
+
+                        Parameter? pComm = inst.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                        if (pComm != null && !pComm.IsReadOnly)
+                        {
+                            pComm.Set($"ZOCALO-PERIMETRAL (L:{seg.LengthFt * 30.48:0.1}cm, H:{seg.HeightFt * 30.48:0.1}cm)");
+                        }
+
+                        MeasurementManager.MeasureAndApply(inst, null,
+                            customLengthFt: seg.LengthFt,
+                            customWidthFt: seg.ThicknessFt,
+                            customAreaSqFt: seg.LengthFt * seg.HeightFt,
+                            customThicknessFt: seg.ThicknessFt,
+                            customVolumeCuFt: seg.LengthFt * seg.HeightFt * seg.ThicknessFt,
+                            units: 1);
+
+                        skirtingSegCount++;
+                    }
+                }
+                catch { }
+            }
+        }
+
+        private FamilySymbol GetOrCreateConfiguredSymbol(
+            Document doc,
+            FamilySymbol baseSymbol,
+            string targetTypeName,
+            double widthFt,
+            double lengthFt,
+            double thicknessFt,
+            ElementId matId)
+        {
+            FamilySymbol target = baseSymbol;
+            string cleanName = SanitizeRevitName(targetTypeName, "Tiles Base Custom");
+
+            try
+            {
+                var existing = baseSymbol.Family.GetFamilySymbolIds()
+                    .Select(id => doc.GetElement(id) as FamilySymbol)
+                    .FirstOrDefault(s => s != null && s.Name.Equals(cleanName, StringComparison.OrdinalIgnoreCase));
+
+                if (existing != null)
+                {
+                    target = existing;
+                }
+                else if (!baseSymbol.Name.Equals(cleanName, StringComparison.OrdinalIgnoreCase))
+                {
+                    target = (FamilySymbol)baseSymbol.Duplicate(cleanName);
+                }
+
+                if (!target.IsActive) target.Activate();
+
+                // En Tiles Base.rfa:
+                // - Width = eje X (U), Lenght = eje Y (V), Thickness = espesor
+                // - Offset = holgura exterior (5mm) de la extrusión de vacío en L (¡NUNCA poner en 0.0 para no colapsar el vacío!)
+                double fiveMmFt = (5.0 / 1000.0) * 3.28084;
+                SetParameterValue(target, new[] { "Width", "Ancho" }, widthFt);
+                SetParameterValue(target, new[] { "Lenght", "Length", "Largo" }, lengthFt);
+                SetParameterValue(target, new[] { "Thickness", "Height", "Espesor" }, thicknessFt);
+                SetParameterValue(target, new[] { "Offset", "Desfase" }, fiveMmFt);
+
+                if (matId != ElementId.InvalidElementId)
+                {
+                    SetMaterialParameter(target, matId);
+                }
+            }
+            catch { }
+
+            return target;
+        }
+
+        private FamilySymbol GetOrCreateConfiguredJointSymbol(
+            Document doc,
+            FamilySymbol baseSymbol,
+            string targetTypeName,
+            double widthFt,
+            double thicknessFt,
+            ElementId matId)
+        {
+            FamilySymbol target = baseSymbol;
+            string cleanName = SanitizeRevitName(targetTypeName, "Base Tiles Pega Custom");
+
+            try
+            {
+                var existing = baseSymbol.Family.GetFamilySymbolIds()
+                    .Select(id => doc.GetElement(id) as FamilySymbol)
+                    .FirstOrDefault(s => s != null && s.Name.Equals(cleanName, StringComparison.OrdinalIgnoreCase));
+
+                if (existing != null)
+                {
+                    target = existing;
+                }
+                else if (!baseSymbol.Name.Equals(cleanName, StringComparison.OrdinalIgnoreCase))
+                {
+                    target = (FamilySymbol)baseSymbol.Duplicate(cleanName);
+                }
+
+                if (!target.IsActive) target.Activate();
+
+                SetParameterValue(target, new[] { "Width", "Ancho" }, widthFt);
+                SetParameterValue(target, new[] { "Thickness", "Height", "Espesor" }, thicknessFt);
+                SetParameterValue(target, new[] { "Offset", "Desfase" }, 0.0);
+
+                if (matId != ElementId.InvalidElementId)
+                {
+                    SetMaterialParameter(target, matId);
+                }
+            }
+            catch { }
+
+            return target;
+        }
+
+        private void SetMaterialParameter(Element elem, ElementId matId)
+        {
+            if (matId == ElementId.InvalidElementId) return;
+            Parameter? pMat = elem.LookupParameter("Mat")
+                          ?? elem.LookupParameter("Material")
+                          ?? elem.get_Parameter(BuiltInParameter.STRUCTURAL_MATERIAL_PARAM)
+                          ?? elem.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
+            if (pMat != null && !pMat.IsReadOnly && pMat.StorageType == StorageType.ElementId)
+            {
+                pMat.Set(matId);
+            }
+        }
+
+        private ElementId GetOrCreateLayerFloorType(Document doc, string typeName, double thicknessFt, ElementId matId)
+        {
+            string cleanName = SanitizeRevitName(typeName, "Capa Piso");
+            var floorTypes = new FilteredElementCollector(doc)
+                .OfClass(typeof(FloorType))
+                .Cast<FloorType>()
+                .Where(ft => !ft.IsFoundationSlab)
+                .ToList();
+
+            FloorType? existing = floorTypes.FirstOrDefault(ft => ft.Name.Equals(cleanName, StringComparison.OrdinalIgnoreCase));
+            if (existing != null) return existing.Id;
+
+            FloorType? baseFt = floorTypes.FirstOrDefault(ft => ft.GetCompoundStructure() != null);
+            if (baseFt == null) return ElementId.InvalidElementId;
+
+            try
+            {
+                FloorType newFt = (FloorType)baseFt.Duplicate(cleanName);
+                CompoundStructure cs = newFt.GetCompoundStructure();
+                if (cs != null)
+                {
+                    var layers = new List<CompoundStructureLayer>
+                    {
+                        new CompoundStructureLayer(Math.Max(0.002, thicknessFt), MaterialFunctionAssignment.Structure, matId)
+                    };
+                    cs.SetLayers(layers);
+                    newFt.SetCompoundStructure(cs);
+                }
+                return newFt.Id;
+            }
+            catch
+            {
+                return baseFt.Id;
             }
         }
 
@@ -588,6 +841,7 @@ namespace RevitToSupabasePlugin
                 string addinFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? "";
                 string[] searchPaths = new[]
                 {
+                    $@"g:\Mi unidad\git\reviewPlugIn\Familias\Floors-Tiles\{familyName}.rfa",
                     $@"C:\Users\Alejandro\Documents\GitHub\reviewPlugIn\Familias\Floors-Tiles\{familyName}.rfa",
                     Path.Combine(addinFolder, "Familias", "Floors-Tiles", $"{familyName}.rfa"),
                     Path.Combine(addinFolder, $"{familyName}.rfa"),
@@ -766,14 +1020,12 @@ namespace RevitToSupabasePlugin
             var (topFace, faceRef) = FloorTilingService.GetTopPlanarFaceWithRef(floor);
             if (topFace == null) return null;
 
-            // 1. Extraer su CurveLoop exterior principal y validar que sea cerrado (curveLoop.IsOpen() == false)
+            // 2. Extraer su CurveLoop exterior principal y validar que sea cerrado
             var (outerLoop, innerLoops) = FloorTilingService.ExtractBoundaryLoops(topFace);
             if (outerLoop == null || outerLoop.IsOpen()) return null;
 
-            // 2. Sistema de Coordenadas Local (Replanteo):
-            // Definir un vector base alineado con el segmento más largo del contorno
-            // (Transform local con origen en la esquina mínima de la bounding box UV).
-            var (localTransform, longestSegment, spanU, spanV) = FloorTilingService.CreateLocalCoordinateSystem(outerLoop, topFace);
+            // 3. Sistema de Coordenadas Local Cartesiano (0,0) alineado con el Span Direction del Floor
+            var (localTransform, longestSegment, spanU, spanV) = FloorTilingService.CreateLocalCoordinateSystem(outerLoop, topFace, floor);
 
             List<XYZ> outer3D = new List<XYZ>();
             List<Curve> outerCurves = new List<Curve>();
@@ -1009,168 +1261,6 @@ namespace RevitToSupabasePlugin
             }
 
             return det;
-        }
-
-        private static bool IsClockwise2D(List<XYZ> poly)
-        {
-            double area = 0;
-            for (int i = 0; i < poly.Count; i++)
-            {
-                XYZ p1 = poly[i];
-                XYZ p2 = poly[(i + 1) % poly.Count];
-                area += (p1.X * p2.Y - p2.X * p1.Y);
-            }
-            return area < 0;
-        }
-
-        private static List<XYZ> InsetPolygon2D(List<XYZ> poly, double insetDist)
-        {
-            if (poly == null || poly.Count < 3 || insetDist <= 0.0001)
-                return poly != null ? new List<XYZ>(poly) : new List<XYZ>();
-
-            List<XYZ> ccwPoly = new List<XYZ>(poly);
-            if (IsClockwise2D(ccwPoly))
-            {
-                ccwPoly.Reverse();
-            }
-
-            int n = ccwPoly.Count;
-            List<XYZ> insetVertices = new List<XYZ>();
-
-            for (int i = 0; i < n; i++)
-            {
-                XYZ pPrev = ccwPoly[(i + n - 1) % n];
-                XYZ pCurr = ccwPoly[i];
-                XYZ pNext = ccwPoly[(i + 1) % n];
-
-                XYZ vPrev = (pCurr - pPrev);
-                double lenPrev = Math.Sqrt(vPrev.X * vPrev.X + vPrev.Y * vPrev.Y);
-                if (lenPrev < 1e-6) { insetVertices.Add(pCurr); continue; }
-                vPrev = new XYZ(vPrev.X / lenPrev, vPrev.Y / lenPrev, 0);
-
-                XYZ vNext = (pNext - pCurr);
-                double lenNext = Math.Sqrt(vNext.X * vNext.X + vNext.Y * vNext.Y);
-                if (lenNext < 1e-6) { insetVertices.Add(pCurr); continue; }
-                vNext = new XYZ(vNext.X / lenNext, vNext.Y / lenNext, 0);
-
-                XYZ nPrev = new XYZ(-vPrev.Y, vPrev.X, 0);
-                XYZ nNext = new XYZ(-vNext.Y, vNext.X, 0);
-
-                double dotNorm = nNext.X * nPrev.X + nNext.Y * nPrev.Y;
-                double denom = nNext.X * vPrev.X + nNext.Y * vPrev.Y;
-
-                if (Math.Abs(denom) < 1e-6)
-                {
-                    insetVertices.Add(pCurr + nNext * insetDist);
-                }
-                else
-                {
-                    double t = (insetDist * (1.0 - dotNorm)) / denom;
-                    XYZ pA = pCurr + nPrev * insetDist;
-                    XYZ q = pA + vPrev * t;
-                    insetVertices.Add(new XYZ(q.X, q.Y, 0));
-                }
-            }
-
-            if (insetVertices.Count >= 3)
-            {
-                return insetVertices;
-            }
-
-            return ccwPoly;
-        }
-
-        private Solid? CreatePrismFromPolygon(List<XYZ> vertices, XYZ normal, double thickness)
-        {
-            if (vertices == null || vertices.Count < 3 || thickness < 1e-5) return null;
-
-            try
-            {
-                // 1. Limpiar vértices duplicados o colapsados
-                List<XYZ> cleanPts = new List<XYZ>();
-                for (int i = 0; i < vertices.Count; i++)
-                {
-                    XYZ pt = vertices[i];
-                    if (cleanPts.Count == 0 || cleanPts[cleanPts.Count - 1].DistanceTo(pt) > 0.003)
-                    {
-                        cleanPts.Add(pt);
-                    }
-                }
-                if (cleanPts.Count >= 2 && cleanPts[0].DistanceTo(cleanPts[cleanPts.Count - 1]) < 0.003)
-                {
-                    cleanPts.RemoveAt(cleanPts.Count - 1);
-                }
-
-                if (cleanPts.Count < 3) return null;
-
-                // 2. Calcular normal del polígono y garantizar sentido antihorario (CCW) respecto a la normal de extrusión
-                XYZ polyNormal = XYZ.Zero;
-                for (int i = 0; i < cleanPts.Count; i++)
-                {
-                    XYZ curr = cleanPts[i];
-                    XYZ next = cleanPts[(i + 1) % cleanPts.Count];
-                    polyNormal += curr.CrossProduct(next);
-                }
-
-                XYZ normDir = normal.Normalize();
-                if (polyNormal.DotProduct(normDir) < 0)
-                {
-                    cleanPts.Reverse();
-                }
-
-                // 3. Crear CurveLoop cerrado
-                CurveLoop loop = new CurveLoop();
-                for (int i = 0; i < cleanPts.Count; i++)
-                {
-                    XYZ p1 = cleanPts[i];
-                    XYZ p2 = cleanPts[(i + 1) % cleanPts.Count];
-                    if (p1.DistanceTo(p2) > 0.001)
-                    {
-                        loop.Append(Line.CreateBound(p1, p2));
-                    }
-                }
-
-                if (!loop.IsOpen())
-                {
-                    return GeometryCreationUtilities.CreateExtrusionGeometry(
-                        new List<CurveLoop> { loop },
-                        normDir,
-                        thickness);
-                }
-            }
-            catch { }
-
-            return null;
-        }
-
-        private Solid? CreateSkirtingSolid(SkirtingItem seg)
-        {
-            try
-            {
-                XYZ p1 = seg.StartPoint;
-                XYZ p2 = seg.EndPoint;
-                XYZ dir = (p2 - p1);
-                double len = dir.GetLength();
-                if (len < 0.01) return null;
-
-                XYZ norm = dir.Normalize();
-                XYZ inward = new XYZ(-norm.Y, norm.X, 0);
-
-                double th = seg.ThicknessFt;
-                double h = seg.HeightFt;
-                double z = seg.BaseElevationFt;
-
-                XYZ pt0 = new XYZ(p1.X, p1.Y, z);
-                XYZ pt1 = new XYZ(p2.X, p2.Y, z);
-                XYZ pt2 = new XYZ(p2.X + inward.X * th, p2.Y + inward.Y * th, z);
-                XYZ pt3 = new XYZ(p1.X + inward.X * th, p1.Y + inward.Y * th, z);
-
-                List<XYZ> pts = new List<XYZ> { pt0, pt1, pt2, pt3 };
-                return CreatePrismFromPolygon(pts, XYZ.BasisZ, h);
-            }
-            catch { }
-
-            return null;
         }
 
         private static string SanitizeRevitName(string? name, string fallback = "Elemento")

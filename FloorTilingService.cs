@@ -10,7 +10,8 @@ namespace RevitToSupabasePlugin
         public double TileLengthFt { get; set; } = (60.0 / 100.0) * 3.28084; // Largo (eje U)
         public double TileWidthFt { get; set; } = (60.0 / 100.0) * 3.28084;  // Ancho (eje V)
         public double TileThicknessFt { get; set; } = (1.0 / 100.0) * 3.28084; // Espesor
-        public double JointThicknessFt { get; set; } = (3.0 / 1000.0) * 3.28084; // Espesor de junta
+        public double JointThicknessFt { get; set; } = (3.0 / 1000.0) * 3.28084; // Espesor de junta interna (3-4 mm)
+        public double PerimeterJointThicknessFt { get; set; } = (5.0 / 1000.0) * 3.28084; // Espesor de junta perimetral (5 mm)
         public double OffsetUFt { get; set; } = 0.0;
         public double OffsetVFt { get; set; } = 0.0;
         public double RotationAngleRad { get; set; } = 0.0;
@@ -23,6 +24,8 @@ namespace RevitToSupabasePlugin
         public ElementId MaterialId { get; set; } = ElementId.InvalidElementId;
         public bool MeasureElements { get; set; } = true;
         public string CommentsPrefix { get; set; } = "ENCHAPE-BALDOSA";
+        public Reference? HostFaceReference { get; set; }
+        public Level? HostLevel { get; set; }
     }
 
     public class TileResult
@@ -34,6 +37,12 @@ namespace RevitToSupabasePlugin
         public Solid TileSolid { get; set; } = null!;
         public XYZ Center3D { get; set; } = XYZ.Zero;
         public XYZ Corner3D { get; set; } = XYZ.Zero;
+        public XYZ DirectionU3D { get; set; } = XYZ.BasisX;
+        public XYZ DirectionV3D { get; set; } = XYZ.BasisY;
+        public XYZ Normal3D { get; set; } = XYZ.BasisZ;
+        public double NominalLengthFt { get; set; }
+        public double NominalWidthFt { get; set; }
+        public double ThicknessFt { get; set; }
         public List<XYZ> PolygonVertices3D { get; set; } = new List<XYZ>();
         public List<XYZ> PolygonVerticesUV { get; set; } = new List<XYZ>();
         public double AreaSqFt { get; set; }
@@ -164,16 +173,20 @@ namespace RevitToSupabasePlugin
         }
 
         /// <summary>
-        /// 2. Sistema de Coordenadas Local (Replanteo):
-        /// Definir un vector base alineado con el segmento más largo del contorno (Transform local con origen en la esquina mínima de la bounding box UV).
+        /// 2. Sistema de Coordenadas Local Cartesiano (0,0) alineado con la línea de Span Direction del piso.
+        /// Establece el origen (0,0) en la esquina inferior-izquierda (minU, minV) como plano cartesiano tipo AutoCAD,
+        /// donde +U sigue la dirección de Span Direction (sentido de las juntas largas horizontales) y +V va de abajo hacia arriba.
         /// </summary>
-        public static (Transform localTransform, Curve longestSegment, double spanU, double spanV) CreateLocalCoordinateSystem(
-            CurveLoop outerLoop, 
-            PlanarFace topFace)
+        public static (Transform localTransform, Curve spanDirectionSegment, double spanU, double spanV) CreateLocalCoordinateSystem(
+            CurveLoop outerLoop,
+            PlanarFace topFace,
+            Floor? floor = null)
         {
             if (outerLoop == null) throw new ArgumentNullException(nameof(outerLoop));
 
-            // A. Encontrar el segmento más largo del contorno exterior
+            XYZ normal = topFace.FaceNormal.Normalize();
+
+            // A. Identificar el segmento más largo como referencia geométrica base
             Curve? longestSegment = null;
             double maxLen = -1.0;
 
@@ -191,31 +204,53 @@ namespace RevitToSupabasePlugin
                 throw new InvalidOperationException("No se encontraron segmentos válidos en el contorno del piso.");
             }
 
-            // B. Definir vector base alineado con el segmento más largo
-            XYZ p0 = longestSegment.GetEndPoint(0);
-            XYZ p1 = longestSegment.GetEndPoint(1);
-            XYZ dirU = (p1 - p0).Normalize();
-            if (dirU.GetLength() < 1e-5)
+            XYZ dirU = XYZ.Zero;
+
+            // B. Identificar la línea / ángulo de Span Direction del Floor en Revit
+            if (floor != null)
             {
-                dirU = XYZ.BasisX;
+                try
+                {
+                    double spanAngle = floor.SpanDirectionAngle;
+                    XYZ rawSpanDir = new XYZ(Math.Cos(spanAngle), Math.Sin(spanAngle), 0.0);
+                    // Proyectar sobre el plano del piso por si tiene pendiente
+                    XYZ projectedSpan = rawSpanDir - normal * rawSpanDir.DotProduct(normal);
+                    if (projectedSpan.GetLength() > 1e-5)
+                    {
+                        dirU = projectedSpan.Normalize();
+                    }
+                }
+                catch { }
             }
 
-            // Normalizar dirección U para que apunte consistentemente en el semiespacio positivo (+X o +Y)
+            // Fallback al segmento principal si no se pudo leer SpanDirectionAngle
+            if (dirU.GetLength() < 1e-5)
+            {
+                XYZ p0 = longestSegment.GetEndPoint(0);
+                XYZ p1 = longestSegment.GetEndPoint(1);
+                dirU = (p1 - p0).Normalize();
+                if (dirU.GetLength() < 1e-5)
+                {
+                    dirU = XYZ.BasisX;
+                }
+            }
+
+            // Orientar consistentemente dirU de izquierda a derecha (+X o +Y en el plano global)
             if (dirU.X < -1e-4 || (Math.Abs(dirU.X) < 1e-4 && dirU.Y < -1e-4))
             {
                 dirU = -dirU;
             }
 
-            XYZ normal = topFace.FaceNormal.Normalize();
+            // Eje V perpendicular en el plano cartesiano (de abajo hacia arriba: Normal x dirU)
             XYZ dirV = normal.CrossProduct(dirU).Normalize();
 
-            // C. Proyectar todos los vértices del contorno a UV para calcular la Bounding Box mínima
+            // C. Proyectar todos los vértices del contorno a UV para hallar el (0,0) cartesiano en (minU, minV)
             double minU = double.MaxValue;
             double maxU = double.MinValue;
             double minV = double.MaxValue;
             double maxV = double.MinValue;
 
-            XYZ refOrigin = p0;
+            XYZ refOrigin = longestSegment.GetEndPoint(0);
 
             foreach (Curve c in outerLoop)
             {
@@ -232,7 +267,7 @@ namespace RevitToSupabasePlugin
                 }
             }
 
-            // D. Origen local en la esquina mínima (minU, minV) de la bounding box UV
+            // D. Punto (0,0) Cartesiano del piso en la esquina inferior-izquierda (minU, minV)
             XYZ originLocal = refOrigin + dirU * minU + dirV * minV;
 
             Transform localTransform = Transform.Identity;
@@ -244,12 +279,17 @@ namespace RevitToSupabasePlugin
             double spanU = maxU - minU;
             double spanV = maxV - minV;
 
-            return (localTransform, longestSegment, spanU, spanV);
+            // Crear línea representativa de Span Direction desde el (0,0) a lo largo de U
+            Curve spanLine = spanU > 0.01
+                ? Line.CreateBound(originLocal, originLocal + dirU * spanU)
+                : longestSegment;
+
+            return (localTransform, spanLine, spanU, spanV);
         }
 
         /// <summary>
-        /// 3. Malla de Despiece y 4. Recorte y Validación Geométrica:
-        /// Genera la grilla de baldosas según dimensiones configuradas y recorta piezas mediante BooleanOperationsUtils.
+        /// 3. Malla de Despiece Cartesiana desde el (0,0):
+        /// Traza junta perimetral (5mm) -> espacio de baldosa -> espacio de junta interna (3-4mm) -> espacio de baldosa...
         /// </summary>
         public static List<TileResult> GenerateFloorTiles(
             PlanarFace topFace,
@@ -269,21 +309,19 @@ namespace RevitToSupabasePlugin
             double tileW = Math.Max(0.01, config.TileWidthFt);
             double tileThick = Math.Max(0.001, config.TileThicknessFt);
             double joint = Math.Max(0.0, config.JointThicknessFt);
+            double perimJoint = Math.Max(0.0, config.PerimeterJointThicknessFt);
 
             double stepU = tileL + joint;
             double stepV = tileW + joint;
 
             // A. Crear Prisma de Recorte Extruido del Contorno del Piso
-            // Se le da un margen deltaZ arriba y abajo para garantizar que las caras superior e inferior
-            // de las baldosas no sean coplanares con el prisma, evitando errores de precisión en el kernel booleano.
-            double deltaZ = 0.05; // ~1.5 cm de tolerancia vertical
+            double deltaZ = 0.05;
             List<CurveLoop> floorLoops = new List<CurveLoop> { outerLoop };
             if (innerLoops != null && innerLoops.Count > 0)
             {
                 floorLoops.AddRange(innerLoops);
             }
 
-            // Desplazar loops hacia abajo para iniciar la extrusión por debajo del piso
             Transform shiftDown = Transform.CreateTranslation(-normal * deltaZ);
             List<CurveLoop> shiftedFloorLoops = new List<CurveLoop>();
             foreach (CurveLoop loop in floorLoops)
@@ -306,55 +344,118 @@ namespace RevitToSupabasePlugin
 
             if (floorPrism == null) return results;
 
-            // B. Preparar Polígono 2D del Contorno en Coordenadas Locales UV para validación rápida
+            // B. Polígono 2D del Contorno en Coordenadas Locales UV
             List<XYZ> outerPolyUV = ExtractPolygonUV(outerLoop, localTransform);
             List<List<XYZ>> innerPolysUV = innerLoops != null
                 ? innerLoops.Select(inLoop => ExtractPolygonUV(inLoop, localTransform)).ToList()
                 : new List<List<XYZ>>();
 
-            // C. Determinar rango de filas y columnas para cubrir toda la extensión spanU, spanV
+            // C. Inicio desde el (0,0) cartesiano + junta perimetral (5mm)
             double rotRad = config.RotationAngleRad;
-            double offU = config.OffsetUFt;
-            double offV = config.OffsetVFt;
+            double startU = perimJoint + config.OffsetUFt;
+            double startV = perimJoint + config.OffsetVFt;
 
-            double diag = Math.Sqrt(spanU * spanU + spanV * spanV);
-            // Vectores directores rotados en el plano UV para mantener la retícula uniforme sin solapes
             double cosR = Math.Cos(rotRad);
             double sinR = Math.Sin(rotRad);
             XYZ dirU_UV = new XYZ(cosR, sinR, 0);
             XYZ dirV_UV = new XYZ(-sinR, cosR, 0);
 
-            // Rango extendido para cubrir la bounding box del piso bajo cualquier ángulo de rotación
-            int maxCells = (int)Math.Ceiling(diag / Math.Min(stepU, stepV)) + 5;
-            int minCol = -maxCells;
-            int numCols = maxCells;
-            int minRow = -maxCells;
-            int numRows = maxCells;
+            XYZ dirU_3D = (localTransform.BasisX * cosR + localTransform.BasisY * sinR).Normalize();
+            XYZ dirV_3D = (-localTransform.BasisX * sinR + localTransform.BasisY * cosR).Normalize();
+
+            int maxCols = (int)Math.Ceiling(Math.Max(0.01, spanU - 2.0 * perimJoint) / stepU) + 2;
+            int maxRows = (int)Math.Ceiling(Math.Max(0.01, spanV - 2.0 * perimJoint) / stepV) + 2;
+            int minCol = Math.Abs(rotRad) > 1e-4 ? -maxCols : 0;
+            int minRow = Math.Abs(rotRad) > 1e-4 ? -maxRows : 0;
 
             double fullAreaSqFt = tileL * tileW;
 
-            // D. Bucle de celdas de baldosas
-            for (int row = minRow; row <= numRows; row++)
+            // D. Array de filas de abajo hacia arriba (V) y piezas de izquierda a derecha (U)
+            for (int row = minRow; row <= maxRows; row++)
             {
                 double rowShiftU = 0.0;
                 if (config.Pattern == FloorPatternType.RunningBond50)
                 {
-                    if (Math.Abs(row) % 2 == 1) rowShiftU = stepU * 0.5;
+                    if (Math.Abs(row) % 2 == 1) rowShiftU = -tileL * 0.5;
                 }
                 else if (config.Pattern == FloorPatternType.ThirdBond33)
                 {
-                    rowShiftU = (Math.Abs(row) % 3) * (stepU / 3.0);
+                    rowShiftU = -(Math.Abs(row) % 3) * (tileL / 3.0);
                 }
 
-                for (int col = minCol; col <= numCols; col++)
+                for (int col = minCol; col <= maxCols; col++)
                 {
                     double localU = col * stepU + rowShiftU;
                     double localV = row * stepV;
 
-                    // Posición base P en UV rotado desde el punto de desfase (offU, offV)
-                    XYZ P = new XYZ(offU, offV, 0) + dirU_UV * localU + dirV_UV * localV;
+                    XYZ P = new XYZ(startU, startV, 0) + dirU_UV * localU + dirV_UV * localV;
 
-                    // Coordenadas de las 4 esquinas de la celda de baldosa perfectamente rectangulares y rotadas
+                    // Ajustar límites al espacio neto entre juntas perimetrales [perimJoint, span - perimJoint]
+                    if (Math.Abs(rotRad) < 1e-4)
+                    {
+                        double u0 = Math.Max(perimJoint, P.X);
+                        double v0 = Math.Max(perimJoint, P.Y);
+                        double u1 = Math.Min(spanU - perimJoint, P.X + tileL);
+                        double v1 = Math.Min(spanV - perimJoint, P.Y + tileW);
+
+                        if (u1 - u0 <= 0.005 || v1 - v0 <= 0.005) continue;
+
+                        double actualL = u1 - u0;
+                        double actualW = v1 - v0;
+                        double cutLat = Math.Max(0.0, tileL - actualL);
+                        double cutTop = Math.Max(0.0, tileW - actualW);
+                        bool isCutPiece = cutLat > 0.001 || cutTop > 0.001;
+
+                        XYZ c0 = new XYZ(u0, v0, 0);
+                        XYZ c1 = new XYZ(u1, v0, 0);
+                        XYZ c2 = new XYZ(u1, v1, 0);
+                        XYZ c3 = new XYZ(u0, v1, 0);
+
+                        XYZ w0 = localTransform.OfPoint(c0);
+                        XYZ w1 = localTransform.OfPoint(c1);
+                        XYZ w2 = localTransform.OfPoint(c2);
+                        XYZ w3 = localTransform.OfPoint(c3);
+
+                        CurveLoop loop = new CurveLoop();
+                        loop.Append(Line.CreateBound(w0, w1));
+                        loop.Append(Line.CreateBound(w1, w2));
+                        loop.Append(Line.CreateBound(w2, w3));
+                        loop.Append(Line.CreateBound(w3, w0));
+
+                        Solid? solid = null;
+                        try
+                        {
+                            solid = GeometryCreationUtilities.CreateExtrusionGeometry(new List<CurveLoop> { loop }, normal, tileThick);
+                        }
+                        catch { continue; }
+
+                        if (solid == null) continue;
+
+                        results.Add(new TileResult
+                        {
+                            ColIndex = col,
+                            RowIndex = row,
+                            IsCut = isCutPiece,
+                            TileLoop = loop,
+                            TileSolid = solid,
+                            Center3D = (w0 + w1 + w2 + w3) / 4.0,
+                            Corner3D = w0,
+                            DirectionU3D = dirU_3D,
+                            DirectionV3D = dirV_3D,
+                            Normal3D = normal,
+                            NominalLengthFt = tileL,
+                            NominalWidthFt = tileW,
+                            ThicknessFt = tileThick,
+                            PolygonVertices3D = new List<XYZ> { w0, w1, w2, w3 },
+                            PolygonVerticesUV = new List<XYZ> { c0, c1, c2, c3 },
+                            AreaSqFt = actualL * actualW,
+                            CutLatFt = cutLat,
+                            CutTopFt = cutTop
+                        });
+                        continue;
+                    }
+
+                    // Caso con rotación arbitraria
                     XYZ cu0 = P;
                     XYZ cu1 = P + dirU_UV * tileL;
                     XYZ cu2 = P + dirU_UV * tileL + dirV_UV * tileW;
@@ -362,19 +463,17 @@ namespace RevitToSupabasePlugin
 
                     List<XYZ> tileCornersUV = new List<XYZ> { cu0, cu1, cu2, cu3 };
 
-                    // 1. Descarte rápido por Bounding Box (AABB) 2D
                     double tMinU = tileCornersUV.Min(p => p.X);
                     double tMaxU = tileCornersUV.Max(p => p.X);
                     double tMinV = tileCornersUV.Min(p => p.Y);
                     double tMaxV = tileCornersUV.Max(p => p.Y);
 
-                    if (tMaxU < -1e-4 || tMinU > spanU + 1e-4 || tMaxV < -1e-4 || tMinV > spanV + 1e-4)
+                    if (tMaxU < perimJoint - 1e-4 || tMinU > spanU - perimJoint + 1e-4 ||
+                        tMaxV < perimJoint - 1e-4 || tMinV > spanV - perimJoint + 1e-4)
                     {
-                        // Completamente fuera de la extensión del piso
                         continue;
                     }
 
-                    // 2. Evaluar relación con el contorno del piso
                     int insideCount = 0;
                     for (int k = 0; k < 4; k++)
                     {
@@ -385,24 +484,18 @@ namespace RevitToSupabasePlugin
                     }
 
                     bool edgesIntersect = CheckEdgeIntersections(tileCornersUV, outerPolyUV, innerPolysUV);
+                    if (insideCount == 0 && !edgesIntersect) continue;
 
-                    // Si no tiene puntos dentro y ningún borde se cruza, está completamente fuera
-                    if (insideCount == 0 && !edgesIntersect)
-                    {
-                        continue;
-                    }
-
-                    // 3. Construir CurveLoop individual de la celda en 3D en la base del acabado
-                    XYZ w0 = localTransform.OfPoint(new XYZ(cu0.X, cu0.Y, 0.0));
-                    XYZ w1 = localTransform.OfPoint(new XYZ(cu1.X, cu1.Y, 0.0));
-                    XYZ w2 = localTransform.OfPoint(new XYZ(cu2.X, cu2.Y, 0.0));
-                    XYZ w3 = localTransform.OfPoint(new XYZ(cu3.X, cu3.Y, 0.0));
+                    XYZ rw0 = localTransform.OfPoint(new XYZ(cu0.X, cu0.Y, 0.0));
+                    XYZ rw1 = localTransform.OfPoint(new XYZ(cu1.X, cu1.Y, 0.0));
+                    XYZ rw2 = localTransform.OfPoint(new XYZ(cu2.X, cu2.Y, 0.0));
+                    XYZ rw3 = localTransform.OfPoint(new XYZ(cu3.X, cu3.Y, 0.0));
 
                     CurveLoop tileBaseLoop = new CurveLoop();
-                    tileBaseLoop.Append(Line.CreateBound(w0, w1));
-                    tileBaseLoop.Append(Line.CreateBound(w1, w2));
-                    tileBaseLoop.Append(Line.CreateBound(w2, w3));
-                    tileBaseLoop.Append(Line.CreateBound(w3, w0));
+                    tileBaseLoop.Append(Line.CreateBound(rw0, rw1));
+                    tileBaseLoop.Append(Line.CreateBound(rw1, rw2));
+                    tileBaseLoop.Append(Line.CreateBound(rw2, rw3));
+                    tileBaseLoop.Append(Line.CreateBound(rw3, rw0));
 
                     if (tileBaseLoop.IsOpen()) continue;
 
@@ -414,25 +507,14 @@ namespace RevitToSupabasePlugin
                             normal,
                             tileThick);
                     }
-                    catch
-                    {
-                        continue;
-                    }
+                    catch { continue; }
 
                     if (tileSolid == null) continue;
 
-                    Solid? finalSolid = null;
+                    Solid? finalSolid = tileSolid;
                     bool isCut = false;
 
-                    // 4. Evaluación de relación:
-                    // Caso A: Totalmente contenida (4 esquinas dentro y ningún cruce de borde con perímetro o vanos)
-                    if (insideCount == 4 && !edgesIntersect)
-                    {
-                        finalSolid = tileSolid;
-                        isCut = false;
-                    }
-                    // Caso B: Intersecta el borde -> Recortar mediante BooleanOperationsUtils.ExecuteBooleanOperation
-                    else
+                    if (insideCount < 4 || edgesIntersect)
                     {
                         try
                         {
@@ -441,71 +523,18 @@ namespace RevitToSupabasePlugin
                                 floorPrism,
                                 BooleanOperationsType.Intersect);
                         }
-                        catch
-                        {
-                            finalSolid = null;
-                        }
+                        catch { finalSolid = null; }
 
-                        if (finalSolid == null || finalSolid.Volume < 1e-6 || finalSolid.Faces.Size == 0)
-                        {
-                            // Completamente fuera o astilla descartable
-                            continue;
-                        }
+                        if (finalSolid == null || finalSolid.Volume < 1e-6 || finalSolid.Faces.Size == 0) continue;
 
-                        // Descartar si el remanente es una micro-astilla menor al 0.5% del área nominal
-                        double cutVol = finalSolid.Volume;
-                        double cutArea = cutVol / tileThick;
-                        if (cutArea < 0.005 * fullAreaSqFt)
-                        {
-                            continue;
-                        }
-
+                        double cutArea = finalSolid.Volume / tileThick;
+                        if (cutArea < 0.005 * fullAreaSqFt) continue;
                         isCut = Math.Abs(cutArea - fullAreaSqFt) > 0.02 * fullAreaSqFt;
                     }
 
-                    if (finalSolid == null) continue;
-
-                    // 5. Extraer vértices y metadata de la baldosa (para UI preview y cómputo de métricas)
-                    List<XYZ> vertices3D = new List<XYZ>();
-                    List<XYZ> verticesUV = new List<XYZ>();
-                    XYZ center3D = (w0 + w1 + w2 + w3) / 4.0;
-
-                    // Buscar cara planar del sólido final en contacto con el anfitrión
-                    foreach (Face f in finalSolid.Faces)
-                    {
-                        if (f is PlanarFace pf && Math.Abs(pf.FaceNormal.DotProduct(normal)) > 0.8)
-                        {
-                            IList<CurveLoop> cutLoops = pf.GetEdgesAsCurveLoops();
-                            if (cutLoops != null && cutLoops.Count > 0)
-                            {
-                                foreach (Curve c in cutLoops[0])
-                                {
-                                    IList<XYZ> tess = c.Tessellate();
-                                    for (int m = 0; m < tess.Count - 1; m++)
-                                    {
-                                        XYZ pt = tess[m];
-                                        XYZ locPt = localTransform.Inverse.OfPoint(pt);
-                                        XYZ ptOnFace = localTransform.OfPoint(new XYZ(locPt.X, locPt.Y, 0.0));
-                                        vertices3D.Add(ptOnFace);
-                                        verticesUV.Add(new XYZ(locPt.X, locPt.Y, 0.0));
-                                    }
-                                }
-                            }
-                            break;
-                        }
-                    }
-
-                    if (vertices3D.Count >= 3)
-                    {
-                        center3D = new XYZ(vertices3D.Average(p => p.X), vertices3D.Average(p => p.Y), vertices3D.Average(p => p.Z));
-                    }
-                    else
-                    {
-                        vertices3D = new List<XYZ> { w0, w1, w2, w3 };
-                        verticesUV = tileCornersUV;
-                        center3D = (w0 + w1 + w2 + w3) / 4.0;
-                    }
-
+                    List<XYZ> vertices3D = new List<XYZ> { rw0, rw1, rw2, rw3 };
+                    List<XYZ> verticesUV = tileCornersUV;
+                    XYZ center3D = (rw0 + rw1 + rw2 + rw3) / 4.0;
                     double pieceAreaSqFt = finalSolid.Volume / tileThick;
 
                     results.Add(new TileResult
@@ -516,7 +545,13 @@ namespace RevitToSupabasePlugin
                         TileLoop = tileBaseLoop,
                         TileSolid = finalSolid,
                         Center3D = center3D,
-                        Corner3D = w0,
+                        Corner3D = rw0,
+                        DirectionU3D = dirU_3D,
+                        DirectionV3D = dirV_3D,
+                        Normal3D = normal,
+                        NominalLengthFt = tileL,
+                        NominalWidthFt = tileW,
+                        ThicknessFt = tileThick,
                         PolygonVertices3D = vertices3D,
                         PolygonVerticesUV = verticesUV,
                         AreaSqFt = pieceAreaSqFt,
@@ -530,8 +565,8 @@ namespace RevitToSupabasePlugin
         }
 
         /// <summary>
-        /// 5. Salida: Crear entidades válidas en Revit sin generar líneas auxiliares excedentes.
-        /// No deja transacciones abiertas dentro del bucle.
+        /// 5. Salida: Crear exclusivamente instancias de Familias Cargables (Tiles Base.rfa) desde el (0,0) de cada pieza.
+        /// Prohibido el uso de DirectShape.
         /// </summary>
         public static List<ElementId> CreateTileElements(
             Document doc,
@@ -541,55 +576,113 @@ namespace RevitToSupabasePlugin
             List<ElementId> createdIds = new List<ElementId>();
             if (doc == null || tiles == null || tiles.Count == 0) return createdIds;
 
-            ElementId categoryId = placementConfig.CategoryId;
-            if (!DirectShape.IsValidCategoryId(categoryId, doc))
+            FamilySymbol? tileSymbol = FindOrLoadTilesBaseSymbol(doc);
+            if (tileSymbol == null) return createdIds;
+
+            if (!tileSymbol.IsActive)
             {
-                categoryId = new ElementId(BuiltInCategory.OST_Floors);
-            }
-            if (!DirectShape.IsValidCategoryId(categoryId, doc))
-            {
-                categoryId = new ElementId(BuiltInCategory.OST_GenericModel);
+                tileSymbol.Activate();
             }
 
-            DirectShapeType? dsTypeFull = CategoryAssignmentService.GetOrCreateDirectShapeType(doc, categoryId, "Baldosa Entera");
-            DirectShapeType? dsTypeCut = CategoryAssignmentService.GetOrCreateDirectShapeType(doc, categoryId, "Baldosa Cortada");
+            // Configurar dimensiones nominales y material en el tipo de familia (Tiles Base.rfa)
+            double defaultFiveMmFt = (5.0 / 1000.0) * 3.28084;
+            double minValidCutFt = (1.0 / 1000.0) * 3.28084; // 1.0 mm (> ShortCurveTolerance)
 
-            // Instanciación directa y eficiente dentro de la transacción activa (sin abrir transacciones internas en bucle)
+            var first = tiles[0];
+            if (first.NominalLengthFt > 0.001 && first.NominalWidthFt > 0.001)
+            {
+                // En Tiles Base.rfa: Width = eje X (U / NominalLengthFt), Lenght = eje Y (V / NominalWidthFt), Offset = 5mm
+                SetParam(tileSymbol, new[] { "Width", "Ancho" }, first.NominalLengthFt);
+                SetParam(tileSymbol, new[] { "Lenght", "Length", "Largo" }, first.NominalWidthFt);
+                SetParam(tileSymbol, new[] { "Thickness", "Espesor", "Height" }, first.ThicknessFt);
+                SetParam(tileSymbol, new[] { "Offset", "Desfase" }, defaultFiveMmFt);
+            }
+            if (placementConfig.MaterialId != ElementId.InvalidElementId)
+            {
+                Parameter? pTypeMat = tileSymbol.LookupParameter("Mat") ?? tileSymbol.LookupParameter("Material");
+                if (pTypeMat != null && !pTypeMat.IsReadOnly) pTypeMat.Set(placementConfig.MaterialId);
+            }
+
             foreach (var tile in tiles)
             {
-                if (tile.TileSolid == null || tile.TileSolid.Volume < 1e-6) continue;
-
                 try
                 {
-                    DirectShape ds = DirectShape.CreateElement(doc, categoryId);
-                    ds.SetShape(new GeometryObject[] { tile.TileSolid });
-                    ds.Name = tile.IsCut ? "Baldosa Cortada" : "Baldosa Entera";
+                    FamilyInstance? inst = null;
+                    XYZ placePoint = tile.Corner3D;
 
-                    DirectShapeType? targetType = tile.IsCut ? dsTypeCut : dsTypeFull;
-                    if (targetType != null)
+                    if (placementConfig.HostFaceReference != null)
                     {
-                        try { ds.SetTypeId(targetType.Id); } catch { }
+                        inst = doc.Create.NewFamilyInstance(
+                            placementConfig.HostFaceReference,
+                            placePoint,
+                            tile.DirectionU3D,
+                            tileSymbol);
+                    }
+                    else if (placementConfig.HostLevel != null)
+                    {
+                        inst = doc.Create.NewFamilyInstance(
+                            placePoint,
+                            tileSymbol,
+                            placementConfig.HostLevel,
+                            Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
                     }
 
-                    Parameter pComm = ds.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                    if (pComm != null && !pComm.IsReadOnly)
+                    if (inst == null) continue;
+
+                    // Sincronizar recortes de ejemplar en Tiles Base.rfa ("Cut", "Cut Lat" y "Cut Top")
+                    double rawCutLatFt = tile.IsCut ? Math.Max(0.0, tile.CutLatFt) : 0.0;
+                    double rawCutTopFt = tile.IsCut ? Math.Max(0.0, tile.CutTopFt) : 0.0;
+                    bool hasEffectiveCut = tile.IsCut && (rawCutLatFt > 0.0005 || rawCutTopFt > 0.0005);
+
+                    if (hasEffectiveCut)
                     {
-                        pComm.Set(tile.IsCut ? $"{placementConfig.CommentsPrefix}-CORTADA" : $"{placementConfig.CommentsPrefix}-ENTERA");
+                        SetParamIntInstanceOnly(inst, new[] { "Cut", "Corte", "Cortar", "IsCut" }, 1);
+
+                        double safeCutLatFt = rawCutLatFt > minValidCutFt
+                            ? Math.Min(rawCutLatFt, Math.Max(minValidCutFt, tile.NominalLengthFt - minValidCutFt))
+                            : minValidCutFt;
+                        double safeCutTopFt = rawCutTopFt > minValidCutFt
+                            ? Math.Min(rawCutTopFt, Math.Max(minValidCutFt, tile.NominalWidthFt - minValidCutFt))
+                            : minValidCutFt;
+
+                        SetParamInstanceOnly(inst, new[] { "Cut Lat", "CutLat", "Cut_Lat" }, safeCutLatFt);
+                        SetParamInstanceOnly(inst, new[] { "Cut Top", "CutTop", "Cut_Top" }, safeCutTopFt);
+                    }
+                    else
+                    {
+                        SetParamIntInstanceOnly(inst, new[] { "Cut", "Corte", "Cortar", "IsCut" }, 0);
+                        SetParamInstanceOnly(inst, new[] { "Cut Lat", "CutLat", "Cut_Lat" }, defaultFiveMmFt);
+                        SetParamInstanceOnly(inst, new[] { "Cut Top", "CutTop", "Cut_Top" }, defaultFiveMmFt);
                     }
 
                     if (placementConfig.MaterialId != ElementId.InvalidElementId)
                     {
-                        Parameter pMat = ds.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
+                        Parameter? pMat = inst.LookupParameter("Mat")
+                                       ?? inst.LookupParameter("Material")
+                                       ?? inst.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
                         if (pMat != null && !pMat.IsReadOnly) pMat.Set(placementConfig.MaterialId);
+                    }
+
+                    Parameter pComm = inst.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                    if (pComm != null && !pComm.IsReadOnly)
+                    {
+                        pComm.Set(hasEffectiveCut ? $"{placementConfig.CommentsPrefix}-CORTADA" : $"{placementConfig.CommentsPrefix}-ENTERA");
                     }
 
                     if (placementConfig.MeasureElements)
                     {
-                        double customThick = tile.TileSolid.Volume / Math.Max(0.001, tile.AreaSqFt);
-                        MeasurementManager.MeasureAndApply(ds, tile.TileSolid, customThicknessFt: customThick, units: 1);
+                        double actualL = Math.Max(0.001, tile.NominalLengthFt - tile.CutLatFt);
+                        double actualW = Math.Max(0.001, tile.NominalWidthFt - tile.CutTopFt);
+                        MeasurementManager.MeasureAndApply(inst, null,
+                            customLengthFt: actualL,
+                            customWidthFt: actualW,
+                            customAreaSqFt: tile.AreaSqFt,
+                            customThicknessFt: tile.ThicknessFt,
+                            customVolumeCuFt: tile.AreaSqFt * tile.ThicknessFt,
+                            units: 1);
                     }
 
-                    createdIds.Add(ds.Id);
+                    createdIds.Add(inst.Id);
                 }
                 catch { }
             }
@@ -597,9 +690,80 @@ namespace RevitToSupabasePlugin
             return createdIds;
         }
 
+        private static FamilySymbol? FindOrLoadTilesBaseSymbol(Document doc)
+        {
+            var family = new FilteredElementCollector(doc)
+                .OfClass(typeof(Family))
+                .Cast<Family>()
+                .FirstOrDefault(f => f.Name.Equals("Tiles Base", StringComparison.OrdinalIgnoreCase) ||
+                                     f.Name.Equals("Base Tiles", StringComparison.OrdinalIgnoreCase));
+
+            if (family == null)
+            {
+                string addinFolder = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "";
+                string[] searchPaths = new[]
+                {
+                    System.IO.Path.Combine(addinFolder, "Familias", "Floors-Tiles", "Tiles Base.rfa"),
+                    System.IO.Path.Combine(addinFolder, "Tiles Base.rfa"),
+                    System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"Autodesk\Revit\Addins\2027\Familias\Floors-Tiles", "Tiles Base.rfa")
+                };
+
+                string? found = searchPaths.FirstOrDefault(System.IO.File.Exists);
+                if (found != null)
+                {
+                    doc.LoadFamily(found, out family);
+                }
+            }
+
+            if (family != null)
+            {
+                var ids = family.GetFamilySymbolIds();
+                if (ids.Count > 0) return doc.GetElement(ids.First()) as FamilySymbol;
+            }
+            return null;
+        }
+
+        private static void SetParam(Element elem, string[] names, double val)
+        {
+            foreach (string n in names)
+            {
+                Parameter? p = elem.LookupParameter(n);
+                if (p != null && !p.IsReadOnly && p.StorageType == StorageType.Double)
+                {
+                    p.Set(val);
+                    return;
+                }
+            }
+        }
+
+        private static void SetParamInstanceOnly(Element elem, string[] names, double val)
+        {
+            foreach (string n in names)
+            {
+                Parameter? p = elem.LookupParameter(n);
+                if (p != null && !p.IsReadOnly && p.StorageType == StorageType.Double)
+                {
+                    p.Set(val);
+                    return;
+                }
+            }
+        }
+
+        private static void SetParamIntInstanceOnly(Element elem, string[] names, int val)
+        {
+            foreach (string n in names)
+            {
+                Parameter? p = elem.LookupParameter(n);
+                if (p != null && !p.IsReadOnly && p.StorageType == StorageType.Integer)
+                {
+                    p.Set(val);
+                    return;
+                }
+            }
+        }
+
         /// <summary>
-        /// Flujo consolidado completo de modulación y despiece para un piso individual.
-        /// Abre una ÚNICA transacción consolidada para todo el proceso.
+        /// Flujo consolidado completo de modulación y despiece para un piso individual usando exclusivamente familias cargables.
         /// </summary>
         public static List<ElementId> ExecuteFloorTiling(
             Floor floor,
@@ -608,17 +772,17 @@ namespace RevitToSupabasePlugin
         {
             Document doc = floor.Document;
 
-            // 1. Extracción del Contorno Base
-            PlanarFace? topFace = GetTopPlanarFace(floor);
+            // 1. Extracción del Contorno Base y Referencia de Cara
+            var (topFace, faceRef) = GetTopPlanarFaceWithRef(floor);
             if (topFace == null) return new List<ElementId>();
 
             var (outerLoop, innerLoops) = ExtractBoundaryLoops(topFace);
             if (outerLoop == null || outerLoop.IsOpen()) return new List<ElementId>();
 
-            // 2. Sistema de Coordenadas Local (Replanteo)
-            var (localTransform, _, spanU, spanV) = CreateLocalCoordinateSystem(outerLoop, topFace);
+            // 2. Sistema de Coordenadas Local Cartesiano (0,0) alineado con Span Direction
+            var (localTransform, _, spanU, spanV) = CreateLocalCoordinateSystem(outerLoop, topFace, floor);
 
-            // 3 y 4. Malla de Despiece y Recorte Booleano
+            // 3 y 4. Malla de Despiece desde el (0,0)
             List<TileResult> tiles = GenerateFloorTiles(
                 topFace,
                 outerLoop,
@@ -630,9 +794,12 @@ namespace RevitToSupabasePlugin
 
             if (tiles.Count == 0) return new List<ElementId>();
 
-            // 5. Salida consolidada en una única Transacción
+            placementConfig.HostFaceReference = faceRef ?? topFace.Reference;
+            placementConfig.HostLevel = doc.GetElement(floor.LevelId) as Level;
+
+            // 5. Salida consolidada en una única Transacción (100% Familias Cargables)
             List<ElementId> createdIds = new List<ElementId>();
-            using (Transaction t = new Transaction(doc, "Generar Despiece de Baldosas"))
+            using (Transaction t = new Transaction(doc, "Generar Despiece de Baldosas (Familias RFA)"))
             {
                 t.Start();
                 MeasurementManager.EnsureMeasurementParameters(doc);
@@ -780,6 +947,41 @@ namespace RevitToSupabasePlugin
                 rev.Append(c.CreateReversed());
             }
             return rev;
+        }
+
+        public static List<UV> ClipPolygonWithRect(List<UV> poly, double uMin, double vMin, double uMax, double vMax)
+        {
+            if (poly == null || poly.Count < 3) return new List<UV>();
+            List<UV> output = new List<UV>(poly);
+
+            output = ClipEdgeUV(output, p => p.U >= uMin, (p1, p2) => new UV(uMin, p1.V + (p2.V - p1.V) * (uMin - p1.U) / (p2.U - p1.U)));
+            output = ClipEdgeUV(output, p => p.U <= uMax, (p1, p2) => new UV(uMax, p1.V + (p2.V - p1.V) * (uMax - p1.U) / (p2.U - p1.U)));
+            output = ClipEdgeUV(output, p => p.V >= vMin, (p1, p2) => new UV(p1.U + (p2.U - p1.U) * (vMin - p1.V) / (p2.V - p1.V), vMin));
+            output = ClipEdgeUV(output, p => p.V <= vMax, (p1, p2) => new UV(p1.U + (p2.U - p1.U) * (vMax - p1.V) / (p2.V - p1.V), vMax));
+
+            return output;
+        }
+
+        private static List<UV> ClipEdgeUV(List<UV> input, Func<UV, bool> isInside, Func<UV, UV, UV> intersect)
+        {
+            List<UV> output = new List<UV>();
+            if (input == null || input.Count == 0) return output;
+
+            UV S = input[input.Count - 1];
+            foreach (UV E in input)
+            {
+                if (isInside(E))
+                {
+                    if (!isInside(S)) output.Add(intersect(S, E));
+                    output.Add(E);
+                }
+                else if (isInside(S))
+                {
+                    output.Add(intersect(S, E));
+                }
+                S = E;
+            }
+            return output;
         }
 
         #endregion

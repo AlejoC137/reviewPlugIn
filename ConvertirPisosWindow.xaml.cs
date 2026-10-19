@@ -43,6 +43,7 @@ namespace RevitToSupabasePlugin
         public double JointInnerMm { get; private set; } = 3.0;
         public double JointPerimMm { get; private set; } = 5.0;
         public Autodesk.Revit.DB.Material? GroutMaterial { get; private set; }
+        public Autodesk.Revit.DB.Material? PerimeterJointMaterial { get; private set; }
 
         // Muros
         public bool FullWallHeight { get; private set; } = true;
@@ -112,6 +113,7 @@ namespace RevitToSupabasePlugin
                 cmbRevoqueMaterial.ItemsSource = _materials;
                 cmbBeddingMaterial.ItemsSource = _materials;
                 cmbGroutMaterial.ItemsSource = _materials;
+                if (cmbPerimeterJointMaterial != null) cmbPerimeterJointMaterial.ItemsSource = _materials;
                 cmbSkirtingMaterial.ItemsSource = _materials;
 
                 if (_materials.Count > 0)
@@ -130,6 +132,14 @@ namespace RevitToSupabasePlugin
 
                     cmbGroutMaterial.SelectedItem = _materials.FirstOrDefault(m => m.Name.IndexOf("Fragua", StringComparison.OrdinalIgnoreCase) >= 0 ||
                                                                                   m.Name.IndexOf("Grout", StringComparison.OrdinalIgnoreCase) >= 0) ?? _materials[0];
+
+                    if (cmbPerimeterJointMaterial != null)
+                    {
+                        cmbPerimeterJointMaterial.SelectedItem = _materials.FirstOrDefault(m => m.Name.IndexOf("Silicona", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                                                               m.Name.IndexOf("Perfil", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                                                               m.Name.IndexOf("Dilata", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                                                               m.Name.IndexOf("Fragua", StringComparison.OrdinalIgnoreCase) >= 0) ?? cmbGroutMaterial.SelectedItem ?? _materials[0];
+                    }
 
                     cmbSkirtingMaterial.SelectedItem = _materials.FirstOrDefault(m => m.Name.IndexOf("Madera", StringComparison.OrdinalIgnoreCase) >= 0 ||
                                                                                      m.Name.IndexOf("Zocalo", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -205,8 +215,8 @@ namespace RevitToSupabasePlugin
                         catch { }
                     }
 
-                    double l = GetSymbolParam(symbol, new[] { "Lenght", "Length", "Largo", "Depth", "Longitud", "Longitud_Baldosa" }, 60.0);
-                    double w = GetSymbolParam(symbol, new[] { "Width", "Ancho", "Ancho_Baldosa" }, 60.0);
+                    double l = GetSymbolParam(symbol, new[] { "Width", "Ancho", "Ancho_Baldosa", "Lenght", "Length", "Largo" }, 60.0);
+                    double w = GetSymbolParam(symbol, new[] { "Lenght", "Length", "Largo", "Depth", "Longitud", "Longitud_Baldosa", "Width" }, 60.0);
                     double th = GetSymbolParam(symbol, new[] { "Thickness", "Height", "Espesor", "Alto", "Espesor_Baldosa" }, 1.0);
 
                     _availableTiles.Add(new TileType
@@ -482,6 +492,7 @@ namespace RevitToSupabasePlugin
             if (double.TryParse(txtJointPerimeter.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double jp))
                 JointPerimMm = Math.Max(0.0, jp);
             GroutMaterial = cmbGroutMaterial.SelectedItem as Autodesk.Revit.DB.Material;
+            PerimeterJointMaterial = (cmbPerimeterJointMaterial?.SelectedItem as Autodesk.Revit.DB.Material) ?? GroutMaterial;
 
             // Muros
             FullWallHeight = chkFullWallHeight.IsChecked == true;
@@ -513,7 +524,7 @@ namespace RevitToSupabasePlugin
             if (double.TryParse(txtOffsetY.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double oy))
                 OffsetYCm = oy;
 
-            PreferDirectShapeGeometry = rbDirectShape != null && rbDirectShape.IsChecked == true;
+            PreferDirectShapeGeometry = false;
         }
 
         private void RecalculateLayoutAnd3D()
@@ -558,11 +569,9 @@ namespace RevitToSupabasePlugin
 
                 if (effectiveBoundaryUV.Count < 3) continue;
 
-                // Para pisos: la cara superior del enchape queda en el N.P.T. (ElevationFt), por lo que el offset base es -tileHFt
-                // Para muros: el enchape se coloca a partir del revoque + pega
                 double normalTileOffset = (host.HostType == HostElementType.Floor) ? 0.0 : (revoqueFt + beddingFt);
 
-                // Calcular contorno interior de baldosas (restando la junta perimetral)
+                // Calcular contorno interior de baldosas (restando la junta perimetral de 5mm)
                 bool hasPerimJoint = GenerateJointMesh && jointPerimFt > 0.0005;
                 List<XYZ> tilingBoundaryUV = hasPerimJoint ? InsetPolygon2D(effectiveBoundaryUV, jointPerimFt) : effectiveBoundaryUV;
 
@@ -571,32 +580,40 @@ namespace RevitToSupabasePlugin
                 host.TilingBoundaryUV = tilingBoundaryUV;
                 host.TilingBoundary3D = tilingBoundaryUV.Select(uv => host.LocalToWorld(uv, 0.0)).ToList();
 
-                // Generar Zócalo perimetral si el anfitrión es un Piso (apoyado sobre N.P.T. / ElevationFt)
+                // 1. Generar Zócalo perimetral desde el (0,0) de cada segmento si el anfitrión es un Piso
                 if (host.HostType == HostElementType.Floor && EnableSkirting)
                 {
                     double skHeightFt = (SkirtingHeightCm / 100.0) * 3.28084;
                     double skThickFt = (SkirtingThickCm / 100.0) * 3.28084;
                     double skBevelFt = (SkirtingBevelMm / 1000.0) * 3.28084;
-                    double baseElevation = host.ElevationFt; // Apoyado exactamente sobre N.P.T.
+                    double baseElevation = host.ElevationFt;
 
                     for (int i = 0; i < host.OuterBoundary3D.Count; i++)
                     {
                         XYZ pt1 = host.OuterBoundary3D[i];
                         XYZ pt2 = host.OuterBoundary3D[(i + 1) % host.OuterBoundary3D.Count];
+                        XYZ segVec = pt2 - pt1;
+                        if (segVec.GetLength() < 0.005) continue;
+
                         SkirtingSegments.Add(new SkirtingItem
                         {
                             StartPoint = pt1,
                             EndPoint = pt2,
+                            Corner3D = pt1,
+                            Direction3D = segVec.Normalize(),
+                            Normal3D = host.Normal3D,
                             HeightFt = skHeightFt,
                             ThicknessFt = skThickFt,
                             BevelFt = skBevelFt,
                             BaseElevationFt = baseElevation,
-                            MaterialName = SkirtingMaterial?.Name ?? "Zócalo"
+                            MaterialName = SkirtingMaterial?.Name ?? "Zócalo",
+                            MaterialId = SkirtingMaterial?.Id ?? ElementId.InvalidElementId,
+                            HostFaceRef = host.HostFaceReference
                         });
                     }
                 }
 
-                // Generar Junta Perimetral 3D (Banda exacta entre el borde del piso y el área de baldosas, CERO solapamiento)
+                // 2. Generar Junta Perimetral (5mm o perfiles especiales) desde el (0,0) de cada tramo perimetral sin solape en esquinas
                 if (hasPerimJoint && tilingBoundaryUV.Count == effectiveBoundaryUV.Count)
                 {
                     int nEdges = effectiveBoundaryUV.Count;
@@ -607,29 +624,75 @@ namespace RevitToSupabasePlugin
                         XYZ q2_uv = tilingBoundaryUV[(i + 1) % nEdges];
                         XYZ q1_uv = tilingBoundaryUV[i];
 
-                        XYZ p1 = host.LocalToWorld(p1_uv, normalTileOffset);
-                        XYZ p2 = host.LocalToWorld(p2_uv, normalTileOffset);
-                        XYZ q2 = host.LocalToWorld(q2_uv, normalTileOffset);
-                        XYZ q1 = host.LocalToWorld(q1_uv, normalTileOffset);
+                        XYZ edgeUV = p2_uv - p1_uv;
+                        double edgeLenUV = Math.Sqrt(edgeUV.X * edgeUV.X + edgeUV.Y * edgeUV.Y);
+                        if (edgeLenUV < 0.001) continue;
+
+                        // Determinar si el tramo es predominantemente horizontal (paralelo a Span Direction U) o vertical (paralelo a V)
+                        bool isHorizontalEdge = Math.Abs(edgeUV.X) >= Math.Abs(edgeUV.Y);
+
+                        // Para evitar solapamiento en las 4 esquinas:
+                        // - Las juntas perimetrales horizontales (Span Direction U) corren de extremo a extremo (p1 -> p2)
+                        // - Las juntas perimetrales verticales corren únicamente entre las juntas horizontales (q1 -> q2)
+                        XYZ startOuterUV = p1_uv;
+                        XYZ endOuterUV = p2_uv;
+                        XYZ startInnerUV = q1_uv;
+                        XYZ endInnerUV = q2_uv;
+
+                        if (isHorizontalEdge)
+                        {
+                            XYZ dirUV = new XYZ(edgeUV.X / edgeLenUV, edgeUV.Y / edgeLenUV, 0);
+                            startInnerUV = q1_uv - dirUV * jointPerimFt;
+                            endInnerUV = q2_uv + dirUV * jointPerimFt;
+                        }
+                        else
+                        {
+                            XYZ dirUV = new XYZ(edgeUV.X / edgeLenUV, edgeUV.Y / edgeLenUV, 0);
+                            startOuterUV = p1_uv + dirUV * jointPerimFt;
+                            endOuterUV = p2_uv - dirUV * jointPerimFt;
+                        }
+
+                        XYZ p1 = host.LocalToWorld(startOuterUV, normalTileOffset);
+                        XYZ p2 = host.LocalToWorld(endOuterUV, normalTileOffset);
+                        XYZ q2 = host.LocalToWorld(endInnerUV, normalTileOffset);
+                        XYZ q1 = host.LocalToWorld(startInnerUV, normalTileOffset);
 
                         List<XYZ> perimPoly3D = new List<XYZ> { p1, p2, q2, q1 };
                         XYZ centerPerim = (p1 + p2 + q2 + q1) / 4.0;
-                        XYZ segDir = (p2 - p1);
+                        XYZ segDir = (q2 - q1);
                         double len = segDir.GetLength();
+                        if (len < 0.001) continue;
+
+                        XYZ dirLen3D = segDir.Normalize();
+                        // En Base Tiles Pega.rfa:
+                        // +Y de la familia = Normal3D x DirectionU3D = dirección de Lenght (dirLen3D)
+                        // +X de la familia = DirectionU3D = dirLen3D x Normal3D = dirección de Width (apunta desde el borde interior q1 hacia el borde exterior p1)
+                        XYZ refDirWidth3D = dirLen3D.CrossProduct(host.Normal3D).Normalize();
+                        XYZ cornerOrigin3D = q1;
+                        if ((p1 - q1).DotProduct(refDirWidth3D) < 0)
+                        {
+                            // Si el polígono venía en sentido horario, invertir origen al extremo opuesto para mantener +X hacia adentro de la junta y +Y a lo largo del tramo
+                            cornerOrigin3D = p1;
+                            refDirWidth3D = -refDirWidth3D;
+                        }
 
                         LayoutJoints.Add(new JointLayoutItem
                         {
                             IsPerimeter = true,
+                            IsVertical = !isHorizontalEdge,
                             Center3D = centerPerim,
+                            Corner3D = cornerOrigin3D,
                             StartPoint3D = (p1 + q1) / 2.0,
                             EndPoint3D = (p2 + q2) / 2.0,
+                            DirectionU3D = refDirWidth3D,
                             Normal3D = host.Normal3D,
-                            RotationRad = Math.Atan2(segDir.Y, segDir.X),
+                            RotationRad = Math.Atan2(refDirWidth3D.Y, refDirWidth3D.X),
                             LengthFt = len,
                             WidthFt = jointPerimFt,
                             DepthFt = tileHFt,
                             PolygonVertices3D = perimPoly3D,
-                            MaterialName = GroutMaterial?.Name ?? "Fragua",
+                            MaterialName = PerimeterJointMaterial?.Name ?? GroutMaterial?.Name ?? "Junta Perimetral",
+                            MaterialId = PerimeterJointMaterial?.Id ?? GroutMaterial?.Id ?? ElementId.InvalidElementId,
                             HostFaceRef = host.HostFaceReference
                         });
                     }
@@ -652,55 +715,28 @@ namespace RevitToSupabasePlugin
                     double netSpanU = spanU - (2.0 * perimGap);
                     double netSpanV = spanV - (2.0 * perimGap);
 
-                    // 1. Cálculo de Desfase Simétrico respecto a los ejes centrales
-                    double remU = netSpanU % stepU;
-                    double remV = netSpanV % stepV;
-                    double firstCutU = (remU > 0.001) ? (remU / 2.0) : tileLFt;
-                    double firstCutV = (remV > 0.001) ? (remV / 2.0) : tileWFt;
+                    // Si el usuario eligió Plano Cartesiano (0,0) [AutoCAD] (SelectedIndex != 0), arrancamos exactamente desde (0,0) + 5mm perimetral + pieza entera 60cm + 3mm junta...
+                    bool useCartesianZeroOrigin = (cmbOrigin == null || cmbOrigin.SelectedIndex != 0);
 
-                    // Lista de posiciones U (inicio, fin, longitud) que cubren el 100% del vano neto
-                    var uStrips = new List<(double startU, double lenU, bool isCut)>();
-                    double curU = perimGap + offXFt;
-                    
-                    // Franja de remate inicial en U
-                    if (firstCutU > 0.005)
-                    {
-                        double actualFirstU = Math.Min(firstCutU, spanU - perimGap - curU);
-                        if (actualFirstU > 0.005)
-                        {
-                            uStrips.Add((curU, actualFirstU, actualFirstU < tileLFt - 0.005));
-                            curU += actualFirstU + innerGap;
-                        }
-                    }
-
-                    // Franjas intermedias enteras y remate final en U
-                    while (curU < (spanU - perimGap - 0.005))
-                    {
-                        double remaining = (spanU - perimGap) - curU;
-                        double itemLen = Math.Min(tileLFt, remaining);
-                        if (itemLen <= 0.005) break;
-
-                        bool isCut = (remaining < tileLFt - 0.005);
-                        uStrips.Add((curU, itemLen, isCut));
-                        curU += itemLen + innerGap;
-                    }
-
-                    // Lista de posiciones V (inicio, fin, longitud) que cubren el 100% del vano neto
                     var vStrips = new List<(double startV, double lenV, bool isCut)>();
                     double curV = perimGap + offYFt;
 
-                    // Franja de remate inicial en V
-                    if (firstCutV > 0.005)
+                    if (!useCartesianZeroOrigin)
                     {
-                        double actualFirstV = Math.Min(firstCutV, spanV - perimGap - curV);
-                        if (actualFirstV > 0.005)
+                        double remV = netSpanV % stepV;
+                        double firstCutV = (remV > 0.001) ? (remV / 2.0) : tileWFt;
+                        if (firstCutV > 0.005)
                         {
-                            vStrips.Add((curV, actualFirstV, actualFirstV < tileWFt - 0.005));
-                            curV += actualFirstV + innerGap;
+                            double actualFirstV = Math.Min(firstCutV, spanV - perimGap - curV);
+                            if (actualFirstV > 0.005)
+                            {
+                                vStrips.Add((curV, actualFirstV, actualFirstV < tileWFt - 0.005));
+                                curV += actualFirstV + innerGap;
+                            }
                         }
                     }
 
-                    // Franjas intermedias enteras y remate final en V
+                    // De abajo hacia arriba desde el (0,0) + 5mm junta perimetral: 60cm baldosa -> 3mm junta interna -> 60cm baldosa...
                     while (curV < (spanV - perimGap - 0.005))
                     {
                         double remaining = (spanV - perimGap) - curV;
@@ -712,13 +748,62 @@ namespace RevitToSupabasePlugin
                         curV += itemLen + innerGap;
                     }
 
-                    // 2. Generación de celdas combinando franjas U y V
+                    // Array de filas de abajo hacia arriba (cada fila contiene sus piezas y sub-objetos de junta vertical sin solape)
                     var rowGroups = new List<List<TileLayoutItem>>();
 
                     for (int r = 0; r < vStrips.Count; r++)
                     {
                         var vStrip = vStrips[r];
                         var thisRow = new List<TileLayoutItem>();
+
+                        // Traba por fila (arquitrabado 50% o 1/3) si aplica
+                        double rowShiftU = 0.0;
+                        if (SelectedPattern == FloorPatternType.RunningBond50 && (r % 2 == 1))
+                        {
+                            rowShiftU = tileLFt * 0.5;
+                        }
+                        else if (SelectedPattern == FloorPatternType.ThirdBond33)
+                        {
+                            rowShiftU = (r % 3) * (tileLFt / 3.0);
+                        }
+
+                        var uStrips = new List<(double startU, double lenU, bool isCut)>();
+                        double curU = perimGap + offXFt;
+
+                        if (!useCartesianZeroOrigin)
+                        {
+                            double remU = netSpanU % stepU;
+                            double firstCutU = (remU > 0.001) ? (remU / 2.0) : tileLFt;
+                            if (firstCutU > 0.005)
+                            {
+                                double actualFirstU = Math.Min(firstCutU, spanU - perimGap - curU);
+                                if (actualFirstU > 0.005)
+                                {
+                                    uStrips.Add((curU, actualFirstU, actualFirstU < tileLFt - 0.005));
+                                    curU += actualFirstU + innerGap;
+                                }
+                            }
+                        }
+                        else if (rowShiftU > 0.005)
+                        {
+                            double firstShiftedU = Math.Min(rowShiftU, spanU - perimGap - curU);
+                            if (firstShiftedU > 0.005)
+                            {
+                                uStrips.Add((curU, firstShiftedU, true));
+                                curU += firstShiftedU + innerGap;
+                            }
+                        }
+
+                        while (curU < (spanU - perimGap - 0.005))
+                        {
+                            double remaining = (spanU - perimGap) - curU;
+                            double itemLen = Math.Min(tileLFt, remaining);
+                            if (itemLen <= 0.005) break;
+
+                            bool isCut = (remaining < tileLFt - 0.005);
+                            uStrips.Add((curU, itemLen, isCut));
+                            curU += itemLen + innerGap;
+                        }
 
                         for (int c = 0; c < uStrips.Count; c++)
                         {
@@ -735,7 +820,6 @@ namespace RevitToSupabasePlugin
                             XYZ ti_uv3 = new XYZ(uPos, vPos + itemV, 0.0);
                             List<XYZ> tiPolyUV = new List<XYZ> { ti_uv0, ti_uv1, ti_uv2, ti_uv3 };
 
-                            // Validación de intersección con el contorno del suelo
                             int tiInsideCount = 0;
                             for (int k = 0; k < 4; k++)
                             {
@@ -747,13 +831,42 @@ namespace RevitToSupabasePlugin
 
                             if (tiInsideCount == 0 && !tiEdgesIntersect && !tiCenterInside) continue;
 
-                            // Comprobación de huecos interiores
+                            // Si la pieza toca o cruza algún borde del polígono de piso (tilingBoundaryUV),
+                            // recortar contra el contorno real para obtener el remanente exacto [minClipU, maxClipU] x [minClipV, maxClipV]
+                            if (tiInsideCount < 4 || tiEdgesIntersect)
+                            {
+                                List<XYZ> clippedUV = ClipPolygonAgainstConvex(tilingBoundaryUV, tiPolyUV);
+                                if (clippedUV == null || clippedUV.Count < 3) continue;
+
+                                double clippedArea = CalculatePolygonArea(clippedUV);
+                                if (clippedArea < 0.002 * (tileLFt * tileWFt)) continue;
+
+                                double minClipU = clippedUV.Min(p => p.X);
+                                double maxClipU = clippedUV.Max(p => p.X);
+                                double minClipV = clippedUV.Min(p => p.Y);
+                                double maxClipV = clippedUV.Max(p => p.Y);
+
+                                if (maxClipU - minClipU <= 0.005 || maxClipV - minClipV <= 0.005) continue;
+
+                                uPos = minClipU;
+                                vPos = minClipV;
+                                itemU = maxClipU - minClipU;
+                                itemV = maxClipV - minClipV;
+
+                                ti_uv0 = new XYZ(uPos, vPos, 0.0);
+                                ti_uv1 = new XYZ(uPos + itemU, vPos, 0.0);
+                                ti_uv2 = new XYZ(uPos + itemU, vPos + itemV, 0.0);
+                                ti_uv3 = new XYZ(uPos, vPos + itemV, 0.0);
+                                tiPolyUV = new List<XYZ> { ti_uv0, ti_uv1, ti_uv2, ti_uv3 };
+                                tiCenterUV = new XYZ(uPos + itemU / 2.0, vPos + itemV / 2.0, 0.0);
+                            }
+
                             bool isInsideVoid = false;
                             if (host.InnerBoundariesUV != null && host.InnerBoundariesUV.Count > 0)
                             {
                                 foreach (var inPoly in host.InnerBoundariesUV)
                                 {
-                                    if (inPoly.Count >= 3 && IsPointInPolygon2D(tiCenterUV, inPoly) && tiInsideCount == 4)
+                                    if (inPoly.Count >= 3 && IsPointInPolygon2D(tiCenterUV, inPoly))
                                     {
                                         isInsideVoid = true;
                                         break;
@@ -762,16 +875,17 @@ namespace RevitToSupabasePlugin
                             }
                             if (isInsideVoid) continue;
 
+                            // El (0,0) de cada baldosa (Corner3D) se ubica en la esquina inferior-izquierda del espacio creado entre juntas
                             XYZ corner3D = host.LocalToWorld(ti_uv0, normalTileOffset);
                             XYZ center3D = host.LocalToWorld(tiCenterUV, normalTileOffset);
 
-                            bool isCut = uStrip.isCut || vStrip.isCut || (tiInsideCount < 4) || tiEdgesIntersect;
-                            double cutLat = tileLFt - itemU;
-                            double cutTop = tileWFt - itemV;
+                            double cutLat = Math.Max(0.0, tileLFt - itemU);
+                            double cutTop = Math.Max(0.0, tileWFt - itemV);
 
                             if (cutLat < 0.001) cutLat = 0.0;
                             if (cutTop < 0.001) cutTop = 0.0;
 
+                            bool isCut = (cutLat > 0.001 || cutTop > 0.001);
                             TileRole role = isCut ? ((cutLat > 0.001 && cutTop > 0.001) ? TileRole.Corner : TileRole.CutEdge) : TileRole.Full;
 
                             if (isCut)
@@ -801,8 +915,8 @@ namespace RevitToSupabasePlugin
                                 Normal3D = host.Normal3D,
                                 DirectionU3D = host.BasisU,
                                 DirectionV3D = host.BasisV,
-                                Length_Ft = itemU,
-                                Width_Ft = itemV,
+                                Length_Ft = tileLFt,
+                                Width_Ft = tileWFt,
                                 Thickness_Ft = tileHFt,
                                 RotationRad = Math.Atan2(host.BasisU.Y, host.BasisU.X),
                                 IsCut = isCut,
@@ -824,45 +938,55 @@ namespace RevitToSupabasePlugin
                         if (thisRow.Count > 0) rowGroups.Add(thisRow);
                     }
 
-                    // Generar Fraguas / Juntas (Idéntico a CommandConvertirMurosALadrillos)
+                    // Generar Juntas Internas (Horizontales continuas en Span Direction + Sub-objetos Verticales de alto igual a la pieza sin solapamiento)
                     if (hasPega && rowGroups.Count > 0)
                     {
-                        // 1. Juntas Horizontales entre filas
+                        // 1. Juntas Horizontales Largas (de izquierda a derecha en Span Direction, p.ej. 2m)
                         for (int r = 0; r < rowGroups.Count - 1; r++)
                         {
                             var rItems = rowGroups[r];
                             if (rItems.Count == 0) continue;
 
-                            double vMaxOfRow = rItems.Max(t => t.CenterV_Ft + t.Width_Ft / 2.0);
-                            double minRowU = rItems.Min(t => t.CenterU_Ft - t.Length_Ft / 2.0);
-                            double maxRowU = rItems.Max(t => t.CenterU_Ft + t.Length_Ft / 2.0);
+                            double vMaxOfRow = rItems.Max(t => t.CenterV_Ft + t.ActualWidth_Ft / 2.0);
+                            double minRowU = rItems.Min(t => t.CenterU_Ft - t.ActualLength_Ft / 2.0);
+                            double maxRowU = rItems.Max(t => t.CenterU_Ft + t.ActualLength_Ft / 2.0);
                             double hLen = maxRowU - minRowU;
-                            XYZ jStart3D = host.LocalToWorld(new XYZ(minRowU, vMaxOfRow, 0.0), normalTileOffset);
-                            XYZ jEnd3D = host.LocalToWorld(new XYZ(maxRowU, vMaxOfRow, 0.0), normalTileOffset);
+                            if (hLen <= 0.001) continue;
+
+                            XYZ jStart3D = host.LocalToWorld(new XYZ(minRowU, vMaxOfRow + jointInnerFt / 2.0, 0.0), normalTileOffset);
+                            XYZ jEnd3D = host.LocalToWorld(new XYZ(maxRowU, vMaxOfRow + jointInnerFt / 2.0, 0.0), normalTileOffset);
 
                             XYZ jh0 = host.LocalToWorld(new XYZ(minRowU, vMaxOfRow, 0.0), normalTileOffset);
                             XYZ jh1 = host.LocalToWorld(new XYZ(maxRowU, vMaxOfRow, 0.0), normalTileOffset);
                             XYZ jh2 = host.LocalToWorld(new XYZ(maxRowU, vMaxOfRow + jointInnerFt, 0.0), normalTileOffset);
                             XYZ jh3 = host.LocalToWorld(new XYZ(minRowU, vMaxOfRow + jointInnerFt, 0.0), normalTileOffset);
 
+                            // En Base Tiles Pega.rfa:
+                            // +X (DirectionU3D) es la dirección del espesor de junta (Width = 3mm), +Y (Normal x DirectionU3D) es la dirección del largo (Lenght = hLen).
+                            // Para que +Y apunte en +BasisU (Span Direction) y +X cubra [vMaxOfRow, vMaxOfRow + jointInnerFt],
+                            // el origen (0,0) de la junta horizontal es jh3 = (minRowU, vMaxOfRow + jointInnerFt) y DirectionU3D = -host.BasisV.
                             LayoutJoints.Add(new JointLayoutItem
                             {
+                                IsPerimeter = false,
                                 IsVertical = false,
+                                Corner3D = jh3,
                                 StartPoint3D = jStart3D,
                                 EndPoint3D = jEnd3D,
                                 Center3D = (jStart3D + jEnd3D) / 2.0,
+                                DirectionU3D = -host.BasisV,
                                 Normal3D = host.Normal3D,
-                                RotationRad = 0.0,
+                                RotationRad = Math.Atan2(-host.BasisV.Y, -host.BasisV.X),
                                 LengthFt = hLen,
                                 WidthFt = jointInnerFt,
                                 DepthFt = tileHFt,
                                 PolygonVertices3D = new List<XYZ> { jh0, jh1, jh2, jh3 },
                                 MaterialName = GroutMaterial?.Name ?? "Fragua",
+                                MaterialId = GroutMaterial?.Id ?? ElementId.InvalidElementId,
                                 HostFaceRef = host.HostFaceReference
                             });
                         }
 
-                        // 2. Juntas Verticales entre baldosas de cada fila
+                        // 2. Sub-objetos de Juntas Verticales entre baldosa y baldosa (miden únicamente el alto de la pieza de esa fila, ej. 60cm, evitando solape)
                         for (int r = 0; r < rowGroups.Count; r++)
                         {
                             var rItems = rowGroups[r].OrderBy(t => t.CenterU_Ft).ToList();
@@ -871,34 +995,42 @@ namespace RevitToSupabasePlugin
                                 var cur = rItems[i];
                                 var nxt = rItems[i + 1];
 
-                                double curRightU = cur.CenterU_Ft + cur.Length_Ft / 2.0;
-                                double nxtLeftU = nxt.CenterU_Ft - nxt.Length_Ft / 2.0;
+                                double curRightU = cur.CenterU_Ft + cur.ActualLength_Ft / 2.0;
+                                double nxtLeftU = nxt.CenterU_Ft - nxt.ActualLength_Ft / 2.0;
                                 double vGap = nxtLeftU - curRightU;
 
                                 if (vGap > 0.0001)
                                 {
-                                    double bottomV = cur.CenterV_Ft - cur.Width_Ft / 2.0;
-                                    XYZ vStart3D = host.LocalToWorld(new XYZ(curRightU, bottomV, 0.0), normalTileOffset);
-                                    XYZ vEnd3D = host.LocalToWorld(new XYZ(curRightU, bottomV + cur.Width_Ft, 0.0), normalTileOffset);
+                                    double bottomV = cur.CenterV_Ft - cur.ActualWidth_Ft / 2.0;
+                                    XYZ vStart3D = host.LocalToWorld(new XYZ(curRightU + vGap / 2.0, bottomV, 0.0), normalTileOffset);
+                                    XYZ vEnd3D = host.LocalToWorld(new XYZ(curRightU + vGap / 2.0, bottomV + cur.ActualWidth_Ft, 0.0), normalTileOffset);
 
                                     XYZ jv0 = host.LocalToWorld(new XYZ(curRightU, bottomV, 0.0), normalTileOffset);
                                     XYZ jv1 = host.LocalToWorld(new XYZ(curRightU + vGap, bottomV, 0.0), normalTileOffset);
-                                    XYZ jv2 = host.LocalToWorld(new XYZ(curRightU + vGap, bottomV + cur.Width_Ft, 0.0), normalTileOffset);
-                                    XYZ jv3 = host.LocalToWorld(new XYZ(curRightU, bottomV + cur.Width_Ft, 0.0), normalTileOffset);
+                                    XYZ jv2 = host.LocalToWorld(new XYZ(curRightU + vGap, bottomV + cur.ActualWidth_Ft, 0.0), normalTileOffset);
+                                    XYZ jv3 = host.LocalToWorld(new XYZ(curRightU, bottomV + cur.ActualWidth_Ft, 0.0), normalTileOffset);
 
+                                    // En Base Tiles Pega.rfa:
+                                    // Origen (0,0) en jv0 = (curRightU, bottomV).
+                                    // +X (DirectionU3D = +host.BasisU) mide Width = vGap (3mm).
+                                    // +Y (Normal x DirectionU3D = +host.BasisV) mide Lenght = cur.ActualWidth_Ft (ej. 60cm).
                                     LayoutJoints.Add(new JointLayoutItem
                                     {
+                                        IsPerimeter = false,
                                         IsVertical = true,
+                                        Corner3D = jv0,
                                         StartPoint3D = vStart3D,
                                         EndPoint3D = vEnd3D,
                                         Center3D = (vStart3D + vEnd3D) / 2.0,
+                                        DirectionU3D = host.BasisU,
                                         Normal3D = host.Normal3D,
-                                        RotationRad = Math.PI / 2.0,
-                                        LengthFt = cur.Width_Ft,
+                                        RotationRad = Math.Atan2(host.BasisU.Y, host.BasisU.X),
+                                        LengthFt = cur.ActualWidth_Ft,
                                         WidthFt = vGap,
                                         DepthFt = tileHFt,
                                         PolygonVertices3D = new List<XYZ> { jv0, jv1, jv2, jv3 },
                                         MaterialName = GroutMaterial?.Name ?? "Fragua",
+                                        MaterialId = GroutMaterial?.Id ?? ElementId.InvalidElementId,
                                         HostFaceRef = host.HostFaceReference
                                     });
                                 }
@@ -1034,6 +1166,7 @@ namespace RevitToSupabasePlugin
                         double cutLatFt = 0.0;
                         double cutTopFt = 0.0;
                         XYZ placementCenter3D = polyCenter3D;
+                        XYZ placementCorner3D = host.LocalToWorld(RotateAndTranslate2D(new XYZ(-hu, -hv, 0), rotRad, ru, rv), normalTileOffset);
                         double tileRotRad = rotRad;
                         XYZ tileDirU = dirU;
 
@@ -1061,21 +1194,18 @@ namespace RevitToSupabasePlugin
                             actualLengthFt = Math.Max(0.01, maxLocalU - minLocalU);
                             actualWidthFt = Math.Max(0.01, maxLocalV - minLocalV);
 
-                            double cutU_pos = Math.Max(0.0, hu - maxLocalU);
-                            double cutU_neg = Math.Max(0.0, minLocalU - (-hu));
-                            double cutV_pos = Math.Max(0.0, hv - maxLocalV);
-                            double cutV_neg = Math.Max(0.0, minLocalV - (-hv));
+                            // Cut Lat (Recorte Lateral) corresponde a la longitud (eje U / Width en Tiles Base.rfa)
+                            cutLatFt = Math.Max(0.0, tileLFt - actualLengthFt);
+                            // Cut Top (Recorte Superior) corresponde al ancho/altura (eje V / Lenght en Tiles Base.rfa)
+                            cutTopFt = Math.Max(0.0, tileWFt - actualWidthFt);
 
-                            // Cut Lat (Recorte Lateral) corresponde a la longitud (eje U / Length)
-                            cutLatFt = Math.Max(0.0, cutU_pos + cutU_neg);
-                            // Cut Top (Recorte Superior) corresponde al ancho/altura (eje V / Width)
-                            cutTopFt = Math.Max(0.0, cutV_pos + cutV_neg);
-
-                            // El centro de inserción de la pieza cortada debe ubicarse en el centro geométrico del remanente dentro del piso
+                            // El centro y la esquina (0,0) de la pieza cortada deben ubicarse en el remanente dentro del piso/muro
                             double midLocalU = (minLocalU + maxLocalU) / 2.0;
                             double midLocalV = (minLocalV + maxLocalV) / 2.0;
                             XYZ centerUV = RotateAndTranslate2D(new XYZ(midLocalU, midLocalV, 0), rotRad, ru, rv);
+                            XYZ cornerUV = RotateAndTranslate2D(new XYZ(minLocalU, minLocalV, 0), rotRad, ru, rv);
                             placementCenter3D = host.LocalToWorld(centerUV, normalTileOffset);
+                            placementCorner3D = host.LocalToWorld(cornerUV, normalTileOffset);
                         }
 
                         LayoutTiles.Add(new TileLayoutItem
@@ -1085,7 +1215,7 @@ namespace RevitToSupabasePlugin
                             CenterU_Ft = ru,
                             CenterV_Ft = rv,
                             Center3D = placementCenter3D,
-                            Corner3D = host.LocalToWorld(RotateAndTranslate2D(new XYZ(-hu, -hv, 0), rotRad, ru, rv), normalTileOffset),
+                            Corner3D = placementCorner3D,
                             Normal3D = host.Normal3D,
                             DirectionU3D = tileDirU,
                             DirectionV3D = dirV,
@@ -1149,17 +1279,21 @@ namespace RevitToSupabasePlugin
                             XYZ centerUV = RotateAndTranslate2D(new XYZ(midU, vPos, 0), rotRad, originU, originV);
                             XYZ centerStrip3D = host.LocalToWorld(centerUV, normalTileOffset);
                             XYZ dirU3D = (host.BasisU * cosR + host.BasisV * sinR).Normalize();
+                            XYZ dirV3D = (-host.BasisU * sinR + host.BasisV * cosR).Normalize();
                             XYZ start3D = centerStrip3D - dirU3D * (actualLen / 2.0);
                             XYZ end3D = centerStrip3D + dirU3D * (actualLen / 2.0);
+                            XYZ cornerH3D = start3D + dirV3D * (jointInnerFt / 2.0);
 
                             List<XYZ> strip3D = clippedStripUV.Select(pt => host.LocalToWorld(pt, normalTileOffset)).ToList();
 
                             LayoutJoints.Add(new JointLayoutItem
                             {
                                 IsVertical = false,
+                                Corner3D = cornerH3D,
                                 Center3D = centerStrip3D,
                                 StartPoint3D = start3D,
                                 EndPoint3D = end3D,
+                                DirectionU3D = -dirV3D,
                                 Normal3D = host.Normal3D,
                                 RotationRad = rotRad,
                                 LengthFt = actualLen,
@@ -1167,6 +1301,7 @@ namespace RevitToSupabasePlugin
                                 DepthFt = tileHFt,
                                 PolygonVertices3D = strip3D,
                                 MaterialName = GroutMaterial?.Name ?? "Fragua",
+                                MaterialId = GroutMaterial?.Id ?? ElementId.InvalidElementId,
                                 HostFaceRef = host.HostFaceReference
                             });
                         }
@@ -1218,18 +1353,22 @@ namespace RevitToSupabasePlugin
                                 double midV = (segMinV + segMaxV) / 2.0;
                                 XYZ centerUV = RotateAndTranslate2D(new XYZ(uPos, midV, 0), rotRad, originU, originV);
                                 XYZ centerSeg3D = host.LocalToWorld(centerUV, normalTileOffset);
+                                XYZ dirU3D = (host.BasisU * cosR + host.BasisV * sinR).Normalize();
                                 XYZ dirV3D = (-host.BasisU * sinR + host.BasisV * cosR).Normalize();
                                 XYZ start3D = centerSeg3D - dirV3D * (actualLen / 2.0);
                                 XYZ end3D = centerSeg3D + dirV3D * (actualLen / 2.0);
+                                XYZ cornerV3D = start3D - dirU3D * (jointInnerFt / 2.0);
 
                                 List<XYZ> seg3D = clippedSegUV.Select(pt => host.LocalToWorld(pt, normalTileOffset)).ToList();
 
                                 LayoutJoints.Add(new JointLayoutItem
                                 {
                                     IsVertical = true,
+                                    Corner3D = cornerV3D,
                                     Center3D = centerSeg3D,
                                     StartPoint3D = start3D,
                                     EndPoint3D = end3D,
+                                    DirectionU3D = dirU3D,
                                     Normal3D = host.Normal3D,
                                     RotationRad = rotRad + Math.PI / 2.0,
                                     LengthFt = actualLen,
@@ -1237,6 +1376,7 @@ namespace RevitToSupabasePlugin
                                     DepthFt = tileHFt,
                                     PolygonVertices3D = seg3D,
                                     MaterialName = GroutMaterial?.Name ?? "Fragua",
+                                    MaterialId = GroutMaterial?.Id ?? ElementId.InvalidElementId,
                                     HostFaceRef = host.HostFaceReference
                                 });
                             }
@@ -2047,7 +2187,7 @@ namespace RevitToSupabasePlugin
                 TargetSystemCategory = BuiltInCategory.OST_Floors;
             }
 
-            PreferDirectShapeGeometry = rbDirectShape != null && rbDirectShape.IsChecked == true;
+            PreferDirectShapeGeometry = false;
 
             IsConfirmed = true;
             this.DialogResult = true;

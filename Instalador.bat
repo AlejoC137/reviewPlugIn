@@ -82,11 +82,11 @@ echo ------------------------------------------------------------
 :: -----------------------------------------------------------
 if exist "%~dp0RevitToSupabasePlugin.csproj" (
     echo Compilando el codigo fuente para asegurar que tienes la ultima version...
-    dotnet build "%~dp0RevitToSupabasePlugin.csproj" -c Debug
+    dotnet build "%~dp0RevitToSupabasePlugin.csproj" -c Release
     if errorlevel 1 (
         color 0C
         echo.
-        echo [ERROR] La compilacion fallo. Revisa el codigo en Visual Studio.
+        echo [ERROR] La compilacion fallo. Revisa el codigo.
         echo # Error de Instalacion > "%~dp0error.md"
         echo La compilacion fallo al ejecutar dotnet build. >> "%~dp0error.md"
         pause
@@ -97,61 +97,10 @@ if exist "%~dp0RevitToSupabasePlugin.csproj" (
 )
 
 :: -----------------------------------------------------------
-:: Buscar los archivos compilados en diferentes ubicaciones
+:: Verificar existencia de compilaciones
 :: -----------------------------------------------------------
-set "DLL_PATH="
-set "ADDIN_PATH="
-set "BUILD_DIR="
-
-if exist "%~dp0RevitToSupabasePlugin.dll" (
-    set "DLL_PATH=%~dp0RevitToSupabasePlugin.dll"
-    set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
-    set "BUILD_DIR=%~dp0"
-    echo [INFO] Modo: Paquete distribuido - archivos en la misma carpeta
-    goto :FOUND_BUILD
-)
-if exist "%~dp0bin\Debug\net8.0-windows\RevitToSupabasePlugin.dll" (
-    set "DLL_PATH=%~dp0bin\Debug\net8.0-windows\RevitToSupabasePlugin.dll"
-    set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
-    set "BUILD_DIR=%~dp0bin\Debug\net8.0-windows\"
-    echo [INFO] Modo: Proyecto - Debug net8.0-windows
-    goto :FOUND_BUILD
-)
-if exist "%~dp0bin\Release\net8.0-windows\RevitToSupabasePlugin.dll" (
-    set "DLL_PATH=%~dp0bin\Release\net8.0-windows\RevitToSupabasePlugin.dll"
-    set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
-    set "BUILD_DIR=%~dp0bin\Release\net8.0-windows\"
-    echo [INFO] Modo: Proyecto - Release net8.0-windows
-    goto :FOUND_BUILD
-)
-if exist "%~dp0bin\Debug\net10.0-windows\RevitToSupabasePlugin.dll" (
-    set "DLL_PATH=%~dp0bin\Debug\net10.0-windows\RevitToSupabasePlugin.dll"
-    set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
-    set "BUILD_DIR=%~dp0bin\Debug\net10.0-windows\"
-    echo [INFO] Modo: Proyecto - Debug net10.0-windows
-    goto :FOUND_BUILD
-)
-if exist "%~dp0bin\Release\net10.0-windows\RevitToSupabasePlugin.dll" (
-    set "DLL_PATH=%~dp0bin\Release\net10.0-windows\RevitToSupabasePlugin.dll"
-    set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
-    set "BUILD_DIR=%~dp0bin\Release\net10.0-windows\"
-    echo [INFO] Modo: Proyecto - Release net10.0-windows
-    goto :FOUND_BUILD
-)
-
-color 0C
-echo.
-echo [ERROR] No se encontraron los archivos compilados del plugin.
-echo.
-echo  Soluciones posibles:
-echo   1. Compila el proyecto en Visual Studio (Build ^> Build Solution).
-echo   2. Asegurate de que el instalador este en la misma carpeta que
-echo      'RevitToSupabasePlugin.dll' (para distribucion sin codigo fuente).
-echo.
-echo # Error de Instalacion > "%~dp0error.md"
-echo No se encontraron los archivos compilados del plugin. >> "%~dp0error.md"
-pause
-exit /b
+set "ADDIN_PATH=%~dp0RevitToSupabasePlugin.addin"
+goto :FOUND_BUILD
 
 :FOUND_BUILD
 echo.
@@ -181,9 +130,51 @@ goto :SUCCESS_END
 set "TARGET_REVIT=%~1"
 set "ADDIN_FOLDER=%AppData%\Autodesk\Revit\Addins\%TARGET_REVIT%"
 
+:: Resolver la DLL compilada segun la version de Revit objetivo
+set "DLL_PATH="
+set "BUILD_DIR="
+
+if "%TARGET_REVIT%"=="2027" (
+    if exist "%~dp0bin\Release\net10.0-windows\RevitToSupabasePlugin.dll" (
+        set "DLL_PATH=%~dp0bin\Release\net10.0-windows\RevitToSupabasePlugin.dll"
+        set "BUILD_DIR=%~dp0bin\Release\net10.0-windows\"
+    ) else if exist "%~dp0bin\Debug\net10.0-windows\RevitToSupabasePlugin.dll" (
+        set "DLL_PATH=%~dp0bin\Debug\net10.0-windows\RevitToSupabasePlugin.dll"
+        set "BUILD_DIR=%~dp0bin\Debug\net10.0-windows\"
+    ) else if exist "%~dp0bin\Release\net8.0-windows\RevitToSupabasePlugin.dll" (
+        set "DLL_PATH=%~dp0bin\Release\net8.0-windows\RevitToSupabasePlugin.dll"
+        set "BUILD_DIR=%~dp0bin\Release\net8.0-windows\"
+    )
+) else (
+    if exist "%~dp0bin\Release\net8.0-windows\RevitToSupabasePlugin.dll" (
+        set "DLL_PATH=%~dp0bin\Release\net8.0-windows\RevitToSupabasePlugin.dll"
+        set "BUILD_DIR=%~dp0bin\Release\net8.0-windows\"
+    ) else if exist "%~dp0bin\Debug\net8.0-windows\RevitToSupabasePlugin.dll" (
+        set "DLL_PATH=%~dp0bin\Debug\net8.0-windows\RevitToSupabasePlugin.dll"
+        set "BUILD_DIR=%~dp0bin\Debug\net8.0-windows\"
+    ) else if exist "%~dp0bin\Release\net10.0-windows\RevitToSupabasePlugin.dll" (
+        set "DLL_PATH=%~dp0bin\Release\net10.0-windows\RevitToSupabasePlugin.dll"
+        set "BUILD_DIR=%~dp0bin\Release\net10.0-windows\"
+    )
+)
+
+if not defined DLL_PATH (
+    if exist "%~dp0RevitToSupabasePlugin.dll" (
+        set "DLL_PATH=%~dp0RevitToSupabasePlugin.dll"
+        set "BUILD_DIR=%~dp0"
+    )
+)
+
+if not defined DLL_PATH (
+    color 0C
+    echo   [ERROR] No se encontro la DLL compilada para Revit %TARGET_REVIT%.
+    exit /b 1
+)
+
 echo.
 echo ------------------------------------------------------------
 echo [Revit %TARGET_REVIT%] Iniciando copia de archivos...
+echo   Origen: %DLL_PATH%
 echo ------------------------------------------------------------
 
 if not exist "%ADDIN_FOLDER%" (
@@ -220,6 +211,9 @@ for %%f in ("%BUILD_DIR%*.dll") do (
             )
         )
     )
+)
+if exist "%BUILD_DIR%*.deps.json" (
+    copy /Y "%BUILD_DIR%*.deps.json" "%ADDIN_FOLDER%\" >nul 2>&1
 )
 
 echo   - Copiando iconos...

@@ -81,48 +81,51 @@ Módulo especializado en el diseño, despliegue y documentación gráfica de red
   * Filtro interactivo por categorías de productos y diámetros nominales.
   * Inserción asistida en niveles y superficies topográficas.
 
-#### 2.2 🚰 Plumbing Sheet (`cmdPlumbingSheet`)
-* **Explicación:** Suite de automatización para el plano de planos técnicos, esquemas unifilares y hojas de detalles MEP.
-* **Capacidades:**
-  * Generación automática de vistas de plano y láminas (Sheets) para redes hidráulicas.
-  * Colocación automatizada de etiquetas (Tags), cotas y cuadros de leyenda.
-  * Estandarización del cuadro de rotulación y organización de entregables técnicos.
+---
+
+### 🧱 3. Paneles de Modelado Constructivo (Albañilería, Enchapes, Steel Deck)
+
+Módulos avanzados para despiece real de ladrillos, baldosas, losas steel deck y cálculo de morteros de pega.
 
 ---
 
-### 🧱 3. Panel: Albañilería & Cómputos Métricos
+### 📊 4. Panel: Tablas & Cómputos Métricos
 
-Módulo avanzado para el despiece real de ladrillos, cálculo de morteros de pega y generación de cómputos exactos para construcción.
+Módulo unificado de cuantificación automatizada y tablas de planificación para presupuestos de obra y ensamblajes.
 
-#### 3.1 🏭 Generar Familias de Ladrillos (`cmdGenLadrillos`)
-* **Explicación:** Motor de creación de familias de mampostería real (ladrillos tolete, perforados, bloques de concreto, etc.) y capas de mortero.
+#### 4.1 📊 Gestor Central de Tablas & Ensamblajes (`cmdSchedules`)
+* **Explicación:** Hub central para auditar, estandarizar y replicar tablas de planificación y cómputo de materiales en ensamblajes.
+
+#### 4.2 🧱 Cómputos Albañilería (`cmdCrearTablasAlbanileria`)
+* **Explicación:** Cuantificación automática de ladrillos, bloques y volumen de mortero de pega ($m^3$).
+
+#### 4.3 🪵 Cómputos Enchapes (`cmdCrearTablasPisos`)
+* **Explicación:** Cómputo exacto de piezas, baldosas, área $m^2$, pega/fragua y metros lineales de rodapié.
+
+#### 4.4 🔩 Cómputos Steel Deck (`cmdCrearTablasSteelDecks`)
+* **Explicación:** Cuantificación de lámina colaborante, volumen de concreto en losas y conteo de pernos conectores.
+
+#### 4.5 🚰 Plumbing Sheet - Cómputos Fontanería & Hidro (`cmdPlumbingSheet`)
+* **Explicación:** Generación integral de tablas de cómputo hidráulico y sanitario (MEP).
 * **Capacidades:**
-  * Parametrización exacta de dimensiones (alto, ancho, largo) y juntas de pega (horizontal y vertical).
-  * Generación de perfiles 3D y piezas de despiece (medios ladrillos, esquinas, tramas).
-  * Definición de propiedades térmicas y de masa por unidad de ladrillo.
-
-#### 3.2 🧱 Convertir Muros a Ladrillos (`cmdConvMuros`)
-* **Explicación:** Algoritmo de discretización geométrica que transforma muros genéricos de Revit en aparejos reales con ladrillos individuales.
-* **Capacidades:**
-  * Modelado tridimensional pieza por pieza respetando la traba del muro (aparejo inglés, flamenco, soga, etc.).
-  * Generación automática de capas de pega horizontal (PegaH) y vertical (PegaV).
-  * Detección automática de vanos de puertas y ventanas para el ajuste y corte de bloques.
-
-#### 3.3 📊 Crear Tablas de Cómputos (`cmdCrearTablas`)
-* **Explicación:** Módulo de cuantificación detallada para presupuestos de obra civil y mampostería.
-* **Capacidades:**
-  * Cómputo exacto de cantidad total de ladrillos por tipo y nivel.
-  * Cálculo volumétrico de mortero/pega requerido ($m^3$) considerando desperdicios.
-  * Exportación inmediata de tablas de planificación a formatos compatibles con presupuestos.
+  * Tabla Multicategoría General (Plumbing Sheet) con conteo y costos.
+  * Cómputo de Aparatos Sanitarios (Plumbing Fixtures).
+  * Cómputo de Tuberías (Pipes) por tipo, diámetro y longitud ($m$).
+  * Cómputo de Uniones y Conexiones (Pipe Fittings).
+  * Cómputo de Válvulas y Accesorios (Pipe Accessories).
+  * Cómputo de Equipos Hidroneumáticos y Bombas (Plumbing Equipment).
 
 ---
 
-### 🎨 4. Panel: Plan Ambientador (Alto Nivel Arquitectónico)
+### 📐 4. Panel: Asistente de Anotación & Gráficos (Unificado)
 
-Módulo especializado en post-producción, ambientación gráfica y estandarización de plantas para presentación y concurso (Estándar visual ARCA / PLAN:B Arquitectos).
+Módulo integral de post-producción gráfica, ambientación de vistas, estandarización de detalles constructivos y gestión masiva de nomenclaturas BIM (inspirado en la potencia de *Family Revisor* y *ProSheets* de DiRoots).
 
-#### 4.1 🎨 Plan Ambientador (`cmdAmbientador`)
-* **Explicación:** Suite integral que en 1 clic transforma plantas técnicas en planos de presentación de alta gama arquitectónica.
+#### 4.1 📐 Centro Asistente de Anotación (`cmdAsistenteAnotacion`)
+* **Explicación:** Hub unificado que conecta las 4 herramientas de producción gráfica y documental en un único panel con métricas en tiempo real.
+
+#### 4.2 🎨 Plan Ambientador (`cmdAmbientador`)
+* **Explicación:** Suite integral que en 1 clic transforma plantas técnicas en planos de presentación de alta gama arquitectónica (Estándar visual ARCA / Plan:B Arquitectos).
 * **Capacidades:**
   * **Estilo Gráfico ARCA / Plan:B:** Corte de muros y columnas en negro sólido puro (`#000000`), sombras solares calibradas (18% opacidad, sol al 85%) y anti-aliasing suavizado.
   * **Atenuación Selectiva:** Muebles, artefactos sanitarios y vegetación enviados a *Halftone* (50%) para no ensuciar la lectura estructural.
@@ -130,6 +133,25 @@ Módulo especializado en post-producción, ambientación gráfica y estandarizac
   * **Zonas Húmedas / Piscinas:** Ambientación automática en azul cian translúcido pastel (`#C5E8FA`).
   * **Normalización de Recintos (Rooms):** Detección de recintos cerrados, cálculo de m², niveles N.P.T. y conversión de nombres a **MAYÚSCULAS**.
   * **Motor de Acotado Jerarquizado:** Generación automática de cadenas de cotas entre ejes estructurales (Grids).
+
+#### 4.3 📐 Gestor de Detalles Constructivos (`cmdGestorDetalles`)
+* **Explicación:** Catálogo y gestor de detalles tipo 2D/3D, vistas de diseño (*Drafting Views*) y componentes de detalle estandarizados con biblioteca corporativa.
+
+#### 4.4 🏷️ Renombrador Masivo de Familias - Family Revisor (`cmdFamilyRevisor`)
+* **Explicación:** Sistematización y renombramiento masivo de familias cargables y tipos de sistema en el proyecto activo según el BEP.
+* **Capacidades:**
+  * Filtrado instantáneo por categoría de Revit (Muros, Puertas, Ventanas, Mobiliario, Estructura, MEP, etc.).
+  * Búsqueda y reemplazo con opción de coincidencia exacta de mayúsculas/minúsculas.
+  * Adición rápida de prefijos y sufijos de codificación corporativa.
+  * Transformación de formato de texto (MAYÚSCULAS, minúsculas, Formato Título).
+  * Grilla de previsualización interactiva con validación de conflictos antes de impactar el modelo.
+
+#### 4.5 📑 Gestor & Renombrador Masivo de Sheets - ProSheets (`cmdSheetRevisor`)
+* **Explicación:** Renumeración correlativa masiva y estandarización de nomenclatura de láminas (*ViewSheets*) sin errores de colisión.
+* **Capacidades:**
+  * Renumeración correlativa automática con ceros a la izquierda (`001`, `101`) y paso configurable.
+  * Modificación de nombres de lámina (Prefijo, Sufijo, Buscar y Reemplazar, MAYÚSCULAS/minúsculas).
+  * **Transacción Segura de Doble Fase (Anti-Colisión):** Utiliza numeración temporal intermedia para evitar los bloqueos habituales de Revit cuando los números correlativos se solapan o intercambian.
 
 ---
 

@@ -31,6 +31,25 @@ namespace RevitToSupabasePlugin
         {
             InitializeComponent();
             _doc = doc;
+            this.Loaded += ConfiguradorIAPlantillaWindow_Loaded;
+        }
+
+        private async void ConfiguradorIAPlantillaWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (AuthenticationService.IsLoggedIn)
+            {
+                TxtEmail.Text = AuthenticationService.UserEmail;
+                TxtBadgeAuth.Text = $"✓ {AuthenticationService.UserEmail}";
+                BadgeAuth.Visibility = WpfVisibility.Visible;
+                TxtLoginStatus.Foreground = System.Windows.Media.Brushes.MediumSpringGreen;
+                TxtLoginStatus.Text = $"✅ Sesión activa de Review ({AuthenticationService.UserEmail})";
+
+                TabProyecto.IsEnabled = true;
+                TabProyecto.IsSelected = true;
+                MainTabControl.SelectedItem = TabProyecto;
+
+                await LoadProjectsForUserAsync(AuthenticationService.UserEmail);
+            }
         }
 
         // ══════════════════════════════════════════════════════════════════════════
@@ -52,7 +71,7 @@ namespace RevitToSupabasePlugin
             SetBusy("Conectando a Supabase…");
             BtnLogin.IsEnabled = false;
 
-            var (ok, error) = await _supabase.SignInAsync(email, password);
+            var (ok, error) = await AuthenticationService.LoginAsync(email, password);
 
             BtnLogin.IsEnabled = true;
             SetIdle();
@@ -69,11 +88,15 @@ namespace RevitToSupabasePlugin
             TxtBadgeAuth.Text = $"✓ {email}";
             BadgeAuth.Visibility = WpfVisibility.Visible;
 
-            // Go automatically to tab 2
             TabProyecto.IsEnabled = true;
             TabProyecto.IsSelected = true;
             MainTabControl.SelectedItem = TabProyecto;
 
+            await LoadProjectsForUserAsync(email);
+        }
+
+        private async Task LoadProjectsForUserAsync(string email)
+        {
             SetBusy("Obteniendo proyectos del usuario...");
             
             try

@@ -26,31 +26,7 @@ namespace RevitToSupabasePlugin
                 using (Transaction t = new Transaction(doc, "Crear Tablas HIDRO - Plumbing Sheet"))
                 {
                     t.Start();
-
-                    // 1. Tabla Multicategoría General (Plumbing Sheet)
-                    ViewSchedule scheduleMaster = CreateOrGetSchedule(doc, ElementId.InvalidElementId, "🚰 Plumbing Sheet - Cómputo General HIDRO");
-                    PopulateMasterPlumbingScheduleFields(doc, scheduleMaster);
-
-                    // 2. Tabla Aparatos Sanitarios (Plumbing Fixtures)
-                    ViewSchedule scheduleFixtures = CreateOrGetSchedule(doc, new ElementId(BuiltInCategory.OST_PlumbingFixtures), "🚿 Cómputo de Aparatos Sanitarios (Plumbing Fixtures)");
-                    PopulateFixturesScheduleFields(doc, scheduleFixtures);
-
-                    // 3. Tabla Tuberías (Pipes / PipeCurves)
-                    ViewSchedule schedulePipes = CreateOrGetSchedule(doc, new ElementId(BuiltInCategory.OST_PipeCurves), "🧪 Cómputo de Tuberías (Pipes)");
-                    PopulatePipesScheduleFields(doc, schedulePipes);
-
-                    // 4. Tabla Uniones y Conexiones (Pipe Fittings)
-                    ViewSchedule scheduleFittings = CreateOrGetSchedule(doc, new ElementId(BuiltInCategory.OST_PipeFitting), "🔌 Cómputo de Uniones y Conexiones (Pipe Fittings)");
-                    PopulateFittingsScheduleFields(doc, scheduleFittings);
-
-                    // 5. Tabla Válvulas y Accesorios (Pipe Accessories)
-                    ViewSchedule scheduleAccessories = CreateOrGetSchedule(doc, new ElementId(BuiltInCategory.OST_PipeAccessory), "🚰 Cómputo de Válvulas y Accesorios (Pipe Accessories)");
-                    PopulateAccessoriesScheduleFields(doc, scheduleAccessories);
-
-                    // 6. Tabla Equipos Hidroneumáticos / Bombas (Plumbing Equipment)
-                    ViewSchedule scheduleEquipment = CreateOrGetSchedule(doc, new ElementId(BuiltInCategory.OST_PlumbingEquipment), "⚙️ Cómputo de Equipos Hidro (Plumbing Equipment)");
-                    PopulateEquipmentScheduleFields(doc, scheduleEquipment);
-
+                    CreatePlumbingSchedules(doc);
                     t.Commit();
 
                     Autodesk.Revit.UI.TaskDialog.Show("Plumbing Sheet - Tablas HIDRO Creadas", 
@@ -71,7 +47,34 @@ namespace RevitToSupabasePlugin
             }
         }
 
-        private ViewSchedule CreateOrGetSchedule(Document doc, ElementId catId, string scheduleName)
+        public static void CreatePlumbingSchedules(Document doc)
+        {
+            // 1. Tabla Multicategoría General (Plumbing Sheet)
+            ViewSchedule scheduleMaster = CreateOrGetSchedule(doc, ElementId.InvalidElementId, "🚰 Plumbing Sheet - Cómputo General HIDRO");
+            PopulateMasterPlumbingScheduleFields(doc, scheduleMaster);
+
+            // 2. Tabla Aparatos Sanitarios (Plumbing Fixtures)
+            ViewSchedule scheduleFixtures = CreateOrGetSchedule(doc, new ElementId(BuiltInCategory.OST_PlumbingFixtures), "🚿 Cómputo de Aparatos Sanitarios (Plumbing Fixtures)");
+            PopulateFixturesScheduleFields(doc, scheduleFixtures);
+
+            // 3. Tabla Tuberías (Pipes / PipeCurves)
+            ViewSchedule schedulePipes = CreateOrGetSchedule(doc, new ElementId(BuiltInCategory.OST_PipeCurves), "🧪 Cómputo de Tuberías (Pipes)");
+            PopulatePipesScheduleFields(doc, schedulePipes);
+
+            // 4. Tabla Uniones y Conexiones (Pipe Fittings)
+            ViewSchedule scheduleFittings = CreateOrGetSchedule(doc, new ElementId(BuiltInCategory.OST_PipeFitting), "🔌 Cómputo de Uniones y Conexiones (Pipe Fittings)");
+            PopulateFittingsScheduleFields(doc, scheduleFittings);
+
+            // 5. Tabla Válvulas y Accesorios (Pipe Accessories)
+            ViewSchedule scheduleAccessories = CreateOrGetSchedule(doc, new ElementId(BuiltInCategory.OST_PipeAccessory), "🚰 Cómputo de Válvulas y Accesorios (Pipe Accessories)");
+            PopulateAccessoriesScheduleFields(doc, scheduleAccessories);
+
+            // 6. Tabla Equipos Hidroneumáticos / Bombas (Plumbing Equipment)
+            ViewSchedule scheduleEquipment = CreateOrGetSchedule(doc, new ElementId(BuiltInCategory.OST_PlumbingEquipment), "⚙️ Cómputo de Equipos Hidro (Plumbing Equipment)");
+            PopulateEquipmentScheduleFields(doc, scheduleEquipment);
+        }
+
+        private static ViewSchedule CreateOrGetSchedule(Document doc, ElementId catId, string scheduleName)
         {
             var existing = new FilteredElementCollector(doc)
                 .OfClass(typeof(ViewSchedule))
@@ -85,7 +88,7 @@ namespace RevitToSupabasePlugin
             return vsNew;
         }
 
-        private void SafeAddField(Document doc, ScheduleDefinition def, IList<SchedulableField> schedulableFields, string heading, Func<SchedulableField, bool> predicate)
+        private static void SafeAddField(Document doc, ScheduleDefinition def, IList<SchedulableField> schedulableFields, string heading, Func<SchedulableField, bool> predicate)
         {
             var targetField = schedulableFields.FirstOrDefault(predicate);
             if (targetField != null)
@@ -103,7 +106,7 @@ namespace RevitToSupabasePlugin
         }
 
         // --- 1. Multicategoría Master ---
-        private void PopulateMasterPlumbingScheduleFields(Document doc, ViewSchedule schedule)
+        private static void PopulateMasterPlumbingScheduleFields(Document doc, ViewSchedule schedule)
         {
             ScheduleDefinition def = schedule.Definition;
             if (def.GetFieldOrder().Count > 0) return;
@@ -123,7 +126,7 @@ namespace RevitToSupabasePlugin
         }
 
         // --- 2. Aparatos Sanitarios (Plumbing Fixtures) ---
-        private void PopulateFixturesScheduleFields(Document doc, ViewSchedule schedule)
+        private static void PopulateFixturesScheduleFields(Document doc, ViewSchedule schedule)
         {
             ScheduleDefinition def = schedule.Definition;
             if (def.GetFieldOrder().Count > 0) return;
@@ -144,7 +147,7 @@ namespace RevitToSupabasePlugin
         }
 
         // --- 3. Tuberías (Pipes) ---
-        private void PopulatePipesScheduleFields(Document doc, ViewSchedule schedule)
+        private static void PopulatePipesScheduleFields(Document doc, ViewSchedule schedule)
         {
             ScheduleDefinition def = schedule.Definition;
             if (def.GetFieldOrder().Count > 0) return;
@@ -166,7 +169,7 @@ namespace RevitToSupabasePlugin
         }
 
         // --- 4. Uniones y Conexiones (Pipe Fittings) ---
-        private void PopulateFittingsScheduleFields(Document doc, ViewSchedule schedule)
+        private static void PopulateFittingsScheduleFields(Document doc, ViewSchedule schedule)
         {
             ScheduleDefinition def = schedule.Definition;
             if (def.GetFieldOrder().Count > 0) return;
@@ -186,7 +189,7 @@ namespace RevitToSupabasePlugin
         }
 
         // --- 5. Válvulas y Accesorios (Pipe Accessories) ---
-        private void PopulateAccessoriesScheduleFields(Document doc, ViewSchedule schedule)
+        private static void PopulateAccessoriesScheduleFields(Document doc, ViewSchedule schedule)
         {
             ScheduleDefinition def = schedule.Definition;
             if (def.GetFieldOrder().Count > 0) return;
@@ -206,7 +209,7 @@ namespace RevitToSupabasePlugin
         }
 
         // --- 6. Equipos Hidro (Plumbing Equipment) ---
-        private void PopulateEquipmentScheduleFields(Document doc, ViewSchedule schedule)
+        private static void PopulateEquipmentScheduleFields(Document doc, ViewSchedule schedule)
         {
             ScheduleDefinition def = schedule.Definition;
             if (def.GetFieldOrder().Count > 0) return;

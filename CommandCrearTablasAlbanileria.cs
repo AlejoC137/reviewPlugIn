@@ -20,17 +20,7 @@ namespace RevitToSupabasePlugin
                 using (Transaction t = new Transaction(doc, "Crear Tablas de Cómputos de Albañilería"))
                 {
                     t.Start();
-
-                    ElementId categoryId = new ElementId(BuiltInCategory.OST_GenericModel);
-
-                    // 1. Crear / Obtener Tabla de Pegas (Mortero)
-                    ViewSchedule schedulePegas = CreateOrGetSchedule(doc, categoryId, "📊 Cómputo de Pegas (Mortero)");
-                    PopulatePegaScheduleFields(doc, schedulePegas);
-
-                    // 2. Crear / Obtener Tabla de Ladrillos
-                    ViewSchedule scheduleLadrillos = CreateOrGetSchedule(doc, categoryId, "📊 Cómputo de Ladrillos y Bloques");
-                    PopulateBrickScheduleFields(doc, scheduleLadrillos);
-
+                    CreateAlbanileriaSchedules(doc);
                     t.Commit();
 
                     Autodesk.Revit.UI.TaskDialog.Show("Tablas Creadas", "Se han generado con éxito las tablas de cómputo en el Navegador de Proyectos:\n\n• 📊 Cómputo de Pegas (Mortero)\n• 📊 Cómputo de Ladrillos y Bloques");
@@ -44,7 +34,20 @@ namespace RevitToSupabasePlugin
             }
         }
 
-        private ViewSchedule CreateOrGetSchedule(Document doc, ElementId catId, string scheduleName)
+        public static void CreateAlbanileriaSchedules(Document doc)
+        {
+            ElementId categoryId = new ElementId(BuiltInCategory.OST_GenericModel);
+
+            // 1. Crear / Obtener Tabla de Pegas (Mortero)
+            ViewSchedule schedulePegas = CreateOrGetSchedule(doc, categoryId, "📊 Cómputo de Pegas (Mortero)");
+            PopulatePegaScheduleFields(doc, schedulePegas);
+
+            // 2. Crear / Obtener Tabla de Ladrillos
+            ViewSchedule scheduleLadrillos = CreateOrGetSchedule(doc, categoryId, "📊 Cómputo de Ladrillos y Bloques");
+            PopulateBrickScheduleFields(doc, scheduleLadrillos);
+        }
+
+        private static ViewSchedule CreateOrGetSchedule(Document doc, ElementId catId, string scheduleName)
         {
             var existing = new FilteredElementCollector(doc)
                 .OfClass(typeof(ViewSchedule))
@@ -58,7 +61,7 @@ namespace RevitToSupabasePlugin
             return vsNew;
         }
 
-        private void PopulatePegaScheduleFields(Document doc, ViewSchedule schedule)
+        private static void PopulatePegaScheduleFields(Document doc, ViewSchedule schedule)
         {
             ScheduleDefinition def = schedule.Definition;
             if (def.GetFieldOrder().Count > 0) return; // Ya tiene campos configurados
@@ -121,7 +124,7 @@ namespace RevitToSupabasePlugin
             def.ShowGrandTotalCount = true;
         }
 
-        private void PopulateBrickScheduleFields(Document doc, ViewSchedule schedule)
+        private static void PopulateBrickScheduleFields(Document doc, ViewSchedule schedule)
         {
             ScheduleDefinition def = schedule.Definition;
             if (def.GetFieldOrder().Count > 0) return; // Ya tiene campos configurados

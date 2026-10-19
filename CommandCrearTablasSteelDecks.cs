@@ -20,25 +20,7 @@ namespace RevitToSupabasePlugin
                 using (Transaction t = new Transaction(doc, "Crear Tablas de Cómputo de Steel Deck"))
                 {
                     t.Start();
-
-                    // Asegurar que los parámetros compartidos de medición existan y estén vinculados en el proyecto
-                    MeasurementManager.EnsureMeasurementParameters(doc);
-
-                    ElementId floorCatId = new ElementId(BuiltInCategory.OST_Floors);
-                    ElementId studCatId = new ElementId(BuiltInCategory.OST_StructuralFraming);
-
-                    // 1. Tabla de Lámina y Chapa Steel Deck
-                    ViewSchedule schedDeck = CreateOrGetSchedule(doc, floorCatId, "📊 Cómputo de Lámina Steel Deck");
-                    PopulateDeckScheduleFields(doc, schedDeck);
-
-                    // 2. Tabla de Concreto en Losas Mixtas
-                    ViewSchedule schedConcrete = CreateOrGetSchedule(doc, floorCatId, "📊 Cómputo de Concreto en Losas Steel Deck");
-                    PopulateConcreteScheduleFields(doc, schedConcrete);
-
-                    // 3. Tabla de Pernos de Cortante (Nelson Studs)
-                    ViewSchedule schedStuds = CreateOrGetSchedule(doc, studCatId, "📊 Cómputo de Conectores de Cortante (Studs)");
-                    PopulateStudScheduleFields(doc, schedStuds);
-
+                    CreateSteelDeckSchedules(doc);
                     t.Commit();
 
                     Autodesk.Revit.UI.TaskDialog.Show(
@@ -57,7 +39,27 @@ namespace RevitToSupabasePlugin
             }
         }
 
-        private ViewSchedule CreateOrGetSchedule(Document doc, ElementId catId, string scheduleName)
+        public static void CreateSteelDeckSchedules(Document doc)
+        {
+            MeasurementManager.EnsureMeasurementParameters(doc);
+
+            ElementId floorCatId = new ElementId(BuiltInCategory.OST_Floors);
+            ElementId studCatId = new ElementId(BuiltInCategory.OST_StructuralFraming);
+
+            // 1. Tabla de Lámina y Chapa Steel Deck
+            ViewSchedule schedDeck = CreateOrGetSchedule(doc, floorCatId, "📊 Cómputo de Lámina Steel Deck");
+            PopulateDeckScheduleFields(doc, schedDeck);
+
+            // 2. Tabla de Concreto en Losas Mixtas
+            ViewSchedule schedConcrete = CreateOrGetSchedule(doc, floorCatId, "📊 Cómputo de Concreto en Losas Steel Deck");
+            PopulateConcreteScheduleFields(doc, schedConcrete);
+
+            // 3. Tabla de Pernos de Cortante (Nelson Studs)
+            ViewSchedule schedStuds = CreateOrGetSchedule(doc, studCatId, "📊 Cómputo de Conectores de Cortante (Studs)");
+            PopulateStudScheduleFields(doc, schedStuds);
+        }
+
+        private static ViewSchedule CreateOrGetSchedule(Document doc, ElementId catId, string scheduleName)
         {
             var existing = new FilteredElementCollector(doc)
                 .OfClass(typeof(ViewSchedule))
@@ -71,7 +73,7 @@ namespace RevitToSupabasePlugin
             return vsNew;
         }
 
-        private void PopulateDeckScheduleFields(Document doc, ViewSchedule schedule)
+        private static void PopulateDeckScheduleFields(Document doc, ViewSchedule schedule)
         {
             ScheduleDefinition def = schedule.Definition;
             if (def.GetFieldOrder().Count > 0) return;
@@ -116,7 +118,7 @@ namespace RevitToSupabasePlugin
             def.ShowGrandTotalCount = true;
         }
 
-        private void PopulateConcreteScheduleFields(Document doc, ViewSchedule schedule)
+        private static void PopulateConcreteScheduleFields(Document doc, ViewSchedule schedule)
         {
             ScheduleDefinition def = schedule.Definition;
             if (def.GetFieldOrder().Count > 0) return;
@@ -149,7 +151,7 @@ namespace RevitToSupabasePlugin
             def.ShowGrandTotal = true;
         }
 
-        private void PopulateStudScheduleFields(Document doc, ViewSchedule schedule)
+        private static void PopulateStudScheduleFields(Document doc, ViewSchedule schedule)
         {
             ScheduleDefinition def = schedule.Definition;
             if (def.GetFieldOrder().Count > 0) return;

@@ -24,6 +24,23 @@ namespace RevitToSupabasePlugin
 
             try
             {
+                // Prioridad: Mostrar el Panel de Control centralizado y enfocar la pestaña de Exportar
+                try
+                {
+                    DockablePane pane = uiapp.GetDockablePane(ReviewControlPanelPage.PaneId);
+                    if (pane != null)
+                    {
+                        if (!pane.IsShown())
+                        {
+                            pane.Show();
+                        }
+                        ReviewControlPanelPage.Instance?.SelectExportTab();
+                        return Result.Succeeded;
+                    }
+                }
+                catch { }
+
+                // Fallback modal si el dockable pane no está registrado
                 ExportMetadataExternalEventHandler handler = new ExportMetadataExternalEventHandler();
                 ExternalEvent extEvent = ExternalEvent.Create(handler);
 
@@ -210,13 +227,13 @@ namespace RevitToSupabasePlugin
                     () => progressWin.IsInterrupted
                 );
 
-                package.UserEmail = UserEmail;
+                package.UserEmail = !string.IsNullOrEmpty(UserEmail) ? UserEmail : AuthenticationService.UserEmail;
 
                 // Comprobar si el proceso fue cancelado por el usuario
                 if (progressWin.IsInterrupted)
                 {
                     progressWin.Close();
-                    TaskDialog.Show("Proceso Cancelado", "El proceso de exportación fue interrumpido por el usuario.\nNo se enviaron datos.");
+                    TaskDialog.Show("Proceso Cancelado", "El proceso de exportación fue interrumpido por el usuario.");
                     if (_mainWindow != null)
                     {
                         _mainWindow.Show();
@@ -225,34 +242,17 @@ namespace RevitToSupabasePlugin
                     return;
                 }
 
-                // Enviar directamente a Supabase
-                progressWin.UpdateProgress(100, 100, "Guardando datos en la tabla plugin_project_data de Supabase...");
-                string successMessage = "";
-                bool isOk = MetadataExporterService.SendToSupabaseDirect(package, out successMessage);
-
-                // Cerrar ventana de progreso
                 progressWin.Close();
-
-                if (!isOk)
-                {
-                    TaskDialog.Show("Error al Guardar en Supabase", successMessage);
-                    if (_mainWindow != null)
-                    {
-                        _mainWindow.Show();
-                        _mainWindow.UpdateStatus("Error al conectar con Supabase.");
-                    }
-                    return;
-                }
 
                 // Mostrar notificación de éxito
                 int elemCount = package.ElementsById != null ? package.ElementsById.Count : 0;
-                TaskDialog.Show("Guardado Exitoso en Supabase", successMessage + $"\n\nUsuario: {UserEmail}\nElementos procesados por ID: {elemCount}");
+                string jsonSerialized = JsonConvert.SerializeObject(package, Formatting.Indented);
 
                 if (_mainWindow != null)
                 {
                     _mainWindow.Show();
-                    _mainWindow.UpdateStatus("Exportación guardada con éxito en Supabase.");
-                    _mainWindow.UpdatePreviewText(JsonConvert.SerializeObject(package, Formatting.Indented));
+                    _mainWindow.UpdateStatus($"Metadata generada exitosamente ({elemCount} elementos procesados). Lista para exportar.");
+                    _mainWindow.UpdatePreviewText(jsonSerialized);
                 }
             }
             catch (Exception ex)

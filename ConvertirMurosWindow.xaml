@@ -1,264 +1,296 @@
 <Window x:Class="RevitToSupabasePlugin.ConvertirMurosWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Editor Profesional de Patrones de Mampostería" 
-        Height="700" Width="1200" 
-        MinHeight="600" MinWidth="1000"
+        Title="Modelador de Muros, Aparejos &amp; Pegas de Mortero | ARCA REVIEW" 
+        Height="760" Width="1240" 
+        MinHeight="620" MinWidth="1020"
         WindowStartupLocation="CenterScreen" 
-        Background="#121214"
-        Foreground="#E3E5E8"
+        Background="#FCF9F4"
+        Foreground="#1C1C19"
+        FontFamily="Segoe UI, Inter, sans-serif"
         ResizeMode="CanResize"
         BorderThickness="1"
-        BorderBrush="#DD6B20"
+        BorderBrush="#1C1C19"
         Loaded="Window_Loaded">
+
     <Window.Resources>
-        <Style TargetType="ComboBox">
-            <Setter Property="Background" Value="#1A1C20"/>
-            <Setter Property="Foreground" Value="#121214"/>
-            <Setter Property="BorderBrush" Value="#4A5568"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="Margin" Value="0,0,0,15"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-        </Style>
-        <Style TargetType="Button">
-            <Setter Property="Background" Value="#2B2D31"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="10"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
-        <Style x:Key="ToolButton" TargetType="RadioButton">
-            <Setter Property="Background" Value="#1A1C20"/>
-            <Setter Property="Foreground" Value="#E3E5E8"/>
-            <Setter Property="BorderBrush" Value="#4A5568"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="10"/>
-            <Setter Property="Margin" Value="0,0,0,5"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RadioButton">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter Property="Background" Value="#DD6B20"/>
-                                <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="BorderBrush" Value="#DD6B20"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#2D3748"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ReviewDesignSystem.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style TargetType="ComboBox">
+                <Setter Property="Background" Value="#FFFFFF"/>
+                <Setter Property="Foreground" Value="#1C1C19"/>
+                <Setter Property="BorderBrush" Value="#1C1C19"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Padding" Value="8,5"/>
+                <Setter Property="Margin" Value="0,0,0,10"/>
+                <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                <Setter Property="ItemContainerStyle">
+                    <Setter.Value>
+                        <Style TargetType="ComboBoxItem">
+                            <Setter Property="Foreground" Value="#1C1C19"/>
+                            <Setter Property="Background" Value="#FFFFFF"/>
+                            <Setter Property="Padding" Value="6,4"/>
+                        </Style>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ToolButton" TargetType="RadioButton">
+                <Setter Property="Background" Value="#FFFFFF"/>
+                <Setter Property="Foreground" Value="#1C1C19"/>
+                <Setter Property="BorderBrush" Value="#1C1C19"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Padding" Value="8,6"/>
+                <Setter Property="Margin" Value="0,0,0,5"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="0">
+                                <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter Property="Background" Value="#0F4369"/>
+                                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                                    <Setter Property="BorderBrush" Value="#1C1C19"/>
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#D1E4F9"/>
+                                    <Setter Property="Foreground" Value="#0F4369"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
     </Window.Resources>
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="380" MinWidth="280"/>
-            <ColumnDefinition Width="6"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
 
-        <!-- Columna Izquierda: Formulario y Herramientas -->
-        <Border Grid.Column="0" Margin="10" Background="#1A1C20" CornerRadius="12" BorderBrush="#2D3748" BorderThickness="1">
-            <Border.Effect>
-                <DropShadowEffect Color="Black" BlurRadius="10" Opacity="0.3" ShadowDepth="4"/>
-            </Border.Effect>
-            <Grid Margin="12">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
+    <Grid Margin="0">
+        <Grid.RowDefinitions>
+            <!-- 0: Línea Técnica Superior de Marca -->
+            <RowDefinition Height="3"/>
+            <!-- 1: Encabezado Institucional Review -->
+            <RowDefinition Height="Auto"/>
+            <!-- 2: Cuerpo Principal -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-                <!-- Header -->
-                <StackPanel Grid.Row="0" Margin="0,0,0,10">
-                    <TextBlock Text="🧱 Editor de Patrones" FontSize="18" FontWeight="Bold">
-                        <TextBlock.Foreground>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                <GradientStop Color="#DD6B20" Offset="0.0"/>
-                                <GradientStop Color="#ED8936" Offset="1.0"/>
-                            </LinearGradientBrush>
-                        </TextBlock.Foreground>
-                    </TextBlock>
-                    <TextBlock x:Name="txtSummary" Text="Has seleccionado 0 muros." FontSize="11" Foreground="#A0AEC0" Margin="0,2,0,0"/>
-                    <TextBlock x:Name="txtWallDims" Text="Dimensiones base: 0m x 0m" FontSize="10" Foreground="#718096" Margin="0,2,0,0"/>
-                </StackPanel>
+        <!-- LÍNEA SUPERIOR DE MARCA -->
+        <Rectangle Grid.Row="0" Fill="#0F4369" HorizontalAlignment="Stretch"/>
 
-                <!-- ScrollViewer con 2 Secciones Divididas -->
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,0,10">
-                    <StackPanel Margin="0,0,5,0">
+        <!-- ENCABEZADO DE IDENTIDAD ARCA REVIEW -->
+        <Border Grid.Row="1" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="0,0,0,1" Padding="14,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-                        <!-- SECCIÓN 1 (ARRIBA): LADRILLOS Y APAREJO -->
-                        <Border Background="#252830" CornerRadius="8" Padding="10" Margin="0,0,0,10" BorderBrush="#3A3F4D" BorderThickness="1">
-                            <StackPanel>
-                                <TextBlock Text="🧱 Ladrillos y Aparejo" Foreground="#ED8936" FontWeight="Bold" FontSize="13" Margin="0,0,0,8"/>
-
-                                <TextBlock Text="Familia de Ladrillo:" Foreground="#A0AEC0" Margin="0,0,0,4" FontSize="11"/>
-                                <ComboBox x:Name="cmbLadrillos" DisplayMemberPath="DisplayName" SelectionChanged="Input_SelectionChanged" Margin="0,0,0,8"/>
-
-                                <TextBlock Text="Aparejo / Traba:" Foreground="#A0AEC0" Margin="0,0,0,4" FontSize="11"/>
-                                <ComboBox x:Name="cmbPattern" SelectedIndex="0" SelectionChanged="Input_SelectionChanged" Margin="0,0,0,8">
-                                    <ComboBoxItem Content="Soga (1/2 Ladrillo)"/>
-                                    <ComboBoxItem Content="Tizón (Ladrillo Entero)"/>
-                                    <ComboBoxItem Content="Flamenco (Soga y Tizón Alternados)"/>
-                                    <ComboBoxItem Content="Inglés (Hiladas Alternadas)"/>
-                                </ComboBox>
-
-                                <TextBlock Text="Herramientas de Edición (Clic en Canvas):" Foreground="#DD6B20" FontWeight="SemiBold" Margin="0,4,0,6" FontSize="11"/>
-                                <RadioButton x:Name="toolSelect" Content="🔍 Seleccionar / Info" Style="{StaticResource ToolButton}" IsChecked="True"/>
-                                <RadioButton x:Name="toolDovela" Content="📍 Agregar/Quitar Dovela" Style="{StaticResource ToolButton}"/>
-                                <RadioButton x:Name="toolCanchado" Content="🔨 Marcar como Canchado" Style="{StaticResource ToolButton}"/>
-                                <RadioButton x:Name="toolTrimL" Content="✂️ Recortar Mitad Izquierda" Style="{StaticResource ToolButton}"/>
-                                <RadioButton x:Name="toolTrimR" Content="✂️ Recortar Mitad Derecha" Style="{StaticResource ToolButton}"/>
-                                <Button Content="🔄 Reiniciar Muro al Patrón Base" Margin="0,4,0,0" Click="BtnReset_Click" Background="#4A5568" Padding="6"/>
-                            </StackPanel>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="🧱" FontSize="18" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBlock Text="MODELADOR DE MUROS, APAREJOS &amp; PEGAS DE MORTERO" FontSize="14" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
+                        <Border Background="#D1E4F9" BorderBrush="#0F4369" BorderThickness="1" CornerRadius="0" Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="MODELADOR TÉCNICO 3D" FontSize="9" FontWeight="Bold" Foreground="#0F4369"/>
                         </Border>
+                    </StackPanel>
+                    <TextBlock Text="Transformación paramétrica de muros a mampostería real con traba e inserción automática de pegas de mortero 3D." 
+                               FontSize="11" Foreground="#72777F" Margin="0,2,0,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
 
-                        <!-- SECCIÓN 2 (ABAJO): PEGAS Y MORTERO -->
-                        <Border Background="#252830" CornerRadius="8" Padding="10" Margin="0,0,0,5" BorderBrush="#3A3F4D" BorderThickness="1">
-                            <StackPanel>
-                                <TextBlock Text="🔲 Configuración de Pegas y Mortero" Foreground="#319795" FontWeight="Bold" FontSize="13" Margin="0,0,0,8"/>
+        <!-- CUERPO PRINCIPAL -->
+        <Grid Grid.Row="2" Margin="12,10,12,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="390" MinWidth="300"/>
+                <ColumnDefinition Width="6"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-                                <CheckBox x:Name="chkVerPega" IsChecked="True" Foreground="#E2E8F0" VerticalAlignment="Center" Margin="0,0,0,8">
-                                    <TextBlock Text="Modelar Pega (Generic Model)" TextWrapping="Wrap" FontSize="11" FontWeight="SemiBold"/>
-                                </CheckBox>
+            <!-- Columna Izquierda: Formulario y Herramientas -->
+            <Border Grid.Column="0" Margin="0,0,4,0" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="1">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    
-                                    <!-- Dimensiones de Pega -->
-                                    <StackPanel Orientation="Vertical" Grid.Column="0" Margin="0,0,10,0">
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                            <TextBlock Text="Grosor (cm):" Width="75" Foreground="#E3E5E8" VerticalAlignment="Center" FontSize="11"/>
-                                            <TextBox x:Name="txtPega" Text="1,5" Width="45" TextChanged="Input_TextChanged" Background="#1A1C20" Foreground="#F7FAFC" BorderBrush="#4A5568" BorderThickness="1" Padding="2"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                            <TextBlock Text="Revite (cm):" Width="75" Foreground="#E3E5E8" VerticalAlignment="Center" FontSize="11"/>
-                                            <TextBox x:Name="txtRevite" Text="0" Width="45" TextChanged="Input_TextChanged" Background="#1A1C20" Foreground="#F7FAFC" BorderBrush="#4A5568" BorderThickness="1" Padding="2"/>
-                                        </StackPanel>
-                                    </StackPanel>
-                                    
-                                    <!-- Configuración de Dovelas y Canchado -->
-                                    <StackPanel Orientation="Vertical" Grid.Column="1">
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                            <TextBlock Text="Ancho Dovela (cm):" Width="105" Foreground="#E3E5E8" VerticalAlignment="Center" FontSize="11"/>
-                                            <TextBox x:Name="txtDovelaWidth" Text="2,5" Width="40" Background="#1A1C20" Foreground="#F7FAFC" BorderBrush="#4A5568" BorderThickness="1" Padding="2"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                            <TextBlock Text="Largo Dovela (cm):" Width="105" Foreground="#E3E5E8" VerticalAlignment="Center" FontSize="11"/>
-                                            <TextBox x:Name="txtDovelaDepth" Text="12,5" Width="40" Background="#1A1C20" Foreground="#F7FAFC" BorderBrush="#4A5568" BorderThickness="1" Padding="2"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                            <TextBlock Text="Inicio Dovela (cm):" Width="105" Foreground="#E3E5E8" VerticalAlignment="Center" FontSize="11"/>
-                                            <TextBox x:Name="txtDovelaStartDepth" Text="17,5" Width="40" Background="#1A1C20" Foreground="#F7FAFC" BorderBrush="#4A5568" BorderThickness="1" Padding="2"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                            <TextBlock Text="Inicio Cancha (cm):" Width="105" Foreground="#E3E5E8" VerticalAlignment="Center" FontSize="11"/>
-                                            <TextBox x:Name="txtCanchaStartHeight" Text="0,0" Width="40" Background="#1A1C20" Foreground="#F7FAFC" BorderBrush="#4A5568" BorderThickness="1" Padding="2"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                            <TextBlock Text="Alto Cancha (cm):" Width="105" Foreground="#E3E5E8" VerticalAlignment="Center" FontSize="11"/>
-                                            <TextBox x:Name="txtCanchaAlto" Text="12,0" Width="40" Background="#1A1C20" Foreground="#F7FAFC" BorderBrush="#4A5568" BorderThickness="1" Padding="2"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                            <TextBlock Text="Prof. Cancha (cm):" Width="105" Foreground="#E3E5E8" VerticalAlignment="Center" FontSize="11"/>
-                                            <TextBox x:Name="txtCanchaProf" Text="8,0" Width="40" Background="#1A1C20" Foreground="#F7FAFC" BorderBrush="#4A5568" BorderThickness="1" Padding="2"/>
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Grid>
+                    <!-- Resumen de Selección -->
+                    <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                        <TextBlock Text="Parámetros de Selección Activa" FontSize="12.5" FontWeight="Bold" Foreground="#0F4369"/>
+                        <TextBlock x:Name="txtSummary" Text="Has seleccionado 0 muros." FontSize="11" Foreground="#1C1C19" Margin="0,2,0,0"/>
+                        <TextBlock x:Name="txtWallDims" Text="Dimensiones base: 0m x 0m" FontSize="10" Foreground="#72777F" Margin="0,2,0,0"/>
+                    </StackPanel>
 
-                                <!-- Propiedades del Mortero (Revit) -->
-                                <TextBlock Text="Propiedades del Mortero (Revit):" Foreground="#A0AEC0" Margin="0,4,0,4" FontSize="11" FontWeight="SemiBold"/>
-                                <StackPanel Orientation="Vertical">
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                        <TextBlock Text="Material:" Width="75" Foreground="#E3E5E8" VerticalAlignment="Center" FontSize="11"/>
-                                        <ComboBox x:Name="cmbPegaMaterial" DisplayMemberPath="Name" Width="190" Background="#1A1C20" Foreground="#121214"/>
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                        <TextBlock Text="Costo ($):" Width="75" Foreground="#E3E5E8" VerticalAlignment="Center" FontSize="11"/>
-                                        <TextBox x:Name="txtPegaCost" Text="0" Width="70" Background="#1A1C20" Foreground="#F7FAFC" BorderBrush="#4A5568" BorderThickness="1" Padding="2"/>
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                        <TextBlock Text="Descripción:" Width="75" Foreground="#E3E5E8" VerticalAlignment="Center" FontSize="11"/>
-                                        <TextBox x:Name="txtPegaDesc" Text="Mortero de Pega 1.5cm" Width="190" Background="#1A1C20" Foreground="#F7FAFC" BorderBrush="#4A5568" BorderThickness="1" Padding="2"/>
+                    <!-- ScrollViewer con 2 Secciones Divididas -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,0,10">
+                        <StackPanel Margin="0,0,5,0">
+
+                            <!-- SECCIÓN 1 (ARRIBA): LADRILLOS Y APAREJO -->
+                            <Border Background="#FFFFFF" Padding="10" Margin="0,0,0,10" BorderBrush="#1C1C19" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="🧱 Ladrillos y Aparejo" Foreground="#0F4369" FontWeight="Bold" FontSize="12" Margin="0,0,0,8"/>
+
+                                    <TextBlock Text="Familia de Ladrillo:" Foreground="#72777F" Margin="0,0,0,4" FontSize="11"/>
+                                    <ComboBox x:Name="cmbLadrillos" DisplayMemberPath="DisplayName" SelectionChanged="Input_SelectionChanged" Margin="0,0,0,8"/>
+
+                                    <TextBlock Text="Aparejo / Traba:" Foreground="#72777F" Margin="0,0,0,4" FontSize="11"/>
+                                    <ComboBox x:Name="cmbPattern" SelectedIndex="0" SelectionChanged="Input_SelectionChanged" Margin="0,0,0,8">
+                                        <ComboBoxItem Content="Soga (1/2 Ladrillo)"/>
+                                        <ComboBoxItem Content="Tizón (Ladrillo Entero)"/>
+                                        <ComboBoxItem Content="Flamenco (Soga y Tizón Alternados)"/>
+                                        <ComboBoxItem Content="Inglés (Hiladas Alternadas)"/>
+                                    </ComboBox>
+
+                                    <TextBlock Text="Herramientas de Edición (Clic en Canvas):" Foreground="#0F4369" FontWeight="Bold" Margin="0,4,0,6" FontSize="11"/>
+                                    <RadioButton x:Name="toolSelect" Content="🔍 Seleccionar / Info" Style="{StaticResource ToolButton}" IsChecked="True"/>
+                                    <RadioButton x:Name="toolDovela" Content="📍 Agregar/Quitar Dovela" Style="{StaticResource ToolButton}"/>
+                                    <RadioButton x:Name="toolCanchado" Content="🔨 Marcar como Canchado" Style="{StaticResource ToolButton}"/>
+                                    <RadioButton x:Name="toolTrimL" Content="✂️ Recortar Mitad Izquierda" Style="{StaticResource ToolButton}"/>
+                                    <RadioButton x:Name="toolTrimR" Content="✂️ Recortar Mitad Derecha" Style="{StaticResource ToolButton}"/>
+                                    <Button Content="🔄 Reiniciar Muro al Patrón Base" Margin="0,4,0,0" Click="BtnReset_Click" Style="{StaticResource SecondaryButton}"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- SECCIÓN 2 (ABAJO): PEGAS Y MORTERO -->
+                            <Border Background="#FFFFFF" Padding="10" Margin="0,0,0,5" BorderBrush="#1C1C19" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="🔲 Configuración de Pegas y Mortero" Foreground="#0F4369" FontWeight="Bold" FontSize="12" Margin="0,0,0,8"/>
+
+                                    <CheckBox x:Name="chkVerPega" IsChecked="True" Foreground="#1C1C19" VerticalAlignment="Center" Margin="0,0,0,8">
+                                        <TextBlock Text="Modelar Pega de Mortero (Generic Model)" TextWrapping="Wrap" FontSize="11" FontWeight="SemiBold"/>
+                                    </CheckBox>
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <!-- Dimensiones de Pega -->
+                                        <StackPanel Orientation="Vertical" Grid.Column="0" Margin="0,0,10,0">
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                                <TextBlock Text="Grosor (cm):" Width="75" Foreground="#1C1C19" VerticalAlignment="Center" FontSize="11"/>
+                                                <TextBox x:Name="txtPega" Text="1,5" Width="50" TextChanged="Input_TextChanged" Style="{StaticResource ArcaTextBox}"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                                <TextBlock Text="Revite (cm):" Width="75" Foreground="#1C1C19" VerticalAlignment="Center" FontSize="11"/>
+                                                <TextBox x:Name="txtRevite" Text="0" Width="50" TextChanged="Input_TextChanged" Style="{StaticResource ArcaTextBox}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                        
+                                        <!-- Configuración de Dovelas y Canchado -->
+                                        <StackPanel Orientation="Vertical" Grid.Column="1">
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                                <TextBlock Text="Ancho Dovela (cm):" Width="110" Foreground="#1C1C19" VerticalAlignment="Center" FontSize="11"/>
+                                                <TextBox x:Name="txtDovelaWidth" Text="2,5" Width="45" Style="{StaticResource ArcaTextBox}"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                                <TextBlock Text="Largo Dovela (cm):" Width="110" Foreground="#1C1C19" VerticalAlignment="Center" FontSize="11"/>
+                                                <TextBox x:Name="txtDovelaDepth" Text="12,5" Width="45" Style="{StaticResource ArcaTextBox}"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                                <TextBlock Text="Inicio Dovela (cm):" Width="110" Foreground="#1C1C19" VerticalAlignment="Center" FontSize="11"/>
+                                                <TextBox x:Name="txtDovelaStartDepth" Text="17,5" Width="45" Style="{StaticResource ArcaTextBox}"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                                <TextBlock Text="Inicio Cancha (cm):" Width="110" Foreground="#1C1C19" VerticalAlignment="Center" FontSize="11"/>
+                                                <TextBox x:Name="txtCanchaStartHeight" Text="0,0" Width="45" Style="{StaticResource ArcaTextBox}"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                                <TextBlock Text="Alto Cancha (cm):" Width="110" Foreground="#1C1C19" VerticalAlignment="Center" FontSize="11"/>
+                                                <TextBox x:Name="txtCanchaAlto" Text="12,0" Width="45" Style="{StaticResource ArcaTextBox}"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                                <TextBlock Text="Prof. Cancha (cm):" Width="110" Foreground="#1C1C19" VerticalAlignment="Center" FontSize="11"/>
+                                                <TextBox x:Name="txtCanchaProf" Text="8,0" Width="45" Style="{StaticResource ArcaTextBox}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Propiedades del Mortero (Revit) -->
+                                    <TextBlock Text="Propiedades del Mortero (Revit):" Foreground="#0F4369" Margin="0,4,0,4" FontSize="11" FontWeight="Bold"/>
+                                    <StackPanel Orientation="Vertical">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <TextBlock Text="Material:" Width="75" Foreground="#1C1C19" VerticalAlignment="Center" FontSize="11"/>
+                                            <ComboBox x:Name="cmbPegaMaterial" DisplayMemberPath="Name" Width="200" Background="#FFFFFF" Foreground="#1C1C19" BorderBrush="#1C1C19" BorderThickness="1"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <TextBlock Text="Costo ($):" Width="75" Foreground="#1C1C19" VerticalAlignment="Center" FontSize="11"/>
+                                            <TextBox x:Name="txtPegaCost" Text="0" Width="75" Style="{StaticResource ArcaTextBox}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <TextBlock Text="Descripción:" Width="75" Foreground="#1C1C19" VerticalAlignment="Center" FontSize="11"/>
+                                            <TextBox x:Name="txtPegaDesc" Text="Mortero de Pega 1.5cm" Width="200" Style="{StaticResource ArcaTextBox}"/>
+                                        </StackPanel>
                                     </StackPanel>
                                 </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Botón Convertir -->
+                    <Button x:Name="btnConvert" Grid.Row="2" Height="42" VerticalAlignment="Bottom" Click="BtnConvert_Click" Style="{StaticResource PrimaryButton}">
+                        <TextBlock Text="⚒️ Instanciar Muros 3D" FontWeight="Bold" FontSize="13" Foreground="White" VerticalAlignment="Center"/>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- Barra divisoria redimensionable (GridSplitter) -->
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="#C2C7CF" ResizeBehavior="PreviousAndNext" Cursor="SizeWE"/>
+
+            <!-- Columna Derecha: Previsualizador 3D -->
+            <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1" Margin="4,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <Border Grid.Row="0" Background="#F6F3EE" Padding="14,10" BorderBrush="#1C1C19" BorderThickness="0,0,0,1">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Previsualizador Técnico 3D" FontWeight="Bold" FontSize="13" Foreground="#0F4369" VerticalAlignment="Center"/>
+                            <TextBlock Text=" (Clic Izquierdo para Rotar, Rueda para Zoom)" FontSize="11" Foreground="#72777F" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                        </StackPanel>
+                    </Border>
+                    
+                    <Grid Grid.Row="1" Background="#0F172A" MouseLeftButtonDown="Viewport_MouseLeftButtonDown" MouseLeftButtonUp="Viewport_MouseLeftButtonUp" MouseMove="Viewport_MouseMove" MouseWheel="Viewport_MouseWheel">
+                        <!-- Main 3D Viewport -->
+                        <Viewport3D x:Name="viewport3D">
+                            <Viewport3D.Camera>
+                                <PerspectiveCamera x:Name="camera3D" Position="1,1,1" LookDirection="-1,-1,-1" UpDirection="0,0,1" FieldOfView="45"/>
+                            </Viewport3D.Camera>
+                            <ModelVisual3D>
+                                <ModelVisual3D.Content>
+                                    <Model3DGroup x:Name="modelGroup">
+                                        <AmbientLight Color="#888888" />
+                                        <DirectionalLight Color="#FFFFFF" Direction="-1,-1,-1" />
+                                        <DirectionalLight Color="#555555" Direction="1,1,1" />
+                                    </Model3DGroup>
+                                </ModelVisual3D.Content>
+                            </ModelVisual3D>
+                        </Viewport3D>
+
+                        <!-- Labels and Overlay -->
+                        <Border VerticalAlignment="Top" HorizontalAlignment="Left" Background="#CC0F172A" BorderBrush="#0F4369" BorderThickness="1" Padding="8,4" Margin="10">
+                            <StackPanel>
+                                <TextBlock x:Name="lblViewOrientation" Text="Isométrica" Foreground="#38BDF8" FontWeight="Bold" FontSize="13"/>
+                                <TextBlock x:Name="lblWallInfo" Text="Muro seleccionado" Foreground="#94A3B8" FontSize="10.5" Margin="0,2,0,0"/>
                             </StackPanel>
                         </Border>
-
-                    </StackPanel>
-                </ScrollViewer>
-
-                <!-- Botón Convertir (Siempre visible abajo) -->
-                <Button x:Name="btnConvert" Grid.Row="2" Height="42" VerticalAlignment="Bottom" Click="BtnConvert_Click">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Border CornerRadius="6" BorderThickness="0">
-                                <Border.Background>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                        <GradientStop Color="#DD6B20" Offset="0"/>
-                                        <GradientStop Color="#C05621" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </Border.Background>
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                        </ControlTemplate>
-                    </Button.Template>
-                    <TextBlock Text="⚒️ Instanciar Muros 3D" FontWeight="Bold" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
-                </Button>
-            </Grid>
-        </Border>
-
-        <!-- Barra divisoria redimensionable (GridSplitter) -->
-        <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="#2D3748" ResizeBehavior="PreviousAndNext" Cursor="SizeWE"/>
-
-        <!-- Columna Derecha: Previsualizador 3D -->
-        <Border Grid.Column="2" Background="#0D0D0F" BorderBrush="#2D3748" BorderThickness="1" Margin="10">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-                
-                <Border Grid.Row="0" Background="#1A1C20" Padding="15,10" BorderBrush="#2D3748" BorderThickness="0,0,0,1">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Previsualizador Interactivo 3D" FontWeight="SemiBold" FontSize="14" Foreground="#A0AEC0" VerticalAlignment="Center"/>
-                        <TextBlock Text=" (Clic Izquierdo para Rotar, Rueda para Zoom)" FontSize="11" Foreground="#718096" VerticalAlignment="Center" Margin="10,0,0,0"/>
-                    </StackPanel>
-                </Border>
-                
-                <Grid Grid.Row="1" Background="#121214" MouseLeftButtonDown="Viewport_MouseLeftButtonDown" MouseLeftButtonUp="Viewport_MouseLeftButtonUp" MouseMove="Viewport_MouseMove" MouseWheel="Viewport_MouseWheel">
-                    <!-- Main 3D Viewport -->
-                    <Viewport3D x:Name="viewport3D">
-                        <Viewport3D.Camera>
-                            <PerspectiveCamera x:Name="camera3D" Position="1,1,1" LookDirection="-1,-1,-1" UpDirection="0,0,1" FieldOfView="45"/>
-                        </Viewport3D.Camera>
-                        <ModelVisual3D>
-                            <ModelVisual3D.Content>
-                                <Model3DGroup x:Name="modelGroup">
-                                    <AmbientLight Color="#666666" />
-                                    <DirectionalLight Color="#FFFFFF" Direction="-1,-1,-1" />
-                                    <DirectionalLight Color="#444444" Direction="1,1,1" />
-                                </Model3DGroup>
-                            </ModelVisual3D.Content>
-                        </ModelVisual3D>
-                    </Viewport3D>
-
-                    <!-- Labels and Overlay -->
-                    <StackPanel VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10">
-                        <TextBlock x:Name="lblViewOrientation" Text="Isométrica" Foreground="#A0AEC0" FontWeight="Bold" FontSize="16"/>
-                        <TextBlock x:Name="lblWallInfo" Text="Muro" Foreground="#718096" FontSize="12"/>
-                    </StackPanel>
+                    </Grid>
                 </Grid>
-            </Grid>
-        </Border>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

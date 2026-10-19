@@ -1,27 +1,46 @@
 <Window x:Class="RevitToSupabasePlugin.PlanAmbientadorWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="🎨 PLAN AMBIENTADOR - Alto Nivel Arquitectónico | ARCA REVIEW"
-        Height="820" Width="980"
+        Title="🎨 Plan Ambientador - Alto Nivel Arquitectónico | ARCA REVIEW"
+        Height="820" Width="1020"
         MinHeight="700" MinWidth="850"
         WindowStartupLocation="CenterScreen"
-        Background="#181825"
-        Foreground="#CDD6F4">
+        Background="#FCF9F4"
+        Foreground="#1C1C19"
+        FontFamily="Segoe UI">
 
     <Window.Resources>
-        <!-- Estilo Botón Principal -->
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="#1C1C19"/>
+            <Setter Property="BorderBrush" Value="#1C1C19"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Foreground" Value="#1C1C19"/>
+                        <Setter Property="Background" Value="#FFFFFF"/>
+                        <Setter Property="Padding" Value="6,4"/>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Estilo Botón Principal (Navy) -->
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#89B4FA"/>
-            <Setter Property="Foreground" Value="#11111B"/>
+            <Setter Property="Background" Value="#0F4369"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Padding" Value="14,9"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#0F4369"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -29,25 +48,25 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#B4BEFE"/>
+                    <Setter Property="Background" Value="#1B5E8C"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
 
-        <!-- Estilo Botón Secundario -->
+        <!-- Estilo Botón Secundario (Ivory) -->
         <Style x:Key="SecondaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#313244"/>
-            <Setter Property="Foreground" Value="#CDD6F4"/>
+            <Setter Property="Background" Value="#F6F3EE"/>
+            <Setter Property="Foreground" Value="#1C1C19"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Padding" Value="12,7"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#45475A"/>
+            <Setter Property="BorderBrush" Value="#1C1C19"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -55,25 +74,26 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#45475A"/>
+                    <Setter Property="Background" Value="#D1E4F9"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <!-- Estilo Checkbox -->
         <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="#CDD6F4"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="#1C1C19"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="Margin" Value="0,4,0,4"/>
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
 
         <!-- Estilo Card/Panel -->
         <Style x:Key="CardBorderStyle" TargetType="Border">
-            <Setter Property="Background" Value="#1E1E2E"/>
-            <Setter Property="BorderBrush" Value="#313244"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#1C1C19"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="CornerRadius" Value="4"/>
             <Setter Property="Padding" Value="16"/>
             <Setter Property="Margin" Value="0,0,0,12"/>
         </Style>
@@ -88,7 +108,7 @@
         </Grid.RowDefinitions>
 
         <!-- HEADER -->
-        <Border Grid.Row="0" Background="#1E1E2E" CornerRadius="10" Padding="16" Margin="0,0,0,14" BorderBrush="#313244" BorderThickness="1">
+        <Border Grid.Row="0" Background="#F6F3EE" CornerRadius="4" Padding="16" Margin="0,0,0,14" BorderBrush="#1C1C19" BorderThickness="1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -96,23 +116,23 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="🎨 PLAN AMBIENTADOR" FontSize="20" FontWeight="Bold" Foreground="#89B4FA" VerticalAlignment="Center"/>
-                        <Border Background="#313244" CornerRadius="6" Padding="6,2" Margin="12,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="ALTO NIVEL ARQUITECTÓNICO" FontSize="10" FontWeight="Bold" Foreground="#A6E3A1"/>
+                        <TextBlock Text="🎨 PLAN AMBIENTADOR" FontSize="20" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
+                        <Border Background="#D1E4F9" BorderBrush="#0F4369" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="12,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="ALTO NIVEL ARQUITECTÓNICO" FontSize="10" FontWeight="Bold" Foreground="#0F4369"/>
                         </Border>
                     </StackPanel>
                     <TextBlock Text="Automatización gráfica, acotado profesional, estandarización de recintos y post-producción de plantas para presentación y concurso." 
-                               FontSize="12" Foreground="#A6ADC8" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                               FontSize="12" Foreground="#72777F" Margin="0,4,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Text="ARCA REVIEW" FontSize="11" FontWeight="Bold" Foreground="#6C7086" HorizontalAlignment="Right"/>
-                    <TextBlock Text="Revit 2027 Ready" FontSize="10" Foreground="#585B70" HorizontalAlignment="Right"/>
+                    <TextBlock Text="ARCA REVIEW" FontSize="11" FontWeight="Bold" Foreground="#0F4369" HorizontalAlignment="Right"/>
+                    <TextBlock Text="Revit 2027 Ready" FontSize="10" Foreground="#72777F" HorizontalAlignment="Right"/>
                 </StackPanel>
             </Grid>
         </Border>
 
         <!-- INFO VISTA ACTIVA -->
-        <Border Grid.Row="1" Background="#24273A" CornerRadius="8" Padding="12,10" Margin="0,0,0,14" BorderBrush="#363A4F" BorderThickness="1">
+        <Border Grid.Row="1" Background="#FFFFFF" CornerRadius="4" Padding="12,10" Margin="0,0,0,14" BorderBrush="#1C1C19" BorderThickness="1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -120,14 +140,14 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="📍 Vista Activa:" FontWeight="Bold" Foreground="#F9E2AF" Margin="0,0,8,0"/>
-                    <TextBlock x:Name="txtViewName" Text="Cargando..." FontWeight="SemiBold" Foreground="#CDD6F4"/>
+                    <TextBlock Text="📍 Vista Activa:" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,8,0"/>
+                    <TextBlock x:Name="txtViewName" Text="Cargando..." FontWeight="SemiBold" Foreground="#1C1C19"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="20,0,0,0" VerticalAlignment="Center">
-                    <TextBlock Text="Escala:" Foreground="#A6ADC8" Margin="0,0,6,0"/>
-                    <TextBlock x:Name="txtViewScale" Text="1:50" FontWeight="SemiBold" Foreground="#89B4FA" Margin="0,0,16,0"/>
-                    <TextBlock Text="Nivel:" Foreground="#A6ADC8" Margin="0,0,6,0"/>
-                    <TextBlock x:Name="txtViewLevel" Text="Nivel 1" FontWeight="SemiBold" Foreground="#A6E3A1"/>
+                    <TextBlock Text="Escala:" Foreground="#72777F" Margin="0,0,6,0"/>
+                    <TextBlock x:Name="txtViewScale" Text="1:50" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,16,0"/>
+                    <TextBlock Text="Nivel:" Foreground="#72777F" Margin="0,0,6,0"/>
+                    <TextBlock x:Name="txtViewLevel" Text="Nivel 1" FontWeight="Bold" Foreground="#137333"/>
                 </StackPanel>
                 <Button Grid.Column="2" Content="🔄 Refrescar Vista" Click="BtnRefreshView_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="8,4"/>
             </Grid>
@@ -149,22 +169,22 @@
                         <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <TextBlock Text="🖌️ 1. Estilo Gráfico &amp; Jerarquía de Muros" FontSize="14" FontWeight="Bold" Foreground="#89B4FA"/>
+                                    <TextBlock Text="🖌️ 1. Estilo Gráfico &amp; Jerarquía de Muros" FontSize="14" FontWeight="Bold" Foreground="#0F4369"/>
                                 </StackPanel>
-                                <TextBlock Text="Aplica la valoración de línea de concurso a los elementos cortados." FontSize="11" Foreground="#9399B2" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                <TextBlock Text="Aplica la valoración de línea de concurso a los elementos cortados." FontSize="11" Foreground="#72777F" Margin="0,0,0,8" TextWrapping="Wrap"/>
                                 
                                 <CheckBox x:Name="chkMurosSolidos" IsChecked="True" Content="Muros en Corte Sólido (Gris Grafito / Negro #222222)"/>
                                 <CheckBox x:Name="chkColumnasSolidas" IsChecked="True" Content="Columnas y Estructuras en Corte de Alto Contraste"/>
                                 <CheckBox x:Name="chkAntepechos" IsChecked="True" Content="Muros Bajos y Antepechos en Línea Media (Sin relleno)"/>
                                 
-                                <Border Background="#181825" CornerRadius="6" Padding="8" Margin="0,8,0,0">
+                                <Border Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,8,0,0">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Tono de Muros:" VerticalAlignment="Center" Foreground="#A6ADC8" FontSize="11"/>
-                                        <ComboBox x:Name="cmbWallColor" Grid.Column="1" Margin="8,0,0,0" Background="#313244" Foreground="#CDD6F4" SelectedIndex="0">
+                                        <TextBlock Text="Tono de Muros:" VerticalAlignment="Center" Foreground="#1C1C19" FontWeight="SemiBold" FontSize="11"/>
+                                        <ComboBox x:Name="cmbWallColor" Grid.Column="1" Margin="8,0,0,0" SelectedIndex="0">
                                             <ComboBoxItem Content="Gris Grafito Minimalista (#2A2A2E)"/>
                                             <ComboBoxItem Content="Negro Tinta Puro (#000000)"/>
                                             <ComboBoxItem Content="Gris Cálido Arquitectónico (#3E3B3A)"/>
@@ -179,9 +199,9 @@
                         <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <TextBlock Text="☀️ 2. Sombras Ambientales &amp; Profundidad" FontSize="14" FontWeight="Bold" Foreground="#F9E2AF"/>
+                                    <TextBlock Text="☀️ 2. Sombras Ambientales &amp; Profundidad" FontSize="14" FontWeight="Bold" Foreground="#0F4369"/>
                                 </StackPanel>
-                                <TextBlock Text="Aporta tridimensionalidad sin saturar ni oscurecer la lectura técnica." FontSize="11" Foreground="#9399B2" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                <TextBlock Text="Aporta tridimensionalidad sin saturar ni oscurecer la lectura técnica." FontSize="11" Foreground="#72777F" Margin="0,0,0,8" TextWrapping="Wrap"/>
                                 
                                 <CheckBox x:Name="chkAmbientShadows" IsChecked="True" Content="Activar Sombras Ambientales Suaves (Ambient Shadows)"/>
                                 <CheckBox x:Name="chkCastShadows" IsChecked="True" Content="Activar Sombras Arrojadas Calibradas (Sol a 45°, 20% intensidad)"/>
@@ -194,9 +214,9 @@
                         <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <TextBlock Text="🛋️ 3. Mobiliario, Aparatos &amp; Tramas de Suelo" FontSize="14" FontWeight="Bold" Foreground="#CBA6F7"/>
+                                    <TextBlock Text="🛋️ 3. Mobiliario, Aparatos &amp; Tramas de Suelo" FontSize="14" FontWeight="Bold" Foreground="#0F4369"/>
                                 </StackPanel>
-                                <TextBlock Text="Evita que los muebles y los pisos compitan visualmente con los muros." FontSize="11" Foreground="#9399B2" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                <TextBlock Text="Evita que los muebles y los pisos compitan visualmente con los muros." FontSize="11" Foreground="#72777F" Margin="0,0,0,8" TextWrapping="Wrap"/>
                                 
                                 <CheckBox x:Name="chkHalftoneFurniture" IsChecked="True" Content="Mobiliario y Clósets en Halftone / Gris Sutil"/>
                                 <CheckBox x:Name="chkHalftonePlumbing" IsChecked="True" Content="Aparatos Sanitarios y Cocina en Línea Atenuada"/>
@@ -212,22 +232,22 @@
                         <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <TextBlock Text="🏷️ 4. Recintos, Nombres &amp; Zonificación" FontSize="14" FontWeight="Bold" Foreground="#A6E3A1"/>
+                                    <TextBlock Text="🏷️ 4. Recintos, Nombres &amp; Zonificación" FontSize="14" FontWeight="Bold" Foreground="#0F4369"/>
                                 </StackPanel>
-                                <TextBlock Text="Identificación clara del programa arquitectónico con m² y niveles." FontSize="11" Foreground="#9399B2" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                <TextBlock Text="Identificación clara del programa arquitectónico con m² y niveles." FontSize="11" Foreground="#72777F" Margin="0,0,0,8" TextWrapping="Wrap"/>
                                 
                                 <CheckBox x:Name="chkAutoCreateRooms" IsChecked="True" Content="Detectar y Crear Rooms en espacios cerrados vacíos"/>
                                 <CheckBox x:Name="chkRoomTags" IsChecked="True" Content="Colocar Room Tags con Nombre, Área (m²) y N.P.T."/>
                                 <CheckBox x:Name="chkUppercaseRooms" IsChecked="True" Content="Normalizar nombres a MAYÚSCULAS (ej. COCINA, ESTAR)"/>
                                 
-                                <Border Background="#181825" CornerRadius="6" Padding="8" Margin="0,8,0,0">
+                                <Border Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,8,0,0">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Esquema Color:" VerticalAlignment="Center" Foreground="#A6ADC8" FontSize="11"/>
-                                        <ComboBox x:Name="cmbColorScheme" Grid.Column="1" Margin="8,0,0,0" Background="#313244" Foreground="#CDD6F4" SelectedIndex="0">
+                                        <TextBlock Text="Esquema Color:" VerticalAlignment="Center" Foreground="#1C1C19" FontWeight="SemiBold" FontSize="11"/>
+                                        <ComboBox x:Name="cmbColorScheme" Grid.Column="1" Margin="8,0,0,0" SelectedIndex="0">
                                             <ComboBoxItem Content="Ninguno (Plano Blanco Puro Técnico)"/>
                                             <ComboBoxItem Content="Zonificación Pastel Suave (Social, Privada, Húmeda)"/>
                                             <ComboBoxItem Content="Monocromático Arquitectónico (Gama de Grises)"/>
@@ -242,23 +262,23 @@
                         <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <TextBlock Text="📏 5. Acotado Arquitectónico Inteligente" FontSize="14" FontWeight="Bold" Foreground="#FAB387"/>
+                                    <TextBlock Text="📏 5. Acotado Arquitectónico Inteligente" FontSize="14" FontWeight="Bold" Foreground="#0F4369"/>
                                 </StackPanel>
-                                <TextBlock Text="Cadenas de cotas perimetrales e interiores alineadas y legibles." FontSize="11" Foreground="#9399B2" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                <TextBlock Text="Cadenas de cotas perimetrales e interiores alineadas y legibles." FontSize="11" Foreground="#72777F" Margin="0,0,0,8" TextWrapping="Wrap"/>
                                 
                                 <CheckBox x:Name="chkCotaTotal" IsChecked="True" Content="Cadena 1: Cota Total Exterior (Largo y Ancho Máximo)"/>
                                 <CheckBox x:Name="chkCotaEjes" IsChecked="True" Content="Cadena 2: Cota entre Ejes Estructurales (Grids)"/>
                                 <CheckBox x:Name="chkCotaVanos" IsChecked="True" Content="Cadena 3: Cota de Vanos de Fachada (Puertas y Ventanas)"/>
                                 <CheckBox x:Name="chkCotasInteriores" IsChecked="True" Content="Cotas Libres Interiores por Recinto (Ancho y Largo útil)"/>
                                 
-                                <Border Background="#181825" CornerRadius="6" Padding="8" Margin="0,8,0,0">
+                                <Border Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,8,0,0">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Estilo de Cota:" VerticalAlignment="Center" Foreground="#A6ADC8" FontSize="11"/>
-                                        <ComboBox x:Name="cmbDimStyle" Grid.Column="1" Margin="8,0,0,0" Background="#313244" Foreground="#CDD6F4" SelectedIndex="0">
+                                        <TextBlock Text="Estilo de Cota:" VerticalAlignment="Center" Foreground="#1C1C19" FontWeight="SemiBold" FontSize="11"/>
+                                        <ComboBox x:Name="cmbDimStyle" Grid.Column="1" Margin="8,0,0,0" SelectedIndex="0">
                                             <ComboBoxItem Content="Diagonal Arquitectónica Fina (1.5 mm Tick)"/>
                                             <ComboBoxItem Content="Punto Arquitectónico Minimalista (Dot)"/>
                                             <ComboBoxItem Content="Línea Continua Fina Estándar"/>
@@ -272,9 +292,9 @@
                         <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <TextBlock Text="📐 6. Simbología &amp; Anotaciones Complementarias" FontSize="14" FontWeight="Bold" Foreground="#F38BA8"/>
+                                    <TextBlock Text="📐 6. Simbología &amp; Anotaciones Complementarias" FontSize="14" FontWeight="Bold" Foreground="#0F4369"/>
                                 </StackPanel>
-                                <TextBlock Text="Elementos de orientación, niveles y circulación vertical." FontSize="11" Foreground="#9399B2" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                <TextBlock Text="Elementos de orientación, niveles y circulación vertical." FontSize="11" Foreground="#72777F" Margin="0,0,0,8" TextWrapping="Wrap"/>
                                 
                                 <CheckBox x:Name="chkNptSpots" IsChecked="True" Content="Cotas de Nivel (N.P.T.) en Accesos, Terrazas y Zonas Húmedas"/>
                                 <CheckBox x:Name="chkEscaleras" IsChecked="True" Content="Numeración de Peldaños y Flecha de Sentido en Escaleras"/>
@@ -294,9 +314,9 @@
             </Grid.RowDefinitions>
 
             <!-- CONSOLA / ESTADO -->
-            <Border Grid.Row="0" Background="#11111B" CornerRadius="6" Padding="10,6" Margin="0,0,0,10" BorderBrush="#313244" BorderThickness="1">
+            <Border Grid.Row="0" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="1" CornerRadius="4" Padding="10,6" Margin="0,0,0,10">
                 <TextBlock x:Name="txtStatus" Text="Listo para ambientar la vista activa. Selecciona las opciones deseadas y pulsa 'Ambientar Planta Actual'." 
-                           FontSize="11" Foreground="#A6ADC8" TextTrimming="CharacterEllipsis"/>
+                           FontSize="11" Foreground="#72777F" TextTrimming="CharacterEllipsis"/>
             </Border>
 
             <!-- BOTONES DE ACCIÓN -->

@@ -1,0 +1,130 @@
+<Window x:Class="RevitToSupabasePlugin.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Iniciar Sesión en Review" Height="360" Width="400"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="#FCF9F4"
+        Foreground="#1C1C19"
+        FontFamily="Segoe UI, Inter, sans-serif"
+        BorderThickness="2"
+        BorderBrush="#0F4369">
+
+    <Window.Resources>
+        <!-- Primary Action Button (Navy Blueprint) -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="#0F4369"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="12,7"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#1C1C19"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="btnBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="0" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#1C1C19"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#09283F"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#C2C7CF"/>
+                                <Setter Property="Foreground" Value="#72777F"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Secondary Button -->
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Background" Value="#F6F3EE"/>
+            <Setter Property="Foreground" Value="#1C1C19"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#1C1C19"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="btnBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="0" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#E5E2DD"/>
+                                <Setter Property="BorderBrush" Value="#0F4369"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- Top brand line -->
+            <RowDefinition Height="3"/>
+            <!-- Header bar -->
+            <RowDefinition Height="Auto"/>
+            <!-- Form Body -->
+            <RowDefinition Height="*"/>
+            <!-- Bottom status & actions -->
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top Accent Line -->
+        <Rectangle Grid.Row="0" Fill="#0F4369"/>
+
+        <!-- Header Bar -->
+        <Border Grid.Row="1" Background="#F6F3EE" Padding="14,10" BorderBrush="#1C1C19" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Border Background="#0F4369" Width="30" Height="30" Margin="0,0,10,0">
+                    <TextBlock Text="🔐" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel>
+                    <TextBlock Text="INICIAR SESIÓN EN REVIEW" FontWeight="Bold" FontSize="13" Foreground="#0F4369"/>
+                    <TextBlock Text="Conexión directa nativa con Supabase (user_profiles)" FontSize="10" Foreground="#72777F"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Form Body -->
+        <StackPanel Grid.Row="2" Margin="18,14,18,8">
+            <TextBlock Text="Correo Electrónico:" FontWeight="Bold" FontSize="11" Margin="0,0,0,4" Foreground="#1C1C19"/>
+            <TextBox x:Name="txtEmail" Padding="6,5" FontSize="12" Margin="0,0,0,12" BorderBrush="#1C1C19" BorderThickness="1"/>
+
+            <TextBlock Text="Contraseña:" FontWeight="Bold" FontSize="11" Margin="0,0,0,4" Foreground="#1C1C19"/>
+            <PasswordBox x:Name="txtPassword" PasswordChar="●" Padding="6,5" FontSize="12" Margin="0,0,0,12" BorderBrush="#1C1C19" BorderThickness="1" KeyDown="TxtPassword_KeyDown"/>
+
+            <TextBlock x:Name="txtStatus" Text="" Foreground="#BA1A1A" FontSize="10.5" TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed"/>
+
+            <ProgressBar x:Name="progLoading" Height="4" Margin="0,0,0,8" IsIndeterminate="True" Visibility="Collapsed" Foreground="#0F4369" Background="#E5E2DD"/>
+        </StackPanel>
+
+        <!-- Bottom Actions -->
+        <Border Grid.Row="3" Background="#F6F3EE" Padding="14,10" BorderBrush="#1C1C19" BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Button x:Name="btnCancel" Grid.Column="0" Style="{StaticResource SecondaryButton}" Content="Cancelar" Click="BtnCancel_Click"/>
+                <Button x:Name="btnLogin" Grid.Column="2" Style="{StaticResource PrimaryButton}" Content="Entrar a Review" Click="BtnLogin_Click"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

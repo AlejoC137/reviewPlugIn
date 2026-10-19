@@ -1,102 +1,113 @@
 <Window x:Class="RevitToSupabasePlugin.ExportadorMetadataWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Conexión Supabase - Exportador de Metadata (por ID)" Height="620" Width="680"
+        Title="Exportador de Archivos &amp; Metadata | ARCA REVIEW" Height="680" Width="760"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResize"
-        Background="#181818" Foreground="#FFFFFF">
+        Background="#FCF9F4" Foreground="#1C1C19"
+        FontFamily="Segoe UI, Inter, sans-serif">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ReviewDesignSystem.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
 
     <Grid Margin="0">
         <Grid.RowDefinitions>
-            <RowDefinition Height="4"/>
-            <RowDefinition Height="50"/>
+            <RowDefinition Height="3"/>
+            <RowDefinition Height="60"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="55"/>
         </Grid.RowDefinitions>
 
-        <!-- Nonica Top Branded Line (#5235EF) -->
-        <Rectangle Grid.Row="0" Fill="#5235EF" HorizontalAlignment="Stretch"/>
+        <!-- ARCA Blueprint Top Line -->
+        <Rectangle Grid.Row="0" Fill="#0F4369" HorizontalAlignment="Stretch"/>
 
         <!-- Header -->
-        <Border Grid.Row="1" Background="#222226" Padding="15,8">
+        <Border Grid.Row="1" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="0,0,0,1" Padding="16,10">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="DB" FontSize="18" FontWeight="Bold" Foreground="#5235EF" Margin="0,0,10,0"/>
+                <Border Background="#0F4369" Width="36" Height="36" Margin="0,0,12,0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="📤" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
                 <StackPanel>
-                    <TextBlock Text="Conexión Supabase &amp; Exportador de Metadata del Proyecto" FontSize="14" FontWeight="Bold" Foreground="#FFFFFF"/>
-                    <TextBlock Text="Ingresa tus credenciales y selecciona la información que será guardada en Supabase (/fromPlugIn)" FontSize="11" Foreground="#AAAAAA"/>
+                    <TextBlock Text="Exportador de Archivos &amp; Metadata del Proyecto (Sin Base de Datos)" FontSize="13.5" FontWeight="Bold" Foreground="#0F4369"/>
+                    <TextBlock Text="Exporta directamente archivos ifcJSON, modelo 3D Web y paquetes JSON completos sin sincronizaciones forzadas." FontSize="11" Foreground="#72777F"/>
                 </StackPanel>
             </StackPanel>
         </Border>
 
         <!-- Main Body -->
-        <Grid Grid.Row="2" Margin="15">
+        <Grid Grid.Row="2" Margin="15,12">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <!-- Autenticación y Credenciales -->
-            <GroupBox Header="Autenticación de Usuario (Supabase)" Foreground="#5235EF" FontWeight="Bold" Margin="0,0,0,10" Background="#202024" BorderBrush="#333338" Padding="10">
+            <!-- Sesión Única (Single Sign-On - Sin pedir contraseña) -->
+            <Border Grid.Row="0" Style="{StaticResource CardBorder}" Margin="0,0,0,8" Padding="12,8">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="20"/>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    
-                    <TextBlock Text="Correo Electrónico:" Foreground="#CCCCCC" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <TextBox x:Name="txtEmail" Grid.Column="1" Text="usuario@ejemplo.com" Background="#2A2A2E" Foreground="#FFFFFF" BorderBrush="#44444A" Padding="5,3"/>
-
-                    <TextBlock Text="Contraseña:" Grid.Column="3" Foreground="#CCCCCC" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <PasswordBox x:Name="txtPassword" Grid.Column="4" Password="••••••••" Background="#2A2A2E" Foreground="#FFFFFF" BorderBrush="#44444A" Padding="5,3"/>
+                    <TextBlock Text="👤 Sesión Única de Review:" FontWeight="Bold" FontSize="11" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBlock x:Name="txtEmailDisplay" Grid.Column="1" Text="usuario@review.com" FontSize="11" FontWeight="SemiBold" Foreground="#1C1C19" VerticalAlignment="Center"/>
+                    <Border Grid.Column="2" Background="#D1FAE5" BorderBrush="#059669" BorderThickness="1" Padding="6,2">
+                        <TextBlock Text="✓ Sesión Activa" FontSize="9.5" FontWeight="Bold" Foreground="#065F46"/>
+                    </Border>
                 </Grid>
-            </GroupBox>
+            </Border>
 
-            <!-- Checklist de Datos a Guardar en Base de Datos -->
-            <GroupBox Grid.Row="1" Header="Listado de Información a Guardar en Base de Datos (Checklist)" Foreground="#5235EF" FontWeight="Bold" Margin="0,0,0,10" Background="#202024" BorderBrush="#333338" Padding="10">
-                <StackPanel>
-                    <TextBlock Text="Selecciona qué bloques de información de Revit serán enviados a Supabase:" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,8"/>
+            <!-- Checklist de Datos a Exportar -->
+            <GroupBox Grid.Row="1" Header="Listado de Información a Incluir en el Archivo JSON" Style="{StaticResource ArcaGroupBox}" Margin="0,0,0,8">
+                <StackPanel Margin="0,4,0,0">
+                    <TextBlock Text="Selecciona qué bloques de información del modelo Revit formarán parte de la exportación:" Foreground="#72777F" FontSize="10.5" Margin="0,0,0,6"/>
                     <WrapPanel>
-                        <CheckBox x:Name="chkProjectInfo" Content="Información del Proyecto &amp; Dirección" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,20,8"/>
-                        <CheckBox x:Name="chkSiteLocation" Content="Ubicación / Georreferenciación (SiteLocation)" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,20,8"/>
-                        <CheckBox x:Name="chkLevels" Content="Niveles del Modelo" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,20,8"/>
-                        <CheckBox x:Name="chkCategorySummary" Content="Resumen por Categorías" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,20,8"/>
-                        <CheckBox x:Name="chkElementDetails" Content="Detalle Paramétrico de Elementos por ElementId" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,20,8"/>
-                        <CheckBox x:Name="chkRooms" Content="Habitaciones &amp; Espacios (Rooms)" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,20,8"/>
-                        <CheckBox x:Name="chkSchedules" Content="Tablas de Planificación / Datos (Schedules)" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,20,8"/>
-                        <CheckBox x:Name="chkSheetsViews" Content="Planos &amp; Vistas (Sheets/Views)" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,20,8"/>
-                        <CheckBox x:Name="chkMaterials" Content="Materiales del Modelo" IsChecked="True" Foreground="#EEEEEE" Margin="0,0,20,8"/>
-                        <CheckBox x:Name="chkWeb3dModel" Content="🌐 Escena 3D Web (FlatShading / Bajo Peso / R3F)" IsChecked="True" Foreground="#00FF88" FontWeight="Bold" Margin="0,0,0,8"/>
+                        <CheckBox x:Name="chkProjectInfo" Style="{StaticResource ArcaCheckBox}" Content="Información del Proyecto &amp; Dirección" IsChecked="True" Margin="0,0,16,6"/>
+                        <CheckBox x:Name="chkSiteLocation" Style="{StaticResource ArcaCheckBox}" Content="Ubicación / Georreferenciación (SiteLocation)" IsChecked="True" Margin="0,0,16,6"/>
+                        <CheckBox x:Name="chkLevels" Style="{StaticResource ArcaCheckBox}" Content="Niveles del Modelo" IsChecked="True" Margin="0,0,16,6"/>
+                        <CheckBox x:Name="chkCategorySummary" Style="{StaticResource ArcaCheckBox}" Content="Resumen por Categorías" IsChecked="True" Margin="0,0,16,6"/>
+                        <CheckBox x:Name="chkElementDetails" Style="{StaticResource ArcaCheckBox}" Content="Detalle Paramétrico de Elementos por ElementId" IsChecked="True" Margin="0,0,16,6"/>
+                        <CheckBox x:Name="chkRooms" Style="{StaticResource ArcaCheckBox}" Content="Habitaciones &amp; Espacios (Rooms)" IsChecked="True" Margin="0,0,16,6"/>
+                        <CheckBox x:Name="chkSchedules" Style="{StaticResource ArcaCheckBox}" Content="Tablas de Planificación / Datos (Schedules)" IsChecked="True" Margin="0,0,16,6"/>
+                        <CheckBox x:Name="chkSheetsViews" Style="{StaticResource ArcaCheckBox}" Content="Planos &amp; Vistas (Sheets/Views)" IsChecked="True" Margin="0,0,16,6"/>
+                        <CheckBox x:Name="chkMaterials" Style="{StaticResource ArcaCheckBox}" Content="Materiales del Modelo" IsChecked="True" Margin="0,0,16,6"/>
+                        <CheckBox x:Name="chkWeb3dModel" Style="{StaticResource ArcaCheckBox}" Content="🌐 Escena 3D Web (FlatShading / Bajo Peso / R3F)" IsChecked="True" Margin="0,0,0,6"/>
                     </WrapPanel>
                 </StackPanel>
             </GroupBox>
 
-            <GroupBox Grid.Row="2" Header="Vista Previa del Paquete JSON a enviar a Supabase" Foreground="#5235EF" FontWeight="Bold" Background="#202024" BorderBrush="#333338" Padding="8">
-                <Grid>
+            <!-- Vista Previa -->
+            <GroupBox Grid.Row="2" Header="Vista Previa de Estructura de Datos" Style="{StaticResource ArcaGroupBox}">
+                <Grid Margin="0,4,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <TextBox x:Name="txtPreview" Grid.Row="0" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Background="#141416" Foreground="#00FF88" FontFamily="Consolas" FontSize="11" Padding="6" Margin="0,0,0,8"/>
+                    <Border Grid.Row="0" Background="#1C1C19" BorderBrush="#0F4369" BorderThickness="1" Padding="6" Margin="0,0,0,8">
+                        <TextBox x:Name="txtPreview" Background="Transparent" Foreground="#E5E2DD" BorderThickness="0" FontFamily="Consolas, monospace" FontSize="10" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+                    </Border>
                     <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button x:Name="btnExportIfcJson" Content="🏗️ Exportar ifcJSON Standard" Width="200" Height="28" Margin="0,0,10,0" Background="#0088FF" Foreground="#FFFFFF" FontWeight="Bold" BorderBrush="#00AAFF" Click="BtnExportIfcJson_Click"/>
-                        <Button x:Name="btnExport3D" Content="🎨 Exportar Modelo 3D Web (.json)" Width="200" Height="28" Margin="0,0,10,0" Background="#5235EF" Foreground="#FFFFFF" FontWeight="Bold" BorderBrush="#6B4EFF" Click="BtnExport3D_Click"/>
-                        <Button x:Name="btnSaveJson" Content="💾 Exportar JSON Completo" Width="170" Height="28" Background="#3E3E42" Foreground="#FFFFFF" BorderBrush="#555555" Click="BtnSaveJson_Click"/>
+                        <Button x:Name="btnExportIfcJson" Content="🏗️ Exportar ifcJSON Standard" Style="{StaticResource ActionCardButton}" Margin="0,0,8,0" Click="BtnExportIfcJson_Click"/>
+                        <Button x:Name="btnExport3D" Content="🎨 Exportar Modelo 3D Web (.json)" Style="{StaticResource ActionCardButton}" Margin="0,0,8,0" Click="BtnExport3D_Click"/>
+                        <Button x:Name="btnSaveJson" Content="💾 Exportar JSON Completo" Style="{StaticResource PrimaryButton}" Click="BtnSaveJson_Click"/>
                     </StackPanel>
                 </Grid>
             </GroupBox>
         </Grid>
 
         <!-- Footer -->
-        <Border Grid.Row="3" Background="#222226" Padding="15,10">
+        <Border Grid.Row="3" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="0,1,0,0" Padding="15,10">
             <Grid>
-                <TextBlock x:Name="txtStatus" Text="Listo para conectar con Supabase." Foreground="#AAAAAA" VerticalAlignment="Center" FontSize="12"/>
+                <TextBlock x:Name="txtStatus" Text="Listo para exportar archivos locales." Foreground="#72777F" VerticalAlignment="Center" FontSize="11"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button x:Name="btnPreview" Content="Generar Vista Previa" Width="140" Height="30" Margin="0,0,10,0" Background="#3E3E42" Foreground="#FFFFFF" BorderBrush="#555555" Click="BtnPreview_Click"/>
-                    <Button x:Name="btnExport" Content="Conectar y Guardar en Supabase" Width="210" Height="30" Background="#5235EF" Foreground="#FFFFFF" FontWeight="Bold" BorderBrush="#6B4EFF" Click="BtnExport_Click"/>
+                    <Button x:Name="btnPreview" Content="🔍 Generar Vista Previa" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" Click="BtnPreview_Click"/>
+                    <Button Content="Cerrar" Style="{StaticResource SecondaryButton}" Width="80" Click="BtnClose_Click"/>
                 </StackPanel>
             </Grid>
         </Border>

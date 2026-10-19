@@ -227,7 +227,7 @@ namespace reviewPlugIn.Services
             client.DefaultRequestHeaders.Add("apikey", AnonKey);
             client.DefaultRequestHeaders.Add("Authorization", $"Bearer {AnonKey}");
 
-            string url = $"{SupabaseUrl}/rest/v1/admin_documents?type=eq.revit_sheets_queue&order=created_at.desc&limit=25";
+            string url = $"{SupabaseUrl}/rest/v1/admin_documents?type=in.(revit_change_queue,revit_sheets_queue)&order=created_at.desc&limit=25";
             var response = await client.GetAsync(url);
             string json = await response.Content.ReadAsStringAsync();
 

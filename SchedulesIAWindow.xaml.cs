@@ -7,16 +7,15 @@ using System.Windows.Controls;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using MessageBox = System.Windows.MessageBox;
-using Clipboard = System.Windows.Clipboard;
+using WpfVisibility = System.Windows.Visibility;
 
 namespace RevitToSupabasePlugin
 {
-    public class ScheduleFieldItem
+    public class ScheduleFieldDisplayItem
     {
         public string Name { get; set; } = string.Empty;
         public string ColumnHeading { get; set; } = string.Empty;
         public bool IsSelected { get; set; } = true;
-        public int ColumnIndex { get; set; }
         public bool IsHidden { get; set; }
 
         public string DisplayName => string.IsNullOrEmpty(ColumnHeading) || ColumnHeading == Name
@@ -26,10 +25,12 @@ namespace RevitToSupabasePlugin
 
     public partial class SchedulesIAWindow : Window
     {
-        private Document _doc;
-        private UIDocument? _uidoc;
-        private List<ViewSchedule>? _schedules;
+        private readonly Document _doc;
+        private readonly UIDocument? _uidoc;
+        private List<ScheduleListItemViewModel> _allSchedules = new List<ScheduleListItemViewModel>();
         private List<AssemblyItemViewModel> _allAssemblies = new List<AssemblyItemViewModel>();
+        private ScheduleListItemViewModel? _selectedTemplate;
+        private List<ScheduleFieldDisplayItem> _currentTemplateFields = new List<ScheduleFieldDisplayItem>();
 
         public SchedulesIAWindow(Document doc, UIDocument? uidoc = null)
         {
@@ -37,106 +38,418 @@ namespace RevitToSupabasePlugin
             _doc = doc;
             _uidoc = uidoc;
 
+            RefreshAll();
+        }
+
+        private void RefreshAll()
+        {
             LoadSchedules();
             LoadAssemblies();
+            UpdateTemplateSelectionState();
         }
+
+        #region 1. Carga y Filtro de Tablas
 
         private void LoadSchedules()
         {
-            _schedules = new FilteredElementCollector(_doc)
-                .OfClass(typeof(ViewSchedule))
-                .Cast<ViewSchedule>()
-                .Where(vs => !vs.IsTemplate && !vs.IsInternalKeynoteSchedule && vs.Name != "<Revision Schedule>")
-                .OrderBy(vs => vs.Name)
-                .ToList();
-
-            cmbSchedules.ItemsSource = _schedules;
-            if (_schedules.Count > 0)
+            try
             {
-                cmbSchedules.SelectedIndex = 0;
+                _allSchedules = AssemblyScheduleService.GetSchedulesList(_doc);
+                ApplyScheduleFilter();
+            }
+            catch (Exception ex)
+            {
+                txtSelectedTemplateInfo.Text = $"Error al cargar tablas: {ex.Message}";
+            }
+        }
+
+        private void ApplyScheduleFilter()
+        {
+            if (_allSchedules == null || lstSchedules == null) return;
+
+            string filterText = txtSearchSchedules?.Text?.Trim().ToLowerInvariant() ?? "";
+
+            var query = _allSchedules.AsEnumerable();
+
+            // Filtro por alcance
+            if (rbFilterProject != null && rbFilterProject.IsChecked == true)
+            {
+                query = query.Where(s => !s.IsAssemblyView);
+            }
+            else if (rbFilterAssembly != null && rbFilterAssembly.IsChecked == true)
+            {
+                query = query.Where(s => s.IsAssemblyView);
+            }
+
+            if (!string.IsNullOrEmpty(filterText))
+            {
+                query = query.Where(s =>
+                    s.Name.ToLowerInvariant().Contains(filterText) ||
+                    s.CategoryName.ToLowerInvariant().Contains(filterText) ||
+                    s.ScheduleTypeDescription.ToLowerInvariant().Contains(filterText) ||
+                    s.SheetPlacementsInfo.ToLowerInvariant().Contains(filterText));
+            }
+
+            var filtered = query.ToList();
+            lstSchedules.ItemsSource = filtered;
+
+            if (txtScheduleCountSummary != null)
+            {
+                txtScheduleCountSummary.Text = $"{filtered.Count} de {_allSchedules.Count} tablas";
+            }
+
+            if (_selectedTemplate != null && filtered.Any(s => s.Id == _selectedTemplate.Id))
+            {
+                lstSchedules.SelectedItem = filtered.First(s => s.Id == _selectedTemplate.Id);
+            }
+        }
+
+        private void rbTableScope_Checked(object sender, RoutedEventArgs e)
+        {
+            if (_allSchedules == null || lstSchedules == null) return;
+            ApplyScheduleFilter();
+        }
+
+        private void txtSearchSchedules_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ApplyScheduleFilter();
+        }
+
+        private void lstSchedules_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (lstSchedules.SelectedItem is ScheduleListItemViewModel item)
+            {
+                if (item.IsValid && _doc.GetElement(item.Id) != null)
+                {
+                    _selectedTemplate = item;
+                    UpdateTemplateSelectionState();
+                    LoadFieldsForTemplate(item.Schedule);
+                }
+                else
+                {
+                    _selectedTemplate = null;
+                    UpdateTemplateSelectionState();
+                }
+            }
+        }
+
+        private void btnClearTemplate_Click(object sender, RoutedEventArgs e)
+        {
+            _selectedTemplate = null;
+            lstSchedules.SelectedItem = null;
+            UpdateTemplateSelectionState();
+        }
+
+        #region Gestión Activa de Tablas (Abrir, Duplicar, Renombrar, Eliminar)
+
+        private void btnOpenSchedule_Click(object sender, RoutedEventArgs e)
+        {
+            if (_uidoc == null)
+            {
+                MessageBox.Show("No hay una sesión interactiva activa de Revit para abrir la vista.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var target = lstSchedules.SelectedItem as ScheduleListItemViewModel;
+            if (target == null || !target.IsValid || _doc.GetElement(target.Id) == null)
+            {
+                MessageBox.Show("Por favor, selecciona una tabla válida en la lista para abrirla en Revit.", "Selección Requerida", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                AssemblyScheduleService.OpenScheduleInRevit(_uidoc, target.Schedule);
+                txtAssemblyLog.Text = $"👁️ Abierta tabla '{target.Name}' en el viewport activo de Revit.\n{txtAssemblyLog.Text}";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al abrir la tabla en Revit: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void btnDuplicateSchedule_Click(object sender, RoutedEventArgs e)
+        {
+            var target = lstSchedules.SelectedItem as ScheduleListItemViewModel;
+            if (target == null || !target.IsValid || _doc.GetElement(target.Id) == null)
+            {
+                MessageBox.Show("Por favor, selecciona una tabla válida en la lista para duplicarla.", "Selección Requerida", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                ViewSchedule newSched = AssemblyScheduleService.DuplicateSchedule(_doc, target.Schedule);
+                txtAssemblyLog.Text = $"📑 Tabla duplicada exitosamente: '{newSched.Name}'.\n{txtAssemblyLog.Text}";
+                
+                LoadSchedules();
+                
+                // Seleccionar la nueva tabla
+                var found = _allSchedules.FirstOrDefault(s => s.Id == newSched.Id);
+                if (found != null)
+                {
+                    lstSchedules.SelectedItem = found;
+                }
+
+                MessageBox.Show($"Tabla duplicada con éxito:\n'{newSched.Name}'", "Tabla Duplicada", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al duplicar la tabla: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private ScheduleListItemViewModel? _scheduleBeingRenamed;
+
+        private void btnRenameSchedule_Click(object sender, RoutedEventArgs e)
+        {
+            var target = lstSchedules.SelectedItem as ScheduleListItemViewModel;
+            if (target == null || !target.IsValid || _doc.GetElement(target.Id) == null)
+            {
+                MessageBox.Show("Por favor, selecciona una tabla válida en la lista para renombrarla.", "Selección Requerida", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            _scheduleBeingRenamed = target;
+            txtRenameScheduleName.Text = target.Name;
+            pnlRenameModal.Visibility = WpfVisibility.Visible;
+            txtRenameScheduleName.Focus();
+            txtRenameScheduleName.SelectAll();
+        }
+
+        private void btnCancelRename_Click(object sender, RoutedEventArgs e)
+        {
+            pnlRenameModal.Visibility = WpfVisibility.Collapsed;
+            _scheduleBeingRenamed = null;
+        }
+
+        private void btnSaveRename_Click(object sender, RoutedEventArgs e)
+        {
+            if (_scheduleBeingRenamed == null || !_scheduleBeingRenamed.IsValid || _doc.GetElement(_scheduleBeingRenamed.Id) == null)
+            {
+                pnlRenameModal.Visibility = WpfVisibility.Collapsed;
+                return;
+            }
+
+            string newName = txtRenameScheduleName.Text?.Trim() ?? "";
+            if (string.IsNullOrEmpty(newName))
+            {
+                MessageBox.Show("El nombre no puede estar vacío.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (newName == _scheduleBeingRenamed.Name)
+            {
+                pnlRenameModal.Visibility = WpfVisibility.Collapsed;
+                return;
+            }
+
+            var (success, msg) = AssemblyScheduleService.RenameSchedule(_doc, _scheduleBeingRenamed.Schedule, newName);
+            if (success)
+            {
+                pnlRenameModal.Visibility = WpfVisibility.Collapsed;
+                txtAssemblyLog.Text = $"✏️ {msg}\n{txtAssemblyLog.Text}";
+                LoadSchedules();
             }
             else
             {
-                txtScheduleInfo.Text = "No se encontraron tablas de planificación en el modelo.";
+                MessageBox.Show(msg, "Error al Renombrar", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
-        private void btnRefreshSchedules_Click(object sender, RoutedEventArgs e)
+        private void btnDeleteSchedule_Click(object sender, RoutedEventArgs e)
         {
-            LoadSchedules();
-            LoadAssemblies();
-        }
+            // Determinar si hay tablas marcadas con Checkbox o si se borra la seleccionada
+            var checkedSchedules = _allSchedules.Where(s => s.IsChecked).ToList();
+            List<ScheduleListItemViewModel> targetsToDelete = new List<ScheduleListItemViewModel>();
 
-        private void cmbSchedules_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (cmbSchedules.SelectedItem is ViewSchedule selectedSchedule)
+            if (checkedSchedules.Count > 0)
             {
-                UpdateScheduleMetadata(selectedSchedule);
-                LoadFieldsForSchedule(selectedSchedule);
+                targetsToDelete = checkedSchedules;
+            }
+            else if (lstSchedules.SelectedItem is ScheduleListItemViewModel singleSelected)
+            {
+                targetsToDelete.Add(singleSelected);
+            }
+
+            if (targetsToDelete.Count == 0)
+            {
+                MessageBox.Show("Por favor, selecciona o marca al menos una tabla para eliminar.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // Validar si alguna tabla está en lámina
+            var onSheetTargets = targetsToDelete.Where(s => s.IsOnSheet).ToList();
+            StringBuilder confirmMsg = new StringBuilder();
+
+            if (targetsToDelete.Count == 1)
+            {
+                var single = targetsToDelete[0];
+                confirmMsg.AppendLine($"¿Estás seguro de que deseas eliminar permanentemente la tabla '{single.Name}' del modelo?");
+                if (single.IsOnSheet)
+                {
+                    confirmMsg.AppendLine($"\n⚠️ ADVERTENCIA: Esta tabla está colocada en la(s) lámina(s): {single.SheetPlacementsInfo}. Si la eliminas, desaparecerá de los planos correspondientes.");
+                }
+            }
+            else
+            {
+                confirmMsg.AppendLine($"¿Estás seguro de que deseas eliminar permanentemente {targetsToDelete.Count} tablas de planificación del modelo?");
+                if (onSheetTargets.Count > 0)
+                {
+                    confirmMsg.AppendLine($"\n⚠️ ADVERTENCIA: {onSheetTargets.Count} de las tablas seleccionadas están colocadas en láminas del proyecto:");
+                    foreach (var os in onSheetTargets.Take(5))
+                    {
+                        confirmMsg.AppendLine($"• {os.Name} -> En lámina {os.SheetPlacementsInfo}");
+                    }
+                    if (onSheetTargets.Count > 5) confirmMsg.AppendLine($"• ... y {onSheetTargets.Count - 5} más.");
+                }
+            }
+
+            confirmMsg.AppendLine("\nEsta acción no se puede deshacer.");
+
+            var res = MessageBox.Show(confirmMsg.ToString(), "Confirmar Eliminación de Tablas", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (res != MessageBoxResult.Yes) return;
+
+            try
+            {
+                var targetIds = targetsToDelete
+                    .Select(t => t.Id)
+                    .Where(id => id != null && id != ElementId.InvalidElementId)
+                    .ToHashSet();
+
+                // Si la plantilla activa seleccionada está entre las eliminadas, deseleccionarla antes de borrar
+                if (_selectedTemplate != null && targetIds.Contains(_selectedTemplate.Id))
+                {
+                    _selectedTemplate = null;
+                }
+
+                // Limpiar selección previa en el ListBox para evitar reentradas de SelectionChanged
+                lstSchedules.SelectedItem = null;
+
+                var (count, msg) = AssemblyScheduleService.DeleteSchedules(_doc, targetIds);
+
+                txtAssemblyLog.Text = $"🗑️ {msg}\n{txtAssemblyLog.Text}";
+
+                LoadSchedules();
+                LoadAssemblies(); // Para refrescar status de tablas existentes en ensamblajes
+                UpdateTemplateSelectionState();
+
+                MessageBox.Show(msg, "Eliminación Completada", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al eliminar tabla(s): {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
-        private void UpdateScheduleMetadata(ViewSchedule schedule)
+        private void btnSelectAllSchedules_Click(object sender, RoutedEventArgs e)
         {
+            if (lstSchedules.ItemsSource is IEnumerable<ScheduleListItemViewModel> items)
+            {
+                foreach (var s in items) s.IsChecked = true;
+                lstSchedules.Items.Refresh();
+            }
+        }
+
+        private void btnDeselectAllSchedules_Click(object sender, RoutedEventArgs e)
+        {
+            if (lstSchedules.ItemsSource is IEnumerable<ScheduleListItemViewModel> items)
+            {
+                foreach (var s in items) s.IsChecked = false;
+                lstSchedules.Items.Refresh();
+            }
+        }
+
+        #endregion
+
+        private void UpdateTemplateSelectionState()
+        {
+            if (_selectedTemplate != null)
+            {
+                if (!_selectedTemplate.IsValid || _doc.GetElement(_selectedTemplate.Id) == null)
+                {
+                    _selectedTemplate = null;
+                }
+            }
+
+            if (_selectedTemplate != null)
+            {
+                txtSelectedTemplateInfo.Text = $"📋 Plantilla activa: {_selectedTemplate.Name} ({_selectedTemplate.DisplaySubtitle})";
+                txtSelectedTemplateInfo.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(6, 95, 70));
+                pnlActiveTemplateBadge.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(5, 150, 105));
+                pnlActiveTemplateBadge.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(209, 250, 229));
+                pnlStandardOptions.Visibility = WpfVisibility.Collapsed;
+                pnlTemplateOptions.Visibility = WpfVisibility.Visible;
+                grpFieldDetails.Visibility = WpfVisibility.Visible;
+                btnExecute.Content = $"⚡ REPLICAR PLANTILLA '{_selectedTemplate.Name}' EN ENSAMBLAJES SELECCIONADOS";
+            }
+            else
+            {
+                txtSelectedTemplateInfo.Text = "📦 Modo activo: Generación Estándar Automática (Sin Plantilla). Crea tablas limpias y optimizadas para cada ensamble.";
+                txtSelectedTemplateInfo.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(15, 67, 105));
+                pnlActiveTemplateBadge.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(15, 67, 105));
+                pnlActiveTemplateBadge.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(209, 228, 249));
+                pnlStandardOptions.Visibility = WpfVisibility.Visible;
+                pnlTemplateOptions.Visibility = WpfVisibility.Collapsed;
+                grpFieldDetails.Visibility = WpfVisibility.Collapsed;
+                _currentTemplateFields.Clear();
+                lstTemplateFields.ItemsSource = null;
+                txtFieldsSummary.Text = "Sin plantilla seleccionada. Modo estándar creará campos esenciales automáticamente.";
+                btnExecute.Content = "⚡ GENERAR TABLAS ESTÁNDAR EN ENSAMBLAJES SELECCIONADOS";
+            }
+        }
+
+        private void LoadFieldsForTemplate(ViewSchedule schedule)
+        {
+            _currentTemplateFields.Clear();
+            if (schedule == null || !schedule.IsValidObject || _doc.GetElement(schedule.Id) == null)
+            {
+                lstTemplateFields.ItemsSource = null;
+                txtFieldsSummary.Text = "Tabla no disponible o eliminada.";
+                return;
+            }
+
             try
             {
                 ScheduleDefinition def = schedule.Definition;
-                string catName = "Multi-categoría";
-                if (def.CategoryId != ElementId.InvalidElementId)
+                var fieldOrder = def.GetFieldOrder();
+                foreach (ScheduleFieldId fId in fieldOrder)
                 {
-                    Category? cat = Category.GetCategory(_doc, def.CategoryId);
-                    catName = cat?.Name ?? $"Categoría ID: {def.CategoryId}";
-                }
-
-                string kind = def.IsMaterialTakeoff ? "Cómputo de Materiales" : "Tabla de Planificación";
-                string itemized = def.IsItemized ? "Ejemplares desglosados" : "Filas agrupadas";
-                string grandTotal = def.ShowGrandTotal ? "Total general activo" : "Sin total general";
-
-                txtScheduleInfo.Text = $"Tipo: {kind} | Categoría: {catName} | {itemized} | {grandTotal}";
-            }
-            catch
-            {
-                txtScheduleInfo.Text = "Información de tabla disponible.";
-            }
-        }
-
-        private void LoadFieldsForSchedule(ViewSchedule schedule)
-        {
-            List<ScheduleFieldItem> fields = new List<ScheduleFieldItem>();
-            try
-            {
-                ScheduleDefinition definition = schedule.Definition;
-                IList<ScheduleFieldId> fieldIds = definition.GetFieldOrder();
-                
-                int visibleColIndex = 0;
-                foreach (ScheduleFieldId id in fieldIds)
-                {
-                    ScheduleField field = definition.GetField(id);
-                    fields.Add(new ScheduleFieldItem 
-                    { 
-                        Name = field.GetName(),
-                        ColumnHeading = field.ColumnHeading,
-                        IsSelected = true,
-                        IsHidden = field.IsHidden,
-                        ColumnIndex = visibleColIndex 
-                    });
-
-                    if (!field.IsHidden)
+                    ScheduleField sf = def.GetField(fId);
+                    _currentTemplateFields.Add(new ScheduleFieldDisplayItem
                     {
-                        visibleColIndex++;
-                    }
+                        Name = sf.GetName(),
+                        ColumnHeading = sf.ColumnHeading,
+                        IsSelected = true,
+                        IsHidden = sf.IsHidden
+                    });
                 }
             }
             catch (Exception ex)
             {
-                txtAssemblyLog.Text = $"Error al leer campos: {ex.Message}";
+                txtFieldsSummary.Text = $"Error al leer campos: {ex.Message}";
             }
 
-            lstProperties.ItemsSource = fields;
-            txtFieldsCount.Text = $"{fields.Count} campos encontrados ({fields.Count(f => !f.IsHidden)} visibles)";
+            lstTemplateFields.ItemsSource = null;
+            lstTemplateFields.ItemsSource = _currentTemplateFields;
+            txtFieldsSummary.Text = $"{_currentTemplateFields.Count} campos disponibles ({_currentTemplateFields.Count(f => !f.IsHidden)} visibles en tabla).";
         }
 
-        #region Assemblies Tab Logic
+        private void btnSelectAllFields_Click(object sender, RoutedEventArgs e)
+        {
+            foreach (var f in _currentTemplateFields) f.IsSelected = true;
+            lstTemplateFields.Items.Refresh();
+        }
+
+        private void btnDeselectAllFields_Click(object sender, RoutedEventArgs e)
+        {
+            foreach (var f in _currentTemplateFields) f.IsSelected = false;
+            lstTemplateFields.Items.Refresh();
+        }
+
+        #endregion
+
+        #region 2. Carga y Filtro de Ensamblajes
 
         private void LoadAssemblies()
         {
@@ -154,22 +467,16 @@ namespace RevitToSupabasePlugin
         private void ApplyAssemblyFilter()
         {
             string filterText = txtSearchAssembly.Text?.Trim().ToLowerInvariant() ?? "";
-            
+
             var filtered = string.IsNullOrEmpty(filterText)
                 ? _allAssemblies
-                : _allAssemblies.Where(a => 
-                    a.TypeName.ToLowerInvariant().Contains(filterText) || 
+                : _allAssemblies.Where(a =>
+                    a.TypeName.ToLowerInvariant().Contains(filterText) ||
                     a.Name.ToLowerInvariant().Contains(filterText) ||
                     a.CategoriesSummary.ToLowerInvariant().Contains(filterText)).ToList();
 
             lstAssemblies.ItemsSource = filtered;
-            int total = _allAssemblies.Count;
-            int selected = _allAssemblies.Count(a => a.IsSelected);
-            int withSchedule = _allAssemblies.Count(a => a.HasExistingSchedule);
-
-            txtAssembliesSummary.Text = total == 0
-                ? "No se encontraron ensamblajes (Assemblies) en el modelo."
-                : $"{total} ensamblajes en el modelo | {withSchedule} ya tienen tabla | {selected} seleccionados";
+            UpdateAssemblySummaryText();
         }
 
         private void txtSearchAssembly_TextChanged(object sender, TextChangedEventArgs e)
@@ -214,7 +521,7 @@ namespace RevitToSupabasePlugin
         {
             if (_uidoc == null)
             {
-                MessageBox.Show("No se detectó un documento interactivo para leer la selección actual.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("No se detectó un documento activo interactivo para leer la selección.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -223,12 +530,11 @@ namespace RevitToSupabasePlugin
                 var selIds = _uidoc.Selection.GetElementIds();
                 if (selIds.Count == 0)
                 {
-                    MessageBox.Show("No hay elementos seleccionados en Revit.\nSelecciona uno o más ensamblajes en el modelo e intenta de nuevo.", "Selección Vacía", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show("No hay elementos seleccionados en Revit.\nPor favor, selecciona ensamblajes o elementos en Revit y vuelve a presionar este botón.", "Selección Vacía", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
                 HashSet<ElementId> targetAssemblyIds = new HashSet<ElementId>();
-
                 foreach (ElementId id in selIds)
                 {
                     Element elem = _doc.GetElement(id);
@@ -244,7 +550,7 @@ namespace RevitToSupabasePlugin
 
                 if (targetAssemblyIds.Count == 0)
                 {
-                    MessageBox.Show("Los elementos seleccionados en Revit no pertenecen a ningún Ensamblaje (Assembly).", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show("Los elementos seleccionados en Revit no pertenecen a ningún Ensamblaje.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
@@ -256,7 +562,7 @@ namespace RevitToSupabasePlugin
                 lstAssemblies.Items.Refresh();
                 UpdateAssemblySummaryText();
 
-                MessageBox.Show($"Se seleccionaron {targetAssemblyIds.Count} ensamblaje(s) según los elementos marcados en Revit.", "Selección Actualizada", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show($"Se marcaron {targetAssemblyIds.Count} ensamblaje(s) correspondientes a la selección de Revit.", "Selección Actualizada", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
@@ -269,45 +575,60 @@ namespace RevitToSupabasePlugin
             int total = _allAssemblies.Count;
             int selected = _allAssemblies.Count(a => a.IsSelected);
             int withSchedule = _allAssemblies.Count(a => a.HasExistingSchedule);
-            txtAssembliesSummary.Text = $"{total} ensamblajes en el modelo | {withSchedule} ya tienen tabla | {selected} seleccionados";
+            txtAssembliesSummary.Text = total == 0
+                ? "No se encontraron ensamblajes en el modelo."
+                : $"{total} ensamblajes en el modelo | {withSchedule} ya tienen tabla | {selected} seleccionados para procesar";
         }
 
-        private void btnApplyToAssemblies_Click(object sender, RoutedEventArgs e)
-        {
-            if (cmbSchedules.SelectedItem is not ViewSchedule selectedSchedule)
-            {
-                MessageBox.Show("Por favor, selecciona primero una tabla de planificación maestra en el Paso 1.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
+        #endregion
 
+        #region 3. Generación y Replicación Ejecutiva
+
+        private void btnExecute_Click(object sender, RoutedEventArgs e)
+        {
             var selectedAssemblies = _allAssemblies.Where(a => a.IsSelected).ToList();
             if (selectedAssemblies.Count == 0)
             {
-                MessageBox.Show("Por favor, selecciona al menos un ensamblaje en la lista para aplicar la replicación.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Por favor, selecciona al menos un ensamblaje en la lista para generar o replicar sus tablas.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            HashSet<string>? allowedFields = null;
-            if (chkOnlySelectedFields.IsChecked == true)
-            {
-                var checkedItems = (lstProperties.ItemsSource as List<ScheduleFieldItem>)
-                    ?.Where(f => f.IsSelected)
-                    .Select(f => f.Name)
-                    .ToHashSet();
+            StringBuilder logSb = new StringBuilder();
+            logSb.AppendLine($"=== INICIO DE OPERACIÓN DE TABLAS DE ENSAMBLAJE ===");
+            logSb.AppendLine($"Fecha/Hora: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            logSb.AppendLine($"Ensamblajes seleccionados: {selectedAssemblies.Count}");
 
-                if (checkedItems == null || checkedItems.Count == 0)
+            bool useTemplate = _selectedTemplate != null;
+            HashSet<string>? allowedFields = null;
+
+            if (useTemplate)
+            {
+                if (!_selectedTemplate!.IsValid || _doc.GetElement(_selectedTemplate!.Id) == null)
                 {
-                    MessageBox.Show("Has marcado la opción de 'Replicar solo campos seleccionados' pero no hay ningún campo marcado en la lista izquierda.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("La tabla plantilla seleccionada ya no es válida o fue eliminada del proyecto.", "Plantilla No Válida", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    _selectedTemplate = null;
+                    UpdateTemplateSelectionState();
                     return;
                 }
-                allowedFields = checkedItems;
-            }
 
-            StringBuilder logSb = new StringBuilder();
-            logSb.AppendLine($"=== REPLICACIÓN DE TABLAS DE ENSAMBLAJE ===");
-            logSb.AppendLine($"Tabla Plantilla: {selectedSchedule.Name}");
-            logSb.AppendLine($"Hora de inicio: {DateTime.Now:HH:mm:ss}");
-            logSb.AppendLine($"Ensamblajes seleccionados: {selectedAssemblies.Count}");
+                logSb.AppendLine($"Modo: Réplica Segura de Plantilla -> '{_selectedTemplate!.Name}'");
+                if (chkOnlySelectedFields.IsChecked == true)
+                {
+                    allowedFields = _currentTemplateFields.Where(f => f.IsSelected).Select(f => f.Name).ToHashSet();
+                    logSb.AppendLine($"Campos filtrados por usuario: {allowedFields.Count} de {_currentTemplateFields.Count}");
+                }
+                else
+                {
+                    logSb.AppendLine($"Replicando todos los campos ({_currentTemplateFields.Count}) con orden y formato original.");
+                }
+            }
+            else
+            {
+                bool isTakeoff = rbMaterialTakeoff.IsChecked == true;
+                logSb.AppendLine($"Modo: Generación Estándar Automática (Sin Plantilla)");
+                logSb.AppendLine($"Tipo de tabla: {(isTakeoff ? "Cómputo de Materiales" : "Lista de Piezas")}");
+                logSb.AppendLine($"Agrupar ejemplares: {(chkGroupIdentical.IsChecked == true ? "Sí" : "No")}");
+            }
             logSb.AppendLine("--------------------------------------------------");
 
             int successCount = 0;
@@ -316,31 +637,46 @@ namespace RevitToSupabasePlugin
 
             try
             {
-                using (Transaction tx = new Transaction(_doc, "Replicar Formato de Tabla en Ensamblajes"))
+                using (Transaction tx = new Transaction(_doc, useTemplate ? "Replicar Tabla en Ensamblajes" : "Generar Tablas Estándar en Ensamblajes"))
                 {
                     tx.Start();
 
                     foreach (var vm in selectedAssemblies)
                     {
-                        var result = AssemblyScheduleService.CreateOrUpdateAssemblySchedule(
-                            _doc,
-                            vm.Assembly,
-                            selectedSchedule,
-                            allowedFields,
-                            chkReplicateFilters.IsChecked ?? true,
-                            chkReplicateSorting.IsChecked ?? true,
-                            chkReplicateTemplate.IsChecked ?? true);
+                        AssemblyScheduleResult res;
 
-                        if (result.Success)
+                        if (useTemplate)
+                        {
+                            res = AssemblyScheduleService.CreateOrUpdateFromTemplate(
+                                _doc,
+                                vm.Assembly,
+                                _selectedTemplate!.Schedule,
+                                allowedFields,
+                                chkReplicateFormat.IsChecked ?? true,
+                                chkReplicateSorting.IsChecked ?? true,
+                                chkReplicateTotals.IsChecked ?? true,
+                                chkReplicateFilters.IsChecked ?? false,
+                                false);
+                        }
+                        else
+                        {
+                            res = AssemblyScheduleService.CreateStandardAssemblySchedule(
+                                _doc,
+                                vm.Assembly,
+                                rbMaterialTakeoff.IsChecked == true,
+                                chkGroupIdentical.IsChecked ?? true);
+                        }
+
+                        if (res.Success)
                         {
                             successCount++;
-                            totalFields += result.FieldsReplicatedCount;
-                            logSb.AppendLine($"✅ {result.AssemblyName}: {result.Message}");
+                            totalFields += res.FieldsReplicatedCount;
+                            logSb.AppendLine($"✅ {res.AssemblyName}: {res.Message}");
                         }
                         else
                         {
                             warningCount++;
-                            logSb.AppendLine($"⚠️ {result.AssemblyName}: {result.Message}");
+                            logSb.AppendLine($"⚠️ {res.AssemblyName}: {res.Message}");
                         }
                     }
 
@@ -348,148 +684,123 @@ namespace RevitToSupabasePlugin
                 }
 
                 logSb.AppendLine("--------------------------------------------------");
-                logSb.AppendLine($"RESULTADO FINAL:");
-                logSb.AppendLine($"• Ensamblajes configurados con éxito: {successCount}");
+                logSb.AppendLine($"RESUMEN DE EJECUCIÓN:");
+                logSb.AppendLine($"• Ensamblajes procesados exitosamente: {successCount}");
                 logSb.AppendLine($"• Ensamblajes con advertencia / omitidos: {warningCount}");
-                logSb.AppendLine($"• Total de campos y formatos replicados: {totalFields}");
-                logSb.AppendLine($"Hora de finalización: {DateTime.Now:HH:mm:ss}");
+                logSb.AppendLine($"• Total de campos asignados: {totalFields}");
+                logSb.AppendLine($"Hora de término: {DateTime.Now:HH:mm:ss}");
 
                 txtAssemblyLog.Text = logSb.ToString();
 
-                // Recargar listado para actualizar insignias de estado (✅ Con Tabla)
+                // Recargar listados para refrescar insignias y tablas creadas
                 LoadAssemblies();
+                LoadSchedules();
 
                 MessageBox.Show(
-                    $"¡Operación completada con éxito!\n\n" +
-                    $"• Tablas de ensamblajes procesadas: {successCount}\n" +
-                    $"• Campos y formato clonados: {totalFields}\n" +
-                    (warningCount > 0 ? $"• Advertencias: {warningCount} (Ver registro para detalles)\n" : "") +
-                    $"\nYa puedes ver las tablas estructuradas bajo cada Ensamblaje en el Project Browser.",
-                    "Replicación Exitosa",
+                    $"¡Proceso finalizado con éxito!\n\n" +
+                    $"• Ensamblajes procesados: {successCount}\n" +
+                    $"• Campos y formatos configurados: {totalFields}\n" +
+                    (warningCount > 0 ? $"• Con observaciones: {warningCount} (consultar registro para detalles)\n" : "") +
+                    $"\nLas tablas están listas y organizadas bajo cada Ensamblaje en el Navegador de Proyectos.",
+                    "Operación Completada",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                logSb.AppendLine($"❌ ERROR CRÍTICO: {ex.Message}");
+                logSb.AppendLine($"❌ ERROR INESPERADO: {ex.Message}");
                 txtAssemblyLog.Text = logSb.ToString();
-                MessageBox.Show($"Ocurrió un error al procesar las tablas: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error durante la generación de tablas: {ex.Message}", "Error Crítico", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         #endregion
 
-        #region Properties & Gemini Tab Logic
+        #region 4. Acciones Rápidas del Ribbon Integrado
 
-        private void btnSelectAll_Click(object sender, RoutedEventArgs e)
+        private void btnQuickAlbanileria_Click(object sender, RoutedEventArgs e)
         {
-            if (lstProperties.ItemsSource is List<ScheduleFieldItem> items)
+            try
             {
-                foreach (var item in items) item.IsSelected = true;
-                lstProperties.Items.Refresh();
-            }
-        }
-
-        private void btnDeselectAll_Click(object sender, RoutedEventArgs e)
-        {
-            if (lstProperties.ItemsSource is List<ScheduleFieldItem> items)
-            {
-                foreach (var item in items) item.IsSelected = false;
-                lstProperties.Items.Refresh();
-            }
-        }
-
-        private void btnPrePromptFormula_Click(object sender, RoutedEventArgs e)
-        {
-            txtPrompt.Text = "Crea una nueva propiedad calculada usando una fórmula matemática basada en las siguientes dos propiedades: [PROPIEDAD_1] y [PROPIEDAD_2]. Explica la lógica.";
-        }
-
-        private void btnPrePromptFormat_Click(object sender, RoutedEventArgs e)
-        {
-            txtPrompt.Text = "Formatea la vista de la tabla estableciendo reglas de formato condicional (ej. cambiar color de fondo) para los elementos que cumplan con la condición: [CONDICIÓN].";
-        }
-
-        private void btnPrePromptModify_Click(object sender, RoutedEventArgs e)
-        {
-            txtPrompt.Text = "Modifica las propiedades de los elementos de esta tabla. Para todos los elementos donde [PROPIEDAD_CONDICION] sea [VALOR], cambia el valor de [PROPIEDAD_A_MODIFICAR] a [NUEVO_VALOR].";
-        }
-
-        private void btnCopy_Click(object sender, RoutedEventArgs e)
-        {
-            if (cmbSchedules.SelectedItem is ViewSchedule selectedSchedule)
-            {
-                string prompt = txtPrompt.Text.Trim();
-                if (string.IsNullOrEmpty(prompt))
+                using (Transaction t = new Transaction(_doc, "Crear Tablas de Albañilería"))
                 {
-                    MessageBox.Show("Por favor, escribe un prompt para Gemini.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
+                    t.Start();
+                    CommandCrearTablasAlbanileria.CreateAlbanileriaSchedules(_doc);
+                    t.Commit();
                 }
 
-                string scheduleData = ExtractScheduleData(selectedSchedule);
-                
-                string finalClipboardText = $"[PROMPT]\n{prompt}\n\n[DATOS DE LA TABLA: {selectedSchedule.Name}]\n{scheduleData}";
-
-                try
-                {
-                    Clipboard.SetText(finalClipboardText);
-                    MessageBox.Show("Información y prompt copiados al portapapeles con éxito.\n\nYa puedes pegarlo en Gemini.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Error al copiar al portapapeles: " + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                RefreshAll();
+                MessageBox.Show("Tablas de Albañilería creadas con éxito:\n• 📊 Cómputo de Pegas (Mortero)\n• 📊 Cómputo de Ladrillos y Bloques", "Cómputos Creados", MessageBoxButton.OK, MessageBoxImage.Information);
             }
-            else
+            catch (Exception ex)
             {
-                MessageBox.Show("Selecciona una tabla de planificación primero.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show($"Error al crear tablas de albañilería: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
-        private string ExtractScheduleData(ViewSchedule schedule)
+        private void btnQuickPisos_Click(object sender, RoutedEventArgs e)
         {
-            StringBuilder sb = new StringBuilder();
-            
-            var selectedFields = (lstProperties.ItemsSource as List<ScheduleFieldItem>)
-                                    ?.Where(f => f.IsSelected && !f.IsHidden).ToList() ?? new List<ScheduleFieldItem>();
-
-            if (selectedFields.Count > 0)
+            try
             {
-                sb.AppendLine(string.Join(",", selectedFields.Select(f => "\"" + f.Name.Replace("\"", "\"\"") + "\"")));
-            }
-
-            TableData tableData = schedule.GetTableData();
-            TableSectionData sectionData = tableData.GetSectionData(SectionType.Body);
-
-            if (sectionData != null)
-            {
-                int rows = sectionData.NumberOfRows;
-                int cols = sectionData.NumberOfColumns;
-
-                for (int r = 0; r < rows; r++)
+                using (Transaction t = new Transaction(_doc, "Crear Tablas de Enchapes y Pisos"))
                 {
-                    List<string> rowValues = new List<string>();
-                    
-                    foreach (var field in selectedFields)
-                    {
-                        if (field.ColumnIndex < cols)
-                        {
-                            string cellText = schedule.GetCellText(SectionType.Body, r, field.ColumnIndex);
-                            if (cellText.Contains(",") || cellText.Contains("\"") || cellText.Contains("\n"))
-                            {
-                                cellText = "\"" + cellText.Replace("\"", "\"\"") + "\"";
-                            }
-                            rowValues.Add(cellText);
-                        }
-                    }
-                    
-                    if (rowValues.Count > 0)
-                    {
-                        sb.AppendLine(string.Join(",", rowValues));
-                    }
+                    t.Start();
+                    CommandCrearTablasPisos.CreatePisosSchedules(_doc);
+                    t.Commit();
                 }
-            }
 
-            return sb.ToString();
+                RefreshAll();
+                MessageBox.Show("Tablas de Enchapes y Pisos creadas con éxito:\n• 📊 Cómputo de Enchapes y Baldosas\n• 📊 Cómputo de Pega y Fragua\n• 📊 Cómputo de Zócalos y Rodapiés", "Cómputos Creados", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al crear tablas de enchapes y pisos: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void btnQuickSteelDeck_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                using (Transaction t = new Transaction(_doc, "Crear Tablas de Steel Deck"))
+                {
+                    t.Start();
+                    CommandCrearTablasSteelDecks.CreateSteelDeckSchedules(_doc);
+                    t.Commit();
+                }
+
+                RefreshAll();
+                MessageBox.Show("Tablas de Steel Deck creadas con éxito:\n• 📊 Cómputo de Lámina Steel Deck\n• 📊 Cómputo de Concreto en Losas\n• 📊 Cómputo de Conectores de Cortante", "Cómputos Creados", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al crear tablas de Steel Deck: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void btnQuickPlumbing_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                using (Transaction t = new Transaction(_doc, "Crear Tablas de Plumbing Sheet"))
+                {
+                    t.Start();
+                    CommandPlumbingSheet.CreatePlumbingSchedules(_doc);
+                    t.Commit();
+                }
+
+                RefreshAll();
+                MessageBox.Show("Tablas de Plumbing Sheet creadas con éxito:\n• 🚰 Plumbing Sheet - Cómputo General HIDRO (Multicategoría)\n• 🚿 Cómputo de Aparatos Sanitarios\n• 🧪 Cómputo de Tuberías (Pipes)\n• 🔌 Cómputo de Uniones y Conexiones\n• 🚰 Cómputo de Válvulas y Accesorios\n• ⚙️ Cómputo de Equipos Hidro", "Cómputos Creados", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al crear tablas de Plumbing Sheet: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void btnRefreshAll_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshAll();
         }
 
         #endregion
