@@ -2,96 +2,171 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
-using System.Windows.Controls;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using reviewPlugIn.Services;
-using WpfClipboard = System.Windows.Clipboard;
-using WpfMessageBox = System.Windows.MessageBox;
+using MessageBox = System.Windows.MessageBox;
+using Clipboard = System.Windows.Clipboard;
 
 namespace reviewPlugIn.Views
 {
     public partial class AccionesDirectasIAWindow : Window
     {
-        private readonly UIDocument _uidoc;
         private readonly Document _doc;
-        private List<DirectAiActionItem> _simulationItems = new List<DirectAiActionItem>();
+        private List<DirectAiActionItem> _currentActions = new List<DirectAiActionItem>();
+        private List<CloudSchemaSummary> _cloudSchemas = new List<CloudSchemaSummary>();
 
-        public AccionesDirectasIAWindow(UIDocument uidoc)
+        public AccionesDirectasIAWindow(UIDocument uidoc) : this(uidoc?.Document)
+        {
+        }
+
+        public AccionesDirectasIAWindow(Document? doc, string? initialJson = null)
         {
             InitializeComponent();
-            _uidoc = uidoc ?? throw new ArgumentNullException(nameof(uidoc));
-            _doc = uidoc.Document;
+            _doc = doc;
 
-            TxtActiveDoc.Text = $"Documento Revit: {_doc.Title} {(_doc.IsWorkshared ? "[Compartido]" : "[Local]")}";
-
-            LoadTemplates();
-        }
-
-        private void LoadTemplates()
-        {
-            CmbTemplates.Items.Add(new ComboBoxItem { Content = "— Selecciona una plantilla para comenzar —", Tag = "" });
-
-            CmbTemplates.Items.Add(new ComboBoxItem
+            if (!string.IsNullOrWhiteSpace(initialJson))
             {
-                Content = "🧱 Muros: Cambiar parámetro por Tipo (Ej: Muros Rojos a Verde / Acabados)",
-                Tag = "{\n  \"action\": \"modify_parameters\",\n  \"category\": \"Walls\",\n  \"filter\": {\n    \"type_name\": \"Muro Ladrillo 15cm\"\n  },\n  \"parameters\": {\n    \"Comentarios\": \"Revisado por IA\",\n    \"Material de Acabado\": \"Pintura Verde\"\n  }\n}"
-            });
-
-            CmbTemplates.Items.Add(new ComboBoxItem
-            {
-                Content = "🔢 Elementos Seleccionados: Modificar por Element IDs",
-                Tag = "{\n  \"action\": \"modify_parameters\",\n  \"element_ids\": [1024501, 1024502],\n  \"parameters\": {\n    \"Comentarios\": \"Aprobado por Dirección BIM\",\n    \"Marca\": \"M-01\"\n  }\n}"
-            });
-
-            CmbTemplates.Items.Add(new ComboBoxItem
-            {
-                Content = "🚪 Puertas: Modificar comentarios y marca en Nivel 1",
-                Tag = "{\n  \"action\": \"modify_parameters\",\n  \"category\": \"Doors\",\n  \"filter\": {\n    \"level_name\": \"Nivel 1\"\n  },\n  \"parameters\": {\n    \"Comentarios\": \"Verificar cerrajería y sentido de apertura\"\n  }\n}"
-            });
-
-            CmbTemplates.Items.Add(new ComboBoxItem
-            {
-                Content = "📋 Láminas (Sheets): Renombrar y Renumerar",
-                Tag = "{\n  \"action\": \"manage_sheets\",\n  \"sheet_number\": \"A101\",\n  \"new_name\": \"PLANTA ARQUITECTÓNICA - NIVEL 1\",\n  \"new_number\": \"ARQ-101\"\n}"
-            });
-
-            CmbTemplates.Items.Add(new ComboBoxItem
-            {
-                Content = "📦 Lote Múltiple: Modificar Muros y Puertas en una sola instrucción",
-                Tag = "[\n  {\n    \"action\": \"modify_parameters\",\n    \"category\": \"Walls\",\n    \"filter\": { \"type_name\": \"Muro Exterior\" },\n    \"parameters\": { \"Comentarios\": \"Fachada Principal\" }\n  },\n  {\n    \"action\": \"modify_parameters\",\n    \"category\": \"Doors\",\n    \"parameters\": { \"Comentarios\": \"Puerta Cortafuego\" }\n  }\n]"
-            });
-
-            CmbTemplates.SelectedIndex = 0;
-        }
-
-        private void CmbTemplates_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (CmbTemplates.SelectedItem is ComboBoxItem item && item.Tag is string rawJson && !string.IsNullOrWhiteSpace(rawJson))
-            {
-                TxtJsonEditor.Text = rawJson;
-                TxtLogStatus.Text = $"Plantilla cargada: {item.Content}. Haz clic en 'Validar & Simular Cambios'.";
+                txtJsonInput.Text = initialJson;
+                RunSimulation();
             }
+            else
+            {
+                LoadExampleJson();
+            }
+
+            _ = LoadCloudSchemasAsync();
         }
 
-        private void BtnPasteClipboard_Click(object sender, RoutedEventArgs e)
+        private async System.Threading.Tasks.Task LoadCloudSchemasAsync()
         {
             try
             {
-                if (WpfClipboard.ContainsText())
+                btnRefreshCloudSchemas.IsEnabled = false;
+                txtFooterStatus.Text = "☁️ Consultando esquemas disponibles en ARCA Review Cloud...";
+                _cloudSchemas = await DirectAiActionService.FetchSchemasFromSupabaseAsync();
+                cmbCloudSchemas.ItemsSource = _cloudSchemas;
+                if (_cloudSchemas.Count > 0)
                 {
-                    string text = WpfClipboard.GetText();
-                    TxtJsonEditor.Text = text;
-                    TxtLogStatus.Text = "📋 Contenido pegado exitosamente desde el portapapeles. Listo para simular.";
+                    cmbCloudSchemas.SelectedIndex = 0;
+                    txtFooterStatus.Text = $"☁️ {_cloudSchemas.Count} esquema(s) encontrados en ARCA Review Cloud.";
                 }
                 else
                 {
-                    TxtLogStatus.Text = "⚠️ El portapapeles no contiene texto.";
+                    txtFooterStatus.Text = "ℹ️ No se encontraron esquemas remotos o sin conexión.";
                 }
             }
             catch (Exception ex)
             {
-                TxtLogStatus.Text = $"Error leyendo el portapapeles: {ex.Message}";
+                txtFooterStatus.Text = $"⚠️ No se pudo listar esquemas Cloud: {ex.Message}";
+            }
+            finally
+            {
+                btnRefreshCloudSchemas.IsEnabled = true;
+            }
+        }
+
+        private void LoadExampleJson()
+        {
+            txtJsonInput.Text = @"{
+  ""name"": ""Esquema BIM: Normalización y Cómputos en Revit"",
+  ""description"": ""Esquema jerárquico con capa de acciones ejecutables en Revit"",
+  ""blockType"": ""text"",
+  ""children"": [
+    {
+      ""name"": ""1. AUDITORÍA Y CODIFICACIÓN DE MUROS"",
+      ""blockType"": ""text"",
+      ""children"": [
+        {
+          ""name"": ""Codificar Muros del Modelo"",
+          ""description"": ""Actualiza Comentarios en todos los muros"",
+          ""blockType"": ""revit_action"",
+          ""revitAction"": {
+            ""enabled"": true,
+            ""order"": 1,
+            ""phase"": ""Fase 1: Normalización"",
+            ""category"": ""Walls"",
+            ""tool"": ""modify_parameters"",
+            ""filter"": {
+              ""type_name"": """",
+              ""family_name"": """",
+              ""level_name"": """",
+              ""search_text"": """"
+            },
+            ""element_ids"": [],
+            ""parameters"": {
+              ""Comments"": ""NORMALIZADO DESDE ESQUEMA ARCA REVIEW""
+            }
+          },
+          ""children"": []
+        }
+      ]
+    },
+    {
+      ""name"": ""2. DOCUMENTACIÓN Y TABLAS BIM"",
+      ""blockType"": ""text"",
+      ""children"": [
+        {
+          ""name"": ""Crear Tabla de Cuantificación de Muros"",
+          ""description"": ""Crea ViewSchedule automáticamente"",
+          ""blockType"": ""revit_action"",
+          ""revitAction"": {
+            ""enabled"": true,
+            ""order"": 2,
+            ""phase"": ""Fase 2: Documentación"",
+            ""category"": ""Schedules"",
+            ""tool"": ""create_schedule"",
+            ""filter"": { ""type_name"": """", ""family_name"": """", ""level_name"": """", ""search_text"": """" },
+            ""element_ids"": [],
+            ""parameters"": {
+              ""ScheduleName"": ""ARCA_COMPUTO_MUROS_BIM"",
+              ""TargetCategory"": ""Walls"",
+              ""Fields"": ""Family and Type,Base Constraint,Length,Area,Volume,Comments""
+            }
+          },
+          ""children"": []
+        }
+      ]
+    }
+  ]
+}";
+        }
+
+        private async void BtnRefreshCloudSchemas_Click(object sender, RoutedEventArgs e)
+        {
+            await LoadCloudSchemasAsync();
+        }
+
+        private async void BtnLoadSelectedCloudSchema_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (!(cmbCloudSchemas.SelectedItem is CloudSchemaSummary selected))
+                {
+                    MessageBox.Show("Selecciona primero un esquema de la lista Cloud.", "ARCA Review", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                btnLoadSelectedCloudSchema.IsEnabled = false;
+                txtFooterStatus.Text = $"📥 Descargando esquema '{selected.Title}' desde Supabase...";
+
+                string json = await DirectAiActionService.FetchSchemaJsonByIdAsync(selected);
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    MessageBox.Show("El esquema seleccionado no contiene nodos o datos JSON.", "ARCA Review", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                txtJsonInput.Text = json;
+                RunSimulation();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al cargar esquema desde Cloud:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                btnLoadSelectedCloudSchema.IsEnabled = true;
             }
         }
 
@@ -99,132 +174,128 @@ namespace reviewPlugIn.Views
         {
             try
             {
-                string prompt = DirectAiActionService.GetGeminiSystemPrompt();
-                WpfClipboard.SetText(prompt);
-                TxtLogStatus.Text = "📘 Prompt de Sistema para Gemini copiado al portapapeles. Pégalo en tu chat con Gemini.";
-                WpfMessageBox.Show(
-                    "Se ha copiado al portapapeles la Guía de Esquemas JSON para Gemini.\n\n" +
-                    "Instrucciones:\n" +
-                    "1. Pega este texto en Gemini Desktop o Web como contexto de tu proyecto.\n" +
-                    "2. Pídele lo que deseas cambiar (ej. 'Modifica todos los muros rojos a verde').\n" +
-                    "3. Copia el JSON que Gemini te devuelva y pégalo en esta ventana.",
-                    "Prompt para Gemini Copiado",
+                string prompt = DirectAiActionService.BuildSystemPrompt(_doc);
+                Clipboard.SetText(prompt);
+                txtFooterStatus.Text = "✅ Mega-Prompt de Esquemas Revit copiado al portapapeles. Pégalo en tu IA o en ARCA Review.";
+                MessageBox.Show(
+                    "¡Prompt Maestro de Esquemas y Acciones de Revit copiado al portapapeles!\n\n" +
+                    "1. Pégalo en Gemini, ChatGPT o Claude y describe el proceso BIM que necesitas.\n" +
+                    "2. El JSON generado sirve tanto en el Mapa de Esquemas de ARCA Review Web como en este Receptor del Plugin.",
+                    "Prompt IA Copiado",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                TxtLogStatus.Text = $"Error copiando prompt: {ex.Message}";
+                MessageBox.Show($"Error al copiar al portapapeles: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
-        private void BtnClearEditor_Click(object sender, RoutedEventArgs e)
+        private void BtnLoadExample_Click(object sender, RoutedEventArgs e)
         {
-            TxtJsonEditor.Text = "";
-            _simulationItems.Clear();
-            GridSimulation.ItemsSource = null;
-            TxtSimulationSummary.Text = "Editor limpio. Pega un JSON o selecciona una plantilla.";
-            TxtLogStatus.Text = "Listo.";
+            LoadExampleJson();
+            txtFooterStatus.Text = "📄 Esquema JSON de ejemplo cargado. Presiona '🔍 2. Analizar Esquema y Simular en Modelo'.";
+        }
+
+        private void BtnPasteClipboard_Click(object sender, RoutedEventArgs e)
+        {
+            if (Clipboard.ContainsText())
+            {
+                txtJsonInput.Text = Clipboard.GetText();
+                txtFooterStatus.Text = "📋 JSON pegado desde el portapapeles. Ejecutando simulación...";
+                RunSimulation();
+            }
+        }
+
+        private void BtnClearJson_Click(object sender, RoutedEventArgs e)
+        {
+            txtJsonInput.Clear();
+            _currentActions.Clear();
+            gridActions.ItemsSource = null;
+            btnExecute.IsEnabled = false;
+            txtSimSummary.Text = "Sin acciones cargadas.";
+            txtFooterStatus.Text = "🗑️ Entrada JSON limpiada.";
         }
 
         private void BtnSimulate_Click(object sender, RoutedEventArgs e)
         {
-            string json = TxtJsonEditor.Text?.Trim() ?? "";
-            if (string.IsNullOrWhiteSpace(json))
-            {
-                WpfMessageBox.Show("Por favor escribe o pega una instrucción JSON antes de simular.", "JSON Vacío", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            TxtLogStatus.Text = "🔍 Analizando JSON y buscando elementos en el modelo activo...";
-            var simResult = DirectAiActionService.Simulate(_doc, json);
-
-            if (!simResult.Success)
-            {
-                string errors = string.Join(Environment.NewLine, simResult.Errors);
-                TxtLogStatus.Text = $"❌ Error en la simulación: {errors}";
-                WpfMessageBox.Show($"Se detectaron errores en la instrucción JSON:\n\n{errors}", "Error de Validación", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-
-            _simulationItems = simResult.Items;
-            GridSimulation.ItemsSource = null;
-            GridSimulation.ItemsSource = _simulationItems;
-
-            int readyCount = _simulationItems.Count(i => i.Status == "Listo");
-            int warnCount = _simulationItems.Count(i => i.Status != "Listo");
-
-            TxtSimulationSummary.Text = $"Simulación lista: {_simulationItems.Count} parámetro(s) evaluados. ({readyCount} listos para aplicar, {warnCount} advertencias/bloqueados).";
-            TxtLogStatus.Text = "✅ Simulación exitosa. Revisa los elementos y desmarca los que no desees cambiar antes de confirmar.";
+            RunSimulation();
         }
 
-        private void BtnSelectAll_Click(object sender, RoutedEventArgs e)
+        private void RunSimulation()
         {
-            foreach (var item in _simulationItems)
+            try
             {
-                if (item.Status != "Bloqueado") item.IsSelected = true;
-            }
-            GridSimulation.Items.Refresh();
-        }
+                _currentActions = DirectAiActionService.ParseActionsJson(txtJsonInput.Text, out string schemaTitle);
+                DirectAiActionService.SimulateActions(_doc, _currentActions);
 
-        private void BtnDeselectAll_Click(object sender, RoutedEventArgs e)
-        {
-            foreach (var item in _simulationItems)
-            {
-                item.IsSelected = false;
+                txtSchemaHeaderLabel.Text = $"1. ESQUEMA CARGADO: {schemaTitle.ToUpperInvariant()} ({_currentActions.Count} ACCIONES REVIT)";
+                gridActions.ItemsSource = null;
+                gridActions.ItemsSource = _currentActions;
+
+                int totalMatched = _currentActions.Sum(a => a.MatchedCount);
+                int actionableRules = _currentActions.Count(a => a.MatchedCount > 0 && a.IsSelected);
+
+                txtSimSummary.Text = $"{_currentActions.Count} acciones extraídas | {totalMatched} elementos coincidentes en '{_doc?.Title}'";
+                btnExecute.IsEnabled = actionableRules > 0;
+
+                txtFooterStatus.Text = actionableRules > 0
+                    ? $"✅ Simulación exitosa: {actionableRules} acción(es) listas para afectar {totalMatched} elementos en el modelo."
+                    : "⚠️ El esquema no contiene acciones con elementos coincidentes o están desmarcadas.";
             }
-            GridSimulation.Items.Refresh();
+            catch (Exception ex)
+            {
+                btnExecute.IsEnabled = false;
+                txtSimSummary.Text = "Error en formato JSON";
+                txtFooterStatus.Text = $"❌ Error al analizar JSON: {ex.Message}";
+                MessageBox.Show(
+                    $"No se pudo interpretar el JSON:\n\n{ex.Message}\n\n" +
+                    "Puedes pegar tanto el JSON del árbol de Esquemas de ARCA Review como una cola de acciones JSON.",
+                    "Error de Formato JSON",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
         }
 
         private void BtnExecute_Click(object sender, RoutedEventArgs e)
         {
-            var selectedItems = _simulationItems.Where(i => i.IsSelected).ToList();
-            if (selectedItems.Count == 0)
+            try
             {
-                // Si la tabla está vacía, intentar simular y ejecutar directamente
-                if (_simulationItems.Count == 0)
+                if (_doc == null)
                 {
-                    BtnSimulate_Click(sender, e);
-                    selectedItems = _simulationItems.Where(i => i.IsSelected).ToList();
-                    if (selectedItems.Count == 0) return;
-                }
-                else
-                {
-                    WpfMessageBox.Show("No hay ninguna modificación seleccionada para aplicar.", "Atención", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("No hay un documento de Revit activo.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-            }
 
-            var confirm = WpfMessageBox.Show(
-                $"¿Deseas aplicar {selectedItems.Count} cambio(s) seleccionados en el modelo de Revit?\n\n" +
-                "Esta operación se registrará en el historial de Revit y puede deshacerse con Ctrl+Z.",
-                "Confirmar Acción Directa de IA",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
+                var selectedActions = _currentActions.Where(a => a.IsSelected && a.MatchedCount > 0).ToList();
+                if (selectedActions.Count == 0)
+                {
+                    MessageBox.Show("No hay acciones seleccionadas con elementos válidos para ejecutar.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
 
-            if (confirm != MessageBoxResult.Yes) return;
+                var result = DirectAiActionService.ExecuteActions(_doc, _currentActions);
 
-            TxtLogStatus.Text = "⚡ Ejecutando cambios en transacción de Revit...";
+                gridActions.Items.Refresh();
+                if (result.logs != null && result.logs.Count > 0)
+                {
+                    txtExecutionLogs.Text = string.Join(Environment.NewLine, result.logs);
+                }
 
-            var execResult = DirectAiActionService.Execute(_doc, TxtJsonEditor.Text, selectedItems);
+                txtFooterStatus.Text = $"🎉 Ejecución completada: {result.updatedElements} elementos afectados y {result.updatedParams} operaciones realizadas.";
 
-            if (execResult.Success)
-            {
-                TxtLogStatus.Text = $"✅ Éxito: {execResult.Summary}";
-                WpfMessageBox.Show(
-                    $"{execResult.Summary}\n\nPuedes verificar los cambios directamente en las vistas y tablas de Revit.",
-                    "Acción Ejecutada con Éxito",
+                MessageBox.Show(
+                    $"¡Esquema de Acciones ejecutado con éxito en '{_doc.Title}'!\n\n" +
+                    $"• Elementos modificados / creados: {result.updatedElements}\n" +
+                    $"• Operaciones aplicadas: {result.updatedParams}",
+                    "Ejecución Completada",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
-
-                // Re-simular para refrescar los valores actuales
-                BtnSimulate_Click(sender, e);
             }
-            else
+            catch (Exception ex)
             {
-                string errors = string.Join(Environment.NewLine, execResult.Errors);
-                TxtLogStatus.Text = $"❌ Fallo en la ejecución: {errors}";
-                WpfMessageBox.Show($"Ocurrió un error al aplicar los cambios en Revit:\n\n{errors}", "Error de Ejecución", MessageBoxButton.OK, MessageBoxImage.Error);
+                txtFooterStatus.Text = $"❌ Error en ejecución: {ex.Message}";
+                MessageBox.Show($"Error al aplicar cambios en Revit:\n\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

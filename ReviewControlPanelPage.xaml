@@ -835,7 +835,8 @@
                                     <TextBlock x:Name="txtMcpActiveUser" Text="usuario@review.com" HorizontalAlignment="Right" FontWeight="Bold" FontSize="9.5" Foreground="#1C1C19"/>
                                 </Grid>
 
-                                <Button x:Name="btnPingMcp" Style="{StaticResource SecondaryButton}" Content="🔄 Probar Conexión Cloud (HTTPS)" Margin="0,8,0,0" Click="BtnPingMcp_Click"/>
+                                <Button x:Name="btnPingMcp" Style="{StaticResource SecondaryButton}" Content="🔄 Probar Conexión Cloud (HTTPS)" Margin="0,8,0,6" Click="BtnPingMcp_Click"/>
+                                <Button x:Name="btnOpenReceptorEsquemas" Style="{StaticResource PrimaryButton}" Content="⚡ Abrir Receptor de Esquemas &amp; Acciones Revit" Click="BtnOpenReceptorEsquemas_Click"/>
                             </StackPanel>
                         </Border>
 
@@ -871,6 +872,13 @@
 
                     <StackPanel Grid.Row="0" Margin="0,0,0,8">
                         <TextBlock Text="ACCESOS RÁPIDOS A MÓDULOS REVIEW" FontSize="10" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,0,6"/>
+
+                        <Button Style="{StaticResource ActionCardButton}" BorderBrush="#0F4369" Background="#E0F2FE" Click="BtnOpenReceptorEsquemas_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="⚡" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Receptor de Esquemas &amp; Acciones Revit (JSON/Cloud)" FontWeight="Bold" FontSize="10.5" Foreground="#0F4369"/>
+                            </StackPanel>
+                        </Button>
 
                         <Button Style="{StaticResource ActionCardButton}" Click="BtnOpenLadrillos_Click">
                             <StackPanel Orientation="Horizontal">

@@ -607,6 +607,20 @@ namespace RevitToSupabasePlugin
             }
         }
 
+        private void BtnOpenReceptorEsquemas_Click(object sender, RoutedEventArgs e)
+        {
+            AddLog("⚡ Abriendo Receptor de Esquemas y Acciones de Revit...");
+            try
+            {
+                _handler.CurrentAction = ControlPanelAction.OpenReceptorEsquemasIA;
+                _externalEvent.Raise();
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error abriendo Receptor de Esquemas: {ex.Message}");
+            }
+        }
+
         private void BtnOpenSchedulesIA_Click(object sender, RoutedEventArgs e)
         {
             AddLog("📝 Abriendo Asistente Tablas IA...");

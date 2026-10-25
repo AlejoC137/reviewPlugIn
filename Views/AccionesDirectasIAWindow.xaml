@@ -1,34 +1,47 @@
 <Window x:Class="reviewPlugIn.Views.AccionesDirectasIAWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="ARCA REVIEW — ⚡ Acciones Directas de IA (Gemini ➔ Revit)"
-        Height="760" Width="1060"
+        Title="ARCA Review — Receptor de Esquemas &amp; Acciones de Revit (JSON / Cloud)"
+        Width="1040" Height="740"
+        MinWidth="860" MinHeight="600"
         WindowStartupLocation="CenterScreen"
         Background="#FCF9F4"
-        Foreground="#1C1C19"
-        FontFamily="Segoe UI, Inter, sans-serif">
+        FontFamily="Segoe UI">
 
     <Window.Resources>
-        <!-- ARCA Palette & Control Styles -->
-        <Style x:Key="ArcaPrimaryButton" TargetType="Button">
+        <Style x:Key="CardBorder" TargetType="Border">
+            <Setter Property="Background" Value="#F6F3EE"/>
+            <Setter Property="BorderBrush" Value="#C2C7CF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <Style x:Key="PrimaryButton" TargetType="Button">
             <Setter Property="Background" Value="#0F4369"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#1C1C19"/>
+            <Setter Property="BorderThickness" Value="1.5"/>
+            <Setter Property="Padding" Value="14,7"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Padding" Value="14,8"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#1C1C19"/>
+            <Setter Property="FontSize" Value="11.5"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="0" Padding="{TemplateBinding Padding}">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#1C1C19"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter Property="Background" Value="#062B49"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#C2C7CF"/>
+                                <Setter Property="Foreground" Value="#72777F"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -36,283 +49,232 @@
             </Setter>
         </Style>
 
-        <Style x:Key="ArcaSecondaryButton" TargetType="Button">
-            <Setter Property="Background" Value="#F6F3EE"/>
+        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+            <Setter Property="Background" Value="#EFECE7"/>
             <Setter Property="Foreground" Value="#1C1C19"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="BorderBrush" Value="#72777F"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#1C1C19"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="0" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#E5E2DD"/>
-                                <Setter Property="Foreground" Value="#0F4369"/>
-                                <Setter Property="BorderBrush" Value="#0F4369"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Bulletproof ARCA ComboBox -->
-        <ControlTemplate x:Key="DialogComboBoxToggleButton" TargetType="ToggleButton">
-            <Border x:Name="ToggleBorder" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1" CornerRadius="0">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="22"/>
-                    </Grid.ColumnDefinitions>
-                    <Path Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M 0 0 L 4 4 L 8 0 Z" Fill="#0F4369"/>
-                </Grid>
-            </Border>
-            <ControlTemplate.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter TargetName="ToggleBorder" Property="BorderBrush" Value="#0F4369"/>
-                    <Setter TargetName="ToggleBorder" Property="Background" Value="#F6F3EE"/>
-                </Trigger>
-            </ControlTemplate.Triggers>
-        </ControlTemplate>
-
-        <Style x:Key="DialogArcaComboBox" TargetType="ComboBox">
-            <Setter Property="Foreground" Value="#1C1C19"/>
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="BorderBrush" Value="#1C1C19"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="SnapsToDevicePixels" Value="True"/>
-            <Setter Property="OverridesDefaultStyle" Value="True"/>
-            <Setter Property="ItemContainerStyle">
-                <Setter.Value>
-                    <Style TargetType="ComboBoxItem">
-                        <Setter Property="Foreground" Value="#1C1C19"/>
-                        <Setter Property="Background" Value="#FFFFFF"/>
-                        <Setter Property="Padding" Value="8,6"/>
-                        <Setter Property="Cursor" Value="Hand"/>
-                        <Setter Property="Template">
-                            <Setter.Value>
-                                <ControlTemplate TargetType="ComboBoxItem">
-                                    <Border x:Name="ItemBorder" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
-                                        <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsHighlighted" Value="True">
-                                            <Setter TargetName="ItemBorder" Property="Background" Value="#D1E4F9"/>
-                                            <Setter Property="Foreground" Value="#0F4369"/>
-                                        </Trigger>
-                                        <Trigger Property="IsSelected" Value="True">
-                                            <Setter TargetName="ItemBorder" Property="Background" Value="#0F4369"/>
-                                            <Setter Property="Foreground" Value="#FFFFFF"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Setter.Value>
-                        </Setter>
-                    </Style>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBox">
-                        <Grid>
-                            <ToggleButton Template="{StaticResource DialogComboBoxToggleButton}"
-                                          Focusable="False"
-                                          IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                                          ClickMode="Press"/>
-                            <ContentPresenter Name="ContentSite"
-                                              IsHitTestVisible="False"
-                                              Content="{TemplateBinding SelectionBoxItem}"
-                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
-                                              Margin="8,4,24,4"
-                                              VerticalAlignment="Center"
-                                              HorizontalAlignment="Left"/>
-                            <Popup Name="PART_Popup"
-                                   Placement="Bottom"
-                                   IsOpen="{TemplateBinding IsDropDownOpen}"
-                                   AllowsTransparency="True"
-                                   Focusable="False"
-                                   PopupAnimation="Slide">
-                                <Grid Name="DropDown"
-                                      SnapsToDevicePixels="True"
-                                      MinWidth="{TemplateBinding ActualWidth}"
-                                      MaxHeight="220">
-                                    <Border Background="#FFFFFF"
-                                            BorderBrush="#1C1C19"
-                                            BorderThickness="1"
-                                            Margin="0,1,0,4">
-                                        <Border.Effect>
-                                            <DropShadowEffect BlurRadius="4" ShadowDepth="2" Direction="270" Color="#1C1C19" Opacity="0.15"/>
-                                        </Border.Effect>
-                                        <ScrollViewer SnapsToDevicePixels="True">
-                                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                        </ScrollViewer>
-                                    </Border>
-                                </Grid>
-                            </Popup>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
         </Style>
     </Window.Resources>
 
-    <Grid Margin="18">
+    <Grid Margin="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="200"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="215"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- HEADER -->
-        <Border Grid.Row="0" Background="#F6F3EE" CornerRadius="0" Padding="16,12" Margin="0,0,0,10" BorderBrush="#1C1C19" BorderThickness="1">
+        <Border Grid.Row="0" Background="#0F4369" BorderBrush="#1C1C19" BorderThickness="2" Padding="14,10" Margin="0,0,0,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="⚡ ACCIONES DIRECTAS DE IA (GEMINI ➔ REVIT)" FontSize="14" FontWeight="Bold" Foreground="#0F4369"/>
-                    <TextBlock Text="Pega el bloque JSON generado por Gemini Desktop o Web. Audita y simula los cambios antes de aplicarlos en el modelo activo." FontSize="10" Foreground="#5A5D62" Margin="0,2,0,0"/>
-                    <TextBlock x:Name="TxtActiveDoc" Text="Documento Revit: Cargando..." FontSize="10.5" Foreground="#72777F" Margin="0,3,0,0"/>
+
+                <StackPanel>
+                    <TextBlock Text="⚡ RECEPTOR DE ESQUEMAS Y ACCIONES DE REVIT (JSON / CLOUD)"
+                               Foreground="#FFFFFF" FontWeight="Bold" FontSize="14"/>
+                    <TextBlock Text="Recibe esquemas jerárquicos o colas de acciones desde ARCA Review Web o IA, organízalos por procesos y ejecútalos sobre el modelo Revit activo."
+                               Foreground="#D1E4F9" FontSize="11" Margin="0,2,0,0"/>
                 </StackPanel>
+
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="BtnCopyPrompt" Content="📘 Copiar Prompt para Gemini" Click="BtnCopyPrompt_Click"
-                            Style="{StaticResource ArcaSecondaryButton}" Margin="0,0,8,0"
-                            ToolTip="Copia las instrucciones y esquemas que debes pegar en Gemini para que genere JSONs válidos"/>
-                    <Button x:Name="BtnPasteClipboard" Content="📋 Pegar del Portapapeles" Click="BtnPasteClipboard_Click"
-                            Style="{StaticResource ArcaSecondaryButton}"
-                            ToolTip="Pega el contenido del portapapeles directamente en el editor"/>
+                    <Button x:Name="btnCopyPrompt"
+                            Style="{StaticResource SecondaryButton}"
+                            Background="#FACC15" Foreground="#1C1C19" BorderBrush="#1C1C19"
+                            Content="🤖 Copiar Prompt IA (Esquema Revit)"
+                            Margin="0,0,6,0"
+                            Click="BtnCopyPrompt_Click"/>
+                    <Button x:Name="btnLoadExample"
+                            Style="{StaticResource SecondaryButton}"
+                            Content="📄 Cargar Esquema Ejemplo"
+                            Click="BtnLoadExample_Click"/>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- BARRA DE PLANTILLAS -->
-        <Border Grid.Row="1" Background="#F6F3EE" CornerRadius="0" Padding="12,8" Margin="0,0,0,8" BorderBrush="#1C1C19" BorderThickness="1">
+        <!-- CLOUD SCHEMA LOADER BAR -->
+        <Border Grid.Row="1" Style="{StaticResource CardBorder}" Background="#E0F2FE" BorderBrush="#0F4369" Padding="10,8">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="Cargar Plantilla de Ejemplo:" VerticalAlignment="Center" FontWeight="Bold" Foreground="#1C1C19" Margin="0,0,10,0"/>
-                <ComboBox x:Name="CmbTemplates" Grid.Column="1" SelectionChanged="CmbTemplates_SelectionChanged"
-                          Style="{StaticResource DialogArcaComboBox}" Height="28"/>
-                <Button Grid.Column="2" x:Name="BtnClearEditor" Content="🗑️ Limpiar" Click="BtnClearEditor_Click"
-                        Style="{StaticResource ArcaSecondaryButton}" Margin="10,0,0,0"/>
+
+                <TextBlock Grid.Column="0"
+                           Text="☁️ ESQUEMAS EN ARCA REVIEW CLOUD:"
+                           FontWeight="Bold" FontSize="10.5" Foreground="#0F4369"
+                           VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                <ComboBox x:Name="cmbCloudSchemas"
+                          Grid.Column="1"
+                          Height="28"
+                          FontSize="11"
+                          DisplayMemberPath="DisplayLabel"
+                          Margin="0,0,8,0"/>
+
+                <Button x:Name="btnRefreshCloudSchemas"
+                        Grid.Column="2"
+                        Style="{StaticResource SecondaryButton}"
+                        Content="🔄 Actualizar Lista Cloud"
+                        Padding="10,4" FontSize="10.5"
+                        Margin="0,0,6,0"
+                        Click="BtnRefreshCloudSchemas_Click"/>
+
+                <Button x:Name="btnLoadSelectedCloudSchema"
+                        Grid.Column="3"
+                        Style="{StaticResource PrimaryButton}"
+                        Content="📥 Cargar Esquema Seleccionado"
+                        Padding="12,4" FontSize="10.5"
+                        Click="BtnLoadSelectedCloudSchema_Click"/>
             </Grid>
         </Border>
 
-        <!-- EDITOR DE JSON -->
-        <Border Grid.Row="2" Background="#1C1C19" CornerRadius="0" Padding="8" BorderBrush="#0F4369" BorderThickness="1">
+        <!-- JSON INPUT AREA -->
+        <Border Grid.Row="2" Style="{StaticResource CardBorder}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Text="INSTRUCCIÓN JSON (Edita o pega aquí):" FontSize="9.5" FontWeight="Bold" Foreground="#8EB4D8" Margin="2,0,0,4"/>
-                <TextBox Grid.Row="1" x:Name="TxtJsonEditor"
-                         Background="Transparent" Foreground="#E5E2DD" BorderThickness="0"
-                         FontFamily="Consolas, 'Courier New', monospace" FontSize="11"
-                         AcceptsReturn="True" AcceptsTab="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                         TextWrapping="NoWrap"/>
+
+                <Grid Grid.Row="0" Margin="0,0,0,6">
+                    <TextBlock x:Name="txtSchemaHeaderLabel"
+                               Text="1. PEGAR JSON DE ESQUEMA O COLA DE ACCIONES REVIT (ACEPTA ÁRBOL JERÁRQUICO O LISTA DE ACCIONES)"
+                               FontWeight="Bold" FontSize="10.5" Foreground="#0F4369" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button x:Name="btnPasteClipboard"
+                                Style="{StaticResource SecondaryButton}"
+                                Content="📋 Pegar Portapapeles"
+                                Padding="8,3" FontSize="10" Margin="0,0,6,0"
+                                Click="BtnPasteClipboard_Click"/>
+                        <Button x:Name="btnClearJson"
+                                Style="{StaticResource SecondaryButton}"
+                                Content="🗑️ Limpiar"
+                                Padding="8,3" FontSize="10" Margin="0,0,6,0"
+                                Click="BtnClearJson_Click"/>
+                        <Button x:Name="btnSimulate"
+                                Style="{StaticResource PrimaryButton}"
+                                Content="🔍 2. Analizar Esquema y Simular en Modelo"
+                                Padding="12,4" FontSize="10.5"
+                                Click="BtnSimulate_Click"/>
+                    </StackPanel>
+                </Grid>
+
+                <Border Grid.Row="1" Background="#1C1C19" BorderBrush="#0F4369" BorderThickness="1" Padding="6">
+                    <TextBox x:Name="txtJsonInput"
+                             Background="Transparent"
+                             Foreground="#E5E2DD"
+                             CaretBrush="#FFFFFF"
+                             BorderThickness="0"
+                             FontFamily="Consolas, monospace"
+                             FontSize="11"
+                             AcceptsReturn="True"
+                             AcceptsTab="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"/>
+                </Border>
             </Grid>
         </Border>
 
-        <!-- BARRA INTERMEDIA DE SIMULACIÓN -->
-        <Grid Grid.Row="3" Margin="0,10,0,8">
+        <!-- TABS: ORGANIZED ACTIONS TABLE + EXECUTION LOGS -->
+        <TabControl Grid.Row="3" Background="#F6F3EE" BorderBrush="#0F4369" BorderThickness="1" Margin="0,0,0,10">
+            <!-- TAB 1: ACCIONES ORGANIZADAS POR PROCESO / RAMA -->
+            <TabItem Header="⚡ Pestaña de Acciones y Procesos del Esquema" FontWeight="Bold">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,6">
+                        <TextBlock Text="3. ACCIONES EXTRAÍDAS DEL ESQUEMA Y ELEMENTOS COINCIDENTES EN EL MODELO REVIT"
+                                   FontWeight="Bold" FontSize="10.5" Foreground="#0F4369" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="txtSimSummary"
+                                   Text="Esperando simulación..."
+                                   HorizontalAlignment="Right"
+                                   FontSize="10.5" FontWeight="SemiBold" Foreground="#72777F"/>
+                    </Grid>
+
+                    <DataGrid x:Name="gridActions"
+                              Grid.Row="1"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="#E5E2DD"
+                              Background="#FFFFFF"
+                              BorderBrush="#C2C7CF"
+                              BorderThickness="1"
+                              RowBackground="#FFFFFF"
+                              AlternatingRowBackground="#F9F7F3"
+                              FontSize="11">
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn Header="Ejecutar" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="60"/>
+                            <DataGridTextColumn Header="#" Binding="{Binding Order}" IsReadOnly="True" Width="38"/>
+                            <DataGridTextColumn Header="Rama / Proceso" Binding="{Binding ProcessBranch}" IsReadOnly="True" Width="150"/>
+                            <DataGridTextColumn Header="Paso / Nodo del Esquema" Binding="{Binding StepName}" IsReadOnly="True" Width="170"/>
+                            <DataGridTextColumn Header="Herramienta" Binding="{Binding EffectiveTool}" IsReadOnly="True" Width="125"/>
+                            <DataGridTextColumn Header="Categoría" Binding="{Binding Category}" IsReadOnly="True" Width="105"/>
+                            <DataGridTextColumn Header="Filtro" Binding="{Binding FilterSummary}" IsReadOnly="True" Width="135"/>
+                            <DataGridTextColumn Header="Coincidencias" Binding="{Binding MatchedCount}" IsReadOnly="True" Width="85"/>
+                            <DataGridTextColumn Header="Parámetros / Configuración" Binding="{Binding ParametersSummary}" IsReadOnly="True" Width="*"/>
+                            <DataGridTextColumn Header="Estado" Binding="{Binding SimulationStatus}" IsReadOnly="True" Width="145"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- TAB 2: REGISTRO DETALLADO DE EJECUCIÓN -->
+            <TabItem Header="📜 Registro Técnico de Ejecución (Logs)" FontWeight="Bold">
+                <Border Background="#1C1C19" BorderBrush="#0F4369" BorderThickness="1" Margin="8" Padding="8">
+                    <TextBox x:Name="txtExecutionLogs"
+                             Background="Transparent"
+                             Foreground="#A7F3D0"
+                             BorderThickness="0"
+                             FontFamily="Consolas, monospace"
+                             FontSize="11"
+                             IsReadOnly="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             Text="Aquí se mostrará el detalle técnico tras ejecutar el esquema de acciones sobre el modelo Revit..."/>
+                </Border>
+            </TabItem>
+        </TabControl>
+
+        <!-- FOOTER / EXECUTION -->
+        <Grid Grid.Row="4">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <Button Grid.Column="0" x:Name="BtnSimulate" Content="🔍 VALIDAR &amp; SIMULAR CAMBIOS" Click="BtnSimulate_Click"
-                    Style="{StaticResource ArcaPrimaryButton}" Padding="16,7"/>
-            <TextBlock Grid.Column="1" x:Name="TxtSimulationSummary" Text="Haz clic en 'Validar &amp; Simular' para revisar los elementos que se verán afectados sin modificar el modelo."
-                       VerticalAlignment="Center" Margin="14,0,0,0" FontSize="11" Foreground="#5A5D62"/>
-            <StackPanel Grid.Column="2" Orientation="Horizontal">
-                <Button x:Name="BtnSelectAll" Content="☑ Marcar Todo" Click="BtnSelectAll_Click"
-                        Style="{StaticResource ArcaSecondaryButton}" Margin="0,0,6,0"/>
-                <Button x:Name="BtnDeselectAll" Content="☐ Desmarcar Todo" Click="BtnDeselectAll_Click"
-                        Style="{StaticResource ArcaSecondaryButton}"/>
+
+            <TextBlock x:Name="txtFooterStatus"
+                       Text="💡 Puedes pegar un Esquema JSON de ARCA Review o cargarlo desde la nube, simular y aplicar en 1 clic."
+                       VerticalAlignment="Center"
+                       FontSize="11"
+                       Foreground="#1C1C19"
+                       TextTrimming="CharacterEllipsis"/>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Content="Cerrar"
+                        Style="{StaticResource SecondaryButton}"
+                        Margin="0,0,8,0"
+                        Click="BtnClose_Click"/>
+
+                <Button x:Name="btnExecute"
+                        Style="{StaticResource PrimaryButton}"
+                        Background="#059669"
+                        BorderBrush="#065F46"
+                        Content="⚡ 3. Ejecutar Esquema de Acciones en Revit"
+                        IsEnabled="False"
+                        Click="BtnExecute_Click"/>
             </StackPanel>
-        </Grid>
-
-        <!-- TABLA DE RESULTADOS DE SIMULACIÓN -->
-        <Border Grid.Row="4" Background="#FFFFFF" CornerRadius="0" Padding="10" BorderBrush="#1C1C19" BorderThickness="1">
-            <DataGrid x:Name="GridSimulation"
-                      AutoGenerateColumns="False"
-                      CanUserAddRows="False"
-                      CanUserDeleteRows="False"
-                      Background="#FFFFFF"
-                      RowBackground="#FFFFFF"
-                      AlternatingRowBackground="#F6F3EE"
-                      Foreground="#1C1C19"
-                      BorderThickness="1"
-                      BorderBrush="#C2C7CF"
-                      GridLinesVisibility="Horizontal"
-                      HorizontalGridLinesBrush="#E5E2DD"
-                      HeadersVisibility="Column"
-                      RowHeight="28">
-                <DataGrid.Resources>
-                    <Style TargetType="DataGridColumnHeader">
-                        <Setter Property="Background" Value="#F6F3EE"/>
-                        <Setter Property="Foreground" Value="#0F4369"/>
-                        <Setter Property="FontWeight" Value="Bold"/>
-                        <Setter Property="FontSize" Value="10.5"/>
-                        <Setter Property="Padding" Value="8,5"/>
-                        <Setter Property="BorderBrush" Value="#1C1C19"/>
-                        <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                    </Style>
-                </DataGrid.Resources>
-                <DataGrid.Columns>
-                    <DataGridCheckBoxColumn Header="Aplicar" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="55"/>
-                    <DataGridTextColumn Header="ElementId" Binding="{Binding ElementId}" IsReadOnly="True" Width="85"/>
-                    <DataGridTextColumn Header="Categoría" Binding="{Binding Category}" IsReadOnly="True" Width="100"/>
-                    <DataGridTextColumn Header="Nombre / Tipo" Binding="{Binding ElementName}" IsReadOnly="True" Width="200"/>
-                    <DataGridTextColumn Header="Parámetro" Binding="{Binding ParameterName}" IsReadOnly="True" Width="150"/>
-                    <DataGridTextColumn Header="Valor Actual" Binding="{Binding CurrentValue}" IsReadOnly="True" Width="150"/>
-                    <DataGridTextColumn Header="Valor Destino (Nuevo)" Binding="{Binding TargetValue}" IsReadOnly="True" Width="160"/>
-                    <DataGridTextColumn Header="Estado" Binding="{Binding Status}" IsReadOnly="True" Width="80"/>
-                    <DataGridTextColumn Header="Detalle / Advertencia" Binding="{Binding Warning}" IsReadOnly="True" Width="*"/>
-                </DataGrid.Columns>
-            </DataGrid>
-        </Border>
-
-        <!-- LOG BAR -->
-        <Border Grid.Row="5" Background="#1C1C19" CornerRadius="0" Padding="8,6" Margin="0,8,0,8" BorderBrush="#0F4369" BorderThickness="1">
-            <TextBlock x:Name="TxtLogStatus" Text="Listo para pegar o escribir instrucciones JSON de IA..."
-                       FontFamily="Consolas, monospace" FontSize="10.5" Foreground="#E5E2DD" TextWrapping="Wrap"/>
-        </Border>
-
-        <!-- FOOTER ACTIONS -->
-        <Grid Grid.Row="6">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-
-            <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="10.5" Foreground="#72777F"
-                       Text="Nota: La ejecución se realiza en una Transacción única de Revit. Puedes deshacer los cambios con Ctrl+Z."/>
-
-            <Button Grid.Column="1" Content="Cerrar" Click="BtnClose_Click"
-                    Style="{StaticResource ArcaSecondaryButton}" Padding="18,8" Margin="0,0,10,0"/>
-
-            <Button x:Name="BtnExecute" Grid.Column="2" Content="⚡ CONFIRMAR Y EJECUTAR EN REVIT" Click="BtnExecute_Click"
-                    Style="{StaticResource ArcaPrimaryButton}" FontSize="11.5" Padding="20,9"/>
         </Grid>
     </Grid>
 </Window>

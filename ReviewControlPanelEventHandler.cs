@@ -23,7 +23,8 @@ namespace RevitToSupabasePlugin
         PreviewMetadataJson,
         ExportIfcJson,
         Export3dModel,
-        ExportFullMetadataJson
+        ExportFullMetadataJson,
+        OpenReceptorEsquemasIA
     }
 
     public class BimModelMetrics
@@ -97,6 +98,15 @@ namespace RevitToSupabasePlugin
                         {
                             var wSheetsQueue = new reviewPlugIn.Views.SyncSheetsQueueWindow(doc);
                             wSheetsQueue.ShowDialog();
+                            ExecuteRefreshMetrics(doc);
+                        }
+                        break;
+
+                    case ControlPanelAction.OpenReceptorEsquemasIA:
+                        if (doc != null)
+                        {
+                            var wReceptor = new reviewPlugIn.Views.AccionesDirectasIAWindow(doc);
+                            wReceptor.ShowDialog();
                             ExecuteRefreshMetrics(doc);
                         }
                         break;
@@ -183,16 +193,30 @@ namespace RevitToSupabasePlugin
                     case ControlPanelAction.OpenFamilyRevisor:
                         if (uidoc != null)
                         {
-                            var wFam = new FamilyRevisorWindow(uidoc);
-                            wFam.ShowDialog();
+                            try
+                            {
+                                var wFam = new FamilyRevisorWindow(uidoc);
+                                wFam.ShowDialog();
+                            }
+                            catch (Exception ex)
+                            {
+                                Autodesk.Revit.UI.TaskDialog.Show("ARCA REVIEW - Error", "No se pudo abrir Family Revisor: " + ex.Message);
+                            }
                         }
                         break;
 
                     case ControlPanelAction.OpenSheetRevisor:
                         if (uidoc != null)
                         {
-                            var wSheets = new SheetRevisorWindow(uidoc);
-                            wSheets.ShowDialog();
+                            try
+                            {
+                                var wSheets = new SheetRevisorWindow(uidoc);
+                                wSheets.ShowDialog();
+                            }
+                            catch (Exception ex)
+                            {
+                                Autodesk.Revit.UI.TaskDialog.Show("ARCA REVIEW - Error", "No se pudo abrir Sheet Revisor: " + ex.Message);
+                            }
                         }
                         break;
 

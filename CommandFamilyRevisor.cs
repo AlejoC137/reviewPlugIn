@@ -25,17 +25,20 @@ namespace RevitToSupabasePlugin
             try
             {
                 var window = new FamilyRevisorWindow(uidoc);
-                var helper = new WindowInteropHelper(window)
+                if (uiapp.MainWindowHandle != IntPtr.Zero)
                 {
-                    Owner = uiapp.MainWindowHandle
-                };
+                    var helper = new WindowInteropHelper(window)
+                    {
+                        Owner = uiapp.MainWindowHandle
+                    };
+                }
                 window.ShowDialog();
                 return Result.Succeeded;
             }
             catch (Exception ex)
             {
                 message = ex.Message;
-                TaskDialog.Show("Error", "No se pudo abrir Family Revisor: " + ex.Message);
+                TaskDialog.Show("ARCA REVIEW - Error", "No se pudo abrir Family Revisor: " + ex.Message + "\n\nDetalles:\n" + ex.StackTrace);
                 return Result.Failed;
             }
         }

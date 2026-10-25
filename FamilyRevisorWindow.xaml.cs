@@ -33,14 +33,31 @@ namespace RevitToSupabasePlugin
         private string _statusText = "Sin cambios";
         private RevisorValidationStatus _validationStatus = RevisorValidationStatus.Unchanged;
         private string _errorMessage = string.Empty;
+        private string _categoryName = "General";
+        private string _originalFamilyName = string.Empty;
+        private string _originalTypeName = string.Empty;
 
         public ElementId? FamilyId { get; set; }
         public ElementId? TypeId { get; set; }
         public bool IsLoadableFamily { get; set; }
 
-        public string CategoryName { get; set; } = string.Empty;
-        public string OriginalFamilyName { get; set; } = string.Empty;
-        public string OriginalTypeName { get; set; } = string.Empty;
+        public string CategoryName
+        {
+            get => _categoryName ?? "General";
+            set => _categoryName = value ?? "General";
+        }
+
+        public string OriginalFamilyName
+        {
+            get => _originalFamilyName ?? string.Empty;
+            set => _originalFamilyName = value ?? string.Empty;
+        }
+
+        public string OriginalTypeName
+        {
+            get => _originalTypeName ?? string.Empty;
+            set => _originalTypeName = value ?? string.Empty;
+        }
 
         public string FamilyKindText => IsLoadableFamily ? "Cargable (.rfa)" : "Sistema";
 
@@ -59,12 +76,13 @@ namespace RevitToSupabasePlugin
 
         public string NewFamilyName
         {
-            get => _newFamilyName;
+            get => _newFamilyName ?? string.Empty;
             set
             {
-                if (_newFamilyName != value)
+                string val = value ?? string.Empty;
+                if (_newFamilyName != val)
                 {
-                    _newFamilyName = value;
+                    _newFamilyName = val;
                     OnPropertyChanged(nameof(NewFamilyName));
                     Validate();
                 }
@@ -73,12 +91,13 @@ namespace RevitToSupabasePlugin
 
         public string NewTypeName
         {
-            get => _newTypeName;
+            get => _newTypeName ?? string.Empty;
             set
             {
-                if (_newTypeName != value)
+                string val = value ?? string.Empty;
+                if (_newTypeName != val)
                 {
-                    _newTypeName = value;
+                    _newTypeName = val;
                     OnPropertyChanged(nameof(NewTypeName));
                     Validate();
                 }
@@ -87,12 +106,13 @@ namespace RevitToSupabasePlugin
 
         public string StatusText
         {
-            get => _statusText;
+            get => _statusText ?? "Sin cambios";
             set
             {
-                if (_statusText != value)
+                string val = value ?? "Sin cambios";
+                if (_statusText != val)
                 {
-                    _statusText = value;
+                    _statusText = val;
                     OnPropertyChanged(nameof(StatusText));
                 }
             }
@@ -114,12 +134,13 @@ namespace RevitToSupabasePlugin
 
         public string ErrorMessage
         {
-            get => _errorMessage;
+            get => _errorMessage ?? string.Empty;
             set
             {
-                if (_errorMessage != value)
+                string val = value ?? string.Empty;
+                if (_errorMessage != val)
                 {
-                    _errorMessage = value;
+                    _errorMessage = val;
                     OnPropertyChanged(nameof(ErrorMessage));
                 }
             }
@@ -129,19 +150,24 @@ namespace RevitToSupabasePlugin
 
         public void Validate()
         {
-            bool familyChanged = !string.IsNullOrEmpty(NewFamilyName) && NewFamilyName != OriginalFamilyName;
-            bool typeChanged = !string.IsNullOrEmpty(NewTypeName) && NewTypeName != OriginalTypeName;
+            string fam = NewFamilyName ?? string.Empty;
+            string origFam = OriginalFamilyName ?? string.Empty;
+            string typ = NewTypeName ?? string.Empty;
+            string origTyp = OriginalTypeName ?? string.Empty;
+
+            bool familyChanged = !string.IsNullOrEmpty(fam) && fam != origFam;
+            bool typeChanged = !string.IsNullOrEmpty(typ) && typ != origTyp;
 
             // 1. Validar caracteres ilegales en nombre de familia
             if (familyChanged && IsLoadableFamily)
             {
-                if (string.IsNullOrWhiteSpace(NewFamilyName))
+                if (string.IsNullOrWhiteSpace(fam))
                 {
                     SetError("El nombre de familia no puede estar vacío");
                     return;
                 }
 
-                char badChar = NewFamilyName.FirstOrDefault(c => RevitForbiddenChars.Contains(c));
+                char badChar = fam.FirstOrDefault(c => RevitForbiddenChars.Contains(c));
                 if (badChar != '\0')
                 {
                     SetError($"Carácter prohibido '{badChar}' en nombre de familia");
@@ -152,13 +178,13 @@ namespace RevitToSupabasePlugin
             // 2. Validar caracteres ilegales en nombre de tipo
             if (typeChanged && TypeId != null)
             {
-                if (string.IsNullOrWhiteSpace(NewTypeName))
+                if (string.IsNullOrWhiteSpace(typ))
                 {
                     SetError("El nombre de tipo no puede estar vacío");
                     return;
                 }
 
-                char badChar = NewTypeName.FirstOrDefault(c => RevitForbiddenChars.Contains(c));
+                char badChar = typ.FirstOrDefault(c => RevitForbiddenChars.Contains(c));
                 if (badChar != '\0')
                 {
                     SetError($"Carácter prohibido '{badChar}' en nombre de tipo");
@@ -304,7 +330,7 @@ namespace RevitToSupabasePlugin
             {
                 var families = new FilteredElementCollector(_doc)
                     .OfClass(typeof(Family))
-                    .Cast<Family>()
+                    .OfType<Family>()
                     .ToList();
 
                 foreach (var fam in families)
@@ -382,7 +408,7 @@ namespace RevitToSupabasePlugin
             {
                 var elementTypes = new FilteredElementCollector(_doc)
                     .WhereElementIsElementType()
-                    .Cast<ElementType>()
+                    .OfType<ElementType>()
                     .ToList();
 
                 foreach (var type in elementTypes)
@@ -445,18 +471,21 @@ namespace RevitToSupabasePlugin
             catch { }
 
             // Poblar ComboBox de Categorías
-            string prevSelectedCat = cmbCategories.SelectedItem?.ToString() ?? "📌 Todas las Categorías";
-            cmbCategories.Items.Clear();
-            cmbCategories.Items.Add("📌 Todas las Categorías");
-            foreach (var c in categories.OrderBy(c => c))
+            if (cmbCategories != null)
             {
-                cmbCategories.Items.Add(c);
-            }
+                string prevSelectedCat = cmbCategories.SelectedItem?.ToString() ?? "📌 Todas las Categorías";
+                cmbCategories.Items.Clear();
+                cmbCategories.Items.Add("📌 Todas las Categorías");
+                foreach (var c in categories.Where(c => !string.IsNullOrEmpty(c)).OrderBy(c => c))
+                {
+                    cmbCategories.Items.Add(c);
+                }
 
-            if (cmbCategories.Items.Contains(prevSelectedCat))
-                cmbCategories.SelectedItem = prevSelectedCat;
-            else
-                cmbCategories.SelectedIndex = 0;
+                if (cmbCategories.Items.Contains(prevSelectedCat))
+                    cmbCategories.SelectedItem = prevSelectedCat;
+                else
+                    cmbCategories.SelectedIndex = 0;
+            }
 
             FilterAndRefreshGrid();
         }
@@ -472,23 +501,26 @@ namespace RevitToSupabasePlugin
 
             if (selectedCat != "📌 Todas las Categorías" && !string.IsNullOrEmpty(selectedCat))
             {
-                filtered = filtered.Where(i => i.CategoryName == selectedCat);
+                filtered = filtered.Where(i => i != null && i.CategoryName == selectedCat);
             }
 
             if (!string.IsNullOrEmpty(search))
             {
                 filtered = filtered.Where(i =>
-                    i.CategoryName.ToLowerInvariant().Contains(search) ||
-                    i.OriginalFamilyName.ToLowerInvariant().Contains(search) ||
-                    i.OriginalTypeName.ToLowerInvariant().Contains(search) ||
-                    i.NewFamilyName.ToLowerInvariant().Contains(search) ||
-                    i.NewTypeName.ToLowerInvariant().Contains(search));
+                    i != null && (
+                        (i.CategoryName ?? "").ToLowerInvariant().Contains(search) ||
+                        (i.OriginalFamilyName ?? "").ToLowerInvariant().Contains(search) ||
+                        (i.OriginalTypeName ?? "").ToLowerInvariant().Contains(search) ||
+                        (i.NewFamilyName ?? "").ToLowerInvariant().Contains(search) ||
+                        (i.NewTypeName ?? "").ToLowerInvariant().Contains(search)
+                    ));
             }
 
             _displayedItems.Clear();
             foreach (var item in filtered)
             {
-                _displayedItems.Add(item);
+                if (item != null)
+                    _displayedItems.Add(item);
             }
 
             ValidateUniqueness();
@@ -497,11 +529,12 @@ namespace RevitToSupabasePlugin
 
         private void ValidateUniqueness()
         {
-            // Validar unicidad preventiva (como DiRoots)
+            if (_allItems == null || _allItems.Count == 0) return;
+
             // 1. Unicidad de nombres de familias cargables
             var familyGroups = _allItems
-                .Where(i => i.IsLoadableFamily && !string.IsNullOrEmpty(i.NewFamilyName))
-                .GroupBy(i => i.NewFamilyName.Trim().ToLowerInvariant());
+                .Where(i => i != null && i.IsLoadableFamily && !string.IsNullOrWhiteSpace(i.NewFamilyName))
+                .GroupBy(i => (i.NewFamilyName ?? "").Trim().ToLowerInvariant());
 
             foreach (var grp in familyGroups)
             {
@@ -517,8 +550,8 @@ namespace RevitToSupabasePlugin
 
             // 2. Unicidad de tipos dentro de una misma familia
             var typeGroups = _allItems
-                .Where(i => i.TypeId != null && !string.IsNullOrEmpty(i.NewTypeName))
-                .GroupBy(i => $"{i.NewFamilyName.Trim().ToLowerInvariant()}|||{i.NewTypeName.Trim().ToLowerInvariant()}");
+                .Where(i => i != null && i.TypeId != null && !string.IsNullOrWhiteSpace(i.NewTypeName))
+                .GroupBy(i => $"{(i.NewFamilyName ?? "").Trim().ToLowerInvariant()}|||{(i.NewTypeName ?? "").Trim().ToLowerInvariant()}");
 
             foreach (var grp in typeGroups)
             {
