@@ -93,14 +93,43 @@ namespace RevitToSupabasePlugin
             var filtered = query.ToList();
             lstSchedules.ItemsSource = filtered;
 
-            if (txtScheduleCountSummary != null)
-            {
-                txtScheduleCountSummary.Text = $"{filtered.Count} de {_allSchedules.Count} tablas";
-            }
+            UpdateScheduleSelectionSummary();
 
             if (_selectedTemplate != null && filtered.Any(s => s.Id == _selectedTemplate.Id))
             {
                 lstSchedules.SelectedItem = filtered.First(s => s.Id == _selectedTemplate.Id);
+            }
+        }
+
+        private void chkScheduleItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.CheckBox cb && cb.DataContext is ScheduleListItemViewModel vm)
+            {
+                // Al marcar la casilla, seleccionar la tabla para ver inmediatamente sus campos e info
+                lstSchedules.SelectedItem = vm;
+                UpdateScheduleSelectionSummary();
+            }
+        }
+
+        private void UpdateScheduleSelectionSummary()
+        {
+            if (txtScheduleCountSummary == null) return;
+
+            int checkedCount = _allSchedules?.Count(s => s.IsChecked) ?? 0;
+            int filteredCount = (lstSchedules?.ItemsSource as IEnumerable<ScheduleListItemViewModel>)?.Count() ?? (_allSchedules?.Count ?? 0);
+            int totalCount = _allSchedules?.Count ?? 0;
+
+            if (checkedCount > 0)
+            {
+                txtScheduleCountSummary.Text = $"☑️ {checkedCount} marcada(s) | {filteredCount} de {totalCount} tablas";
+                txtScheduleCountSummary.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(15, 67, 105));
+                txtScheduleCountSummary.FontWeight = FontWeights.Bold;
+            }
+            else
+            {
+                txtScheduleCountSummary.Text = $"{filteredCount} de {totalCount} tablas";
+                txtScheduleCountSummary.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(114, 119, 127));
+                txtScheduleCountSummary.FontWeight = FontWeights.Normal;
             }
         }
 
@@ -506,6 +535,7 @@ namespace RevitToSupabasePlugin
             {
                 foreach (var s in items) s.IsChecked = true;
                 lstSchedules.Items.Refresh();
+                UpdateScheduleSelectionSummary();
             }
         }
 
@@ -515,6 +545,7 @@ namespace RevitToSupabasePlugin
             {
                 foreach (var s in items) s.IsChecked = false;
                 lstSchedules.Items.Refresh();
+                UpdateScheduleSelectionSummary();
             }
         }
 

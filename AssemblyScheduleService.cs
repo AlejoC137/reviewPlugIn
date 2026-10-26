@@ -35,8 +35,14 @@ namespace RevitToSupabasePlugin
         public string StatusColor => HasExistingSchedule ? "#059669" : (AllowsViewCreation ? "#0F4369" : "#72777F");
     }
 
-    public class ScheduleListItemViewModel
+    public class ScheduleListItemViewModel : System.ComponentModel.INotifyPropertyChanged
     {
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+        protected void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+        {
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
+        }
+
         public ViewSchedule Schedule { get; set; } = null!;
         public ElementId Id { get; set; } = ElementId.InvalidElementId;
         public string Name { get; set; } = string.Empty;
@@ -53,7 +59,19 @@ namespace RevitToSupabasePlugin
         public string DisplaySubtitle => $"{ScheduleTypeDescription} • {CategoryName} • {FieldCount} campos";
 
         // Gestión y ubicación en láminas
-        public bool IsChecked { get; set; }
+        private bool _isChecked;
+        public bool IsChecked
+        {
+            get => _isChecked;
+            set
+            {
+                if (_isChecked != value)
+                {
+                    _isChecked = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
         public bool IsOnSheet { get; set; }
         public string SheetPlacementsInfo { get; set; } = string.Empty;
         public string SheetBadge => IsOnSheet ? $"📄 Plano: {SheetPlacementsInfo}" : string.Empty;

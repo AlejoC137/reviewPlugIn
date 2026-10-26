@@ -449,15 +449,29 @@ namespace reviewPlugIn.Services
             var nextPath = new List<string>(currentPath) { nodeName };
             string branchName = currentPath.Count == 1 ? nodeName : currentBranchName;
 
+            JObject blockRevitAction = null;
+            if (node["blocks"] is JArray blocksArr)
+            {
+                foreach (var b in blocksArr.OfType<JObject>())
+                {
+                    if (b["revitAction"] is JObject bra)
+                    {
+                        blockRevitAction = bra;
+                        break;
+                    }
+                }
+            }
+
             bool isRevitActionNode =
                 string.Equals(node["blockType"]?.ToString(), "revit_action", StringComparison.OrdinalIgnoreCase) ||
                 node["revitAction"] != null ||
+                blockRevitAction != null ||
                 node["action"] != null ||
                 node["tool"] != null;
 
             if (isRevitActionNode)
             {
-                var raToken = (node["revitAction"] as JObject) ?? node;
+                var raToken = (node["revitAction"] as JObject) ?? blockRevitAction ?? node;
                 var item = CreateActionItemFromToken(
                     raToken,
                     node,
@@ -552,12 +566,14 @@ namespace reviewPlugIn.Services
                 : (outerNode?["enabled"] != null ? outerNode["enabled"].Value<bool>() : true);
 
             var filterObj = new DirectAiFilter();
-            if (raToken["filter"] is JObject fTok)
+            var fTok = (raToken["filter"] as JObject) ?? (raToken["filters"] as JObject);
+            if (fTok != null)
             {
-                filterObj.TypeName = fTok["type_name"]?.ToString() ?? "";
-                filterObj.FamilyName = fTok["family_name"]?.ToString() ?? "";
-                filterObj.LevelName = fTok["level_name"]?.ToString() ?? "";
-                filterObj.SearchText = fTok["search_text"]?.ToString() ?? "";
+                string CleanWildcard(string val) => string.IsNullOrWhiteSpace(val) || val.Trim() == "*" ? "" : val.Trim();
+                filterObj.TypeName = CleanWildcard(fTok["type_name"]?.ToString());
+                filterObj.FamilyName = CleanWildcard(fTok["family_name"]?.ToString());
+                filterObj.LevelName = CleanWildcard(fTok["level_name"]?.ToString());
+                filterObj.SearchText = CleanWildcard(fTok["search_text"]?.ToString());
             }
 
             var elementIds = new List<long>();
