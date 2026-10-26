@@ -77,6 +77,18 @@ namespace reviewPlugIn.Services
         [JsonProperty("parameters")]
         public Dictionary<string, string> Parameters { get; set; } = new Dictionary<string, string>();
 
+        [JsonProperty("operation")]
+        public string Operation { get; set; } = "UPDATE";
+
+        [JsonProperty("instruction")]
+        public string Instruction { get; set; } = "";
+
+        [JsonProperty("target_schedule_id")]
+        public string TargetScheduleId { get; set; } = "";
+
+        [JsonProperty("target_schedule_name")]
+        public string TargetScheduleName { get; set; } = "";
+
         // UI / Simulation properties
         [JsonIgnore]
         public bool IsSelected { get; set; } = true;
@@ -595,6 +607,27 @@ namespace reviewPlugIn.Services
                 }
             }
 
+            string operation = raToken["operation"]?.ToString()
+                ?? outerNode?["operation"]?.ToString()
+                ?? "UPDATE";
+
+            string instruction = raToken["instruction"]?.ToString()
+                ?? outerNode?["instruction"]?.ToString()
+                ?? "";
+
+            string targetScheduleId = raToken["target_schedule_id"]?.ToString()
+                ?? outerNode?["target_schedule_id"]?.ToString()
+                ?? "";
+
+            string targetScheduleName = raToken["target_schedule_name"]?.ToString()
+                ?? outerNode?["target_schedule_name"]?.ToString()
+                ?? "";
+
+            if (string.IsNullOrWhiteSpace(description) && !string.IsNullOrWhiteSpace(instruction))
+            {
+                description = instruction;
+            }
+
             return new DirectAiActionItem
             {
                 Id = outerNode?["id"]?.ToString() ?? Guid.NewGuid().ToString("N").Substring(0, 8),
@@ -607,6 +640,10 @@ namespace reviewPlugIn.Services
                 Action = tool,
                 Tool = tool,
                 Category = category,
+                Operation = operation,
+                Instruction = instruction,
+                TargetScheduleId = targetScheduleId,
+                TargetScheduleName = targetScheduleName,
                 Filter = filterObj,
                 ElementIds = elementIds,
                 Parameters = parameters,
