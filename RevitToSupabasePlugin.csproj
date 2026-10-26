@@ -1,13 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <RevitVersion Condition="'$(RevitVersion)' == '' and Exists('C:\Program Files\Autodesk\Revit 2025\RevitAPI.dll')">2025</RevitVersion>
-    <RevitVersion Condition="'$(RevitVersion)' == '' and Exists('C:\Program Files\Autodesk\Revit 2026\RevitAPI.dll')">2026</RevitVersion>
-    <RevitVersion Condition="'$(RevitVersion)' == '' and Exists('C:\Program Files\Autodesk\Revit 2027\RevitAPI.dll')">2027</RevitVersion>
-    <RevitVersion Condition="'$(RevitVersion)' == ''">2025</RevitVersion>
-    <RevitPath>C:\Program Files\Autodesk\Revit $(RevitVersion)</RevitPath>
-
-    <TargetFramework Condition="'$(RevitVersion)' == '2027'">net10.0-windows</TargetFramework>
-    <TargetFramework Condition="'$(TargetFramework)' == ''">net8.0-windows</TargetFramework>
+    <TargetFrameworks>net8.0-windows;net10.0-windows</TargetFrameworks>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -21,15 +14,36 @@
     <Copyright>Copyright © 2026 ARCA REVIEW - ALEJANDRO</Copyright>
   </PropertyGroup>
 
-  <ItemGroup>
+  <!-- Referencias para Revit 2025 / 2026 (net8.0-windows) -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows' and Exists('C:\Program Files\Autodesk\Revit 2025\RevitAPI.dll')">
     <Reference Include="RevitAPI">
-      <HintPath>$(RevitPath)\RevitAPI.dll</HintPath>
+      <HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPI.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="RevitAPIUI">
-      <HintPath>$(RevitPath)\RevitAPIUI.dll</HintPath>
+      <HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPIUI.dll</HintPath>
       <Private>False</Private>
     </Reference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows' and !Exists('C:\Program Files\Autodesk\Revit 2025\RevitAPI.dll')">
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPI" Version="2025.2.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPIUI" Version="2025.2.0" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Referencias para Revit 2027 (net10.0-windows) -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows' and Exists('C:\Program Files\Autodesk\Revit 2027\RevitAPI.dll')">
+    <Reference Include="RevitAPI">
+      <HintPath>C:\Program Files\Autodesk\Revit 2027\RevitAPI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="RevitAPIUI">
+      <HintPath>C:\Program Files\Autodesk\Revit 2027\RevitAPIUI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows' and !Exists('C:\Program Files\Autodesk\Revit 2027\RevitAPI.dll')">
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPI" Version="2027.2.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPIUI" Version="2027.2.0" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
@@ -47,9 +61,13 @@
     <None Remove="**/*backup*/**" />
   </ItemGroup>
 
-  <!-- Evento Post-Build para desplegar en Addins de Revit de forma segura sin bloquear si Revit está abierto -->
+  <!-- Evento Post-Build para desplegar en la carpeta de Addins correspondiente a cada version de Revit -->
   <Target Name="PostBuild" AfterTargets="Build">
-    <Message Text="Copiando archivos del plugin a las carpetas de Addins de Revit (2025 y 2027)..." Importance="high" />
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;foreach ($ver in @('2025', '2027')) { $dest = [System.IO.Path]::Combine($env:APPDATA, 'Autodesk', 'Revit', 'Addins', $ver); if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest -Force | Out-Null }; try { Copy-Item -Path '$(TargetDir)*.dll' -Destination $dest -Force -ErrorAction SilentlyContinue } catch {}; try { Copy-Item -Path '$(TargetDir)*.deps.json' -Destination $dest -Force -ErrorAction SilentlyContinue } catch {}; try { Copy-Item -Path '$(ProjectDir)*.png' -Destination $dest -Force -ErrorAction SilentlyContinue } catch {}; try { Copy-Item -Path '$(ProjectDir)*.rfa' -Destination $dest -Force -ErrorAction SilentlyContinue } catch {}; try { Copy-Item -Path '$(ProjectDir)*.json' -Destination $dest -Force -ErrorAction SilentlyContinue } catch {}; try { Copy-Item -Path '$(ProjectDir)RevitToSupabasePlugin.addin' -Destination $dest -Force -ErrorAction SilentlyContinue } catch {}; if (Test-Path '$(ProjectDir)Familias') { try { Copy-Item -Path '$(ProjectDir)Familias' -Destination $dest -Recurse -Force -ErrorAction SilentlyContinue } catch {} } }&quot;" IgnoreExitCode="true" />
+    <PropertyGroup>
+      <TargetRevitVer Condition="'$(TargetFramework)' == 'net8.0-windows'">2025</TargetRevitVer>
+      <TargetRevitVer Condition="'$(TargetFramework)' == 'net10.0-windows'">2027</TargetRevitVer>
+    </PropertyGroup>
+    <Message Text="Copiando archivos del plugin ($(TargetFramework)) a la carpeta de Addins de Revit $(TargetRevitVer)..." Importance="high" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;$ver = '$(TargetRevitVer)'; if ($ver) { $dest = [System.IO.Path]::Combine($env:APPDATA, 'Autodesk', 'Revit', 'Addins', $ver); if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest -Force | Out-Null }; try { Copy-Item -Path '$(TargetDir)*.dll' -Destination $dest -Force -ErrorAction SilentlyContinue } catch {}; try { Copy-Item -Path '$(TargetDir)*.deps.json' -Destination $dest -Force -ErrorAction SilentlyContinue } catch {}; try { Copy-Item -Path '$(ProjectDir)*.png' -Destination $dest -Force -ErrorAction SilentlyContinue } catch {}; try { Copy-Item -Path '$(ProjectDir)*.rfa' -Destination $dest -Force -ErrorAction SilentlyContinue } catch {}; try { Copy-Item -Path '$(ProjectDir)*.json' -Destination $dest -Force -ErrorAction SilentlyContinue } catch {}; try { Copy-Item -Path '$(ProjectDir)RevitToSupabasePlugin.addin' -Destination $dest -Force -ErrorAction SilentlyContinue } catch {}; if (Test-Path '$(ProjectDir)Familias') { try { Copy-Item -Path '$(ProjectDir)Familias' -Destination $dest -Recurse -Force -ErrorAction SilentlyContinue } catch {} } }&quot;" IgnoreExitCode="true" />
   </Target>
 </Project>

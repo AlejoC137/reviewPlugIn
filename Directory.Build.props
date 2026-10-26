@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <!-- Guardar obj en TEMP local de cada PC para evitar conflictos de rutas de NuGet y bloqueos de Google Drive entre distintos computadores -->
+    <BaseIntermediateOutputPath>$(TEMP)\reviewPlugIn_obj\</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(TEMP)\reviewPlugIn_obj\</MSBuildProjectExtensionsPath>
+  </PropertyGroup>
+</Project>
