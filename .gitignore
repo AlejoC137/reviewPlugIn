@@ -8,10 +8,9 @@
 *.userosscache
 *.sln.docstates
 
-# Build results
+# Build results (bin/Release se incluye en git para instalar con 1 click sin requerir SDK)
 [Dd]ebug/
 [Dd]ebugPublic/
-[Rr]elease/
 [Rr]eleases/
 x64/
 x86/
@@ -19,9 +18,10 @@ x86/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
 bld/
-[Bb]in/
+[Bb]in/[Dd]ebug/
 [Oo]bj/
 [Ll]og/
+*.pdb
 
 # Visual Studio 2015/2017/2019/2022 cache/options directory
 .vs/
