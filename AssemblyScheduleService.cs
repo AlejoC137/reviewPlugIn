@@ -596,166 +596,16 @@ namespace RevitToSupabasePlugin
             // 4. Modificar la definición de targetSchedule de forma segura
             try
             {
-                // Desvincular plantilla gráfica temporalmente si la tuviera para desbloquear campos
-                ElementId prevTemplateId = targetSchedule.ViewTemplateId;
-                if (prevTemplateId != ElementId.InvalidElementId)
-                {
-                    try { targetSchedule.ViewTemplateId = ElementId.InvalidElementId; } catch { }
-                }
-
-                ScheduleDefinition targetDef = targetSchedule.Definition;
-
-                // Limpiar reglas de ordenación y filtros existentes en destino
-                targetDef.ClearSortGroupFields();
-                targetDef.ClearFilters();
-
-                // Limpiar campos existentes del destino
-                var currentTargetFields = targetDef.GetFieldOrder().ToList();
-                for (int i = currentTargetFields.Count - 1; i >= 0; i--)
-                {
-                    try { targetDef.RemoveField(currentTargetFields[i]); } catch { }
-                }
-
-                // Obtener campos disponibles en el destino
-                IList<SchedulableField> availableFields = targetDef.GetSchedulableFields();
-                Dictionary<ScheduleFieldId, ScheduleFieldId> fieldMap = new Dictionary<ScheduleFieldId, ScheduleFieldId>();
-
-                int replicatedCount = 0;
-
-                foreach (var fSnap in snapshot.Fields)
-                {
-                    // Si hay filtro de nombres y no está incluido, omitir
-                    if (allowedFieldNames != null && 
-                        !allowedFieldNames.Contains(fSnap.Name) && 
-                        !allowedFieldNames.Contains(fSnap.ColumnHeading))
-                    {
-                        continue;
-                    }
-
-                    SchedulableField? matchedField = null;
-
-                    // 1. Conteo
-                    if (fSnap.FieldType == ScheduleFieldType.Count)
-                    {
-                        matchedField = availableFields.FirstOrDefault(f => f.FieldType == ScheduleFieldType.Count);
-                    }
-                    // 2. Parámetro por ID
-                    else if (fSnap.ParameterId != ElementId.InvalidElementId)
-                    {
-                        matchedField = availableFields.FirstOrDefault(f => f.ParameterId == fSnap.ParameterId);
-                        if (matchedField == null)
-                        {
-                            matchedField = availableFields.FirstOrDefault(f => f.GetName(doc).Equals(fSnap.Name, StringComparison.OrdinalIgnoreCase));
-                        }
-                    }
-                    // 3. Fallback por Nombre
-                    else
-                    {
-                        matchedField = availableFields.FirstOrDefault(f => f.GetName(doc).Equals(fSnap.Name, StringComparison.OrdinalIgnoreCase));
-                    }
-
-                    if (matchedField != null)
-                    {
-                        try
-                        {
-                            ScheduleField tf = targetDef.AddField(matchedField);
-                            fieldMap[fSnap.SourceFieldId] = tf.FieldId;
-
-                            if (replicateFormat)
-                            {
-                                if (!string.IsNullOrEmpty(fSnap.ColumnHeading))
-                                {
-                                    tf.ColumnHeading = fSnap.ColumnHeading;
-                                }
-
-                                tf.IsHidden = fSnap.IsHidden;
-                                try { tf.HeadingOrientation = fSnap.HeadingOrientation; } catch { }
-                                try { tf.HorizontalAlignment = fSnap.HorizontalAlignment; } catch { }
-                                try { tf.DisplayType = fSnap.DisplayType; } catch { }
-                                try
-                                {
-                                    if (fSnap.GridColumnWidth > 0.0001)
-                                        tf.GridColumnWidth = fSnap.GridColumnWidth;
-                                }
-                                catch { }
-                                try
-                                {
-                                    if (fSnap.FormatOptions != null)
-                                        tf.SetFormatOptions(fSnap.FormatOptions);
-                                }
-                                catch { }
-                            }
-
-                            replicatedCount++;
-                        }
-                        catch { }
-                    }
-                }
-
-                // 5. Replicar Sorting & Grouping
-                if (replicateSorting)
-                {
-                    foreach (var sSnap in snapshot.Sorts)
-                    {
-                        if (fieldMap.TryGetValue(sSnap.SourceFieldId, out var targetFieldId))
-                        {
-                            try
-                            {
-                                var tsf = new ScheduleSortGroupField(targetFieldId, sSnap.SortOrder)
-                                {
-                                    ShowHeader = sSnap.ShowHeader,
-                                    ShowFooter = sSnap.ShowFooter,
-                                    ShowBlankLine = sSnap.ShowBlankLine
-                                };
-                                targetDef.AddSortGroupField(tsf);
-                            }
-                            catch { }
-                        }
-                    }
-                }
-
-                // 6. Totales y Agrupación
-                if (replicateTotals)
-                {
-                    try { targetDef.IsItemized = snapshot.IsItemized; } catch { }
-                    try
-                    {
-                        targetDef.ShowGrandTotal = snapshot.ShowGrandTotal;
-                        if (snapshot.ShowGrandTotal)
-                        {
-                            try { targetDef.ShowGrandTotalTitle = snapshot.ShowGrandTotalTitle; } catch { }
-                            try { targetDef.ShowGrandTotalCount = snapshot.ShowGrandTotalCount; } catch { }
-                            try { targetDef.GrandTotalTitle = snapshot.GrandTotalTitle; } catch { }
-                        }
-                    }
-                    catch { }
-                }
-
-                try { targetDef.ShowTitle = snapshot.ShowTitle; } catch { }
-                try { targetDef.ShowHeaders = snapshot.ShowHeaders; } catch { }
-
-                // 7. Filtros (Opcional, desactivado por defecto para no vaciar la tabla de ensamble)
-                if (replicateFilters)
-                {
-                    foreach (var fltSnap in snapshot.Filters)
-                    {
-                        if (fieldMap.TryGetValue(fltSnap.SourceFieldId, out var targetFieldId))
-                        {
-                            try
-                            {
-                                ScheduleFilter? cloned = BuildFilter(fltSnap, targetFieldId);
-                                if (cloned != null) targetDef.AddFilter(cloned);
-                            }
-                            catch { }
-                        }
-                    }
-                }
-
-                // 8. View Template
-                if (replicateTemplate && snapshot.ViewTemplateId != ElementId.InvalidElementId)
-                {
-                    try { targetSchedule.ViewTemplateId = snapshot.ViewTemplateId; } catch { }
-                }
+                int replicatedCount = ApplySnapshotToSchedule(
+                    doc,
+                    targetSchedule,
+                    snapshot,
+                    allowedFieldNames,
+                    replicateFormat,
+                    replicateSorting,
+                    replicateTotals,
+                    replicateFilters,
+                    replicateTemplate);
 
                 result.FieldsReplicatedCount = replicatedCount;
                 result.Success = true;
@@ -770,6 +620,183 @@ namespace RevitToSupabasePlugin
                 result.Message = $"Error al replicar en '{assemblyDisplayName}': {ex.Message}";
                 return result;
             }
+        }
+
+        public static int ApplySnapshotToSchedule(
+            Document doc,
+            ViewSchedule targetSchedule,
+            ScheduleSnapshot snapshot,
+            HashSet<string>? allowedFieldNames = null,
+            bool replicateFormat = true,
+            bool replicateSorting = true,
+            bool replicateTotals = true,
+            bool replicateFilters = true,
+            bool replicateTemplate = true)
+        {
+            if (targetSchedule == null || snapshot == null) return 0;
+
+            // Desvincular plantilla gráfica temporalmente si la tuviera para desbloquear campos
+            ElementId prevTemplateId = targetSchedule.ViewTemplateId;
+            if (prevTemplateId != ElementId.InvalidElementId)
+            {
+                try { targetSchedule.ViewTemplateId = ElementId.InvalidElementId; } catch { }
+            }
+
+            ScheduleDefinition targetDef = targetSchedule.Definition;
+
+            // Limpiar reglas de ordenación y filtros existentes en destino
+            targetDef.ClearSortGroupFields();
+            targetDef.ClearFilters();
+
+            // Limpiar campos existentes del destino
+            var currentTargetFields = targetDef.GetFieldOrder().ToList();
+            for (int i = currentTargetFields.Count - 1; i >= 0; i--)
+            {
+                try { targetDef.RemoveField(currentTargetFields[i]); } catch { }
+            }
+
+            // Obtener campos disponibles en el destino
+            IList<SchedulableField> availableFields = targetDef.GetSchedulableFields();
+            Dictionary<ScheduleFieldId, ScheduleFieldId> fieldMap = new Dictionary<ScheduleFieldId, ScheduleFieldId>();
+
+            int replicatedCount = 0;
+
+            foreach (var fSnap in snapshot.Fields)
+            {
+                // Si hay filtro de nombres y no está incluido, omitir
+                if (allowedFieldNames != null && 
+                    !allowedFieldNames.Contains(fSnap.Name) && 
+                    !allowedFieldNames.Contains(fSnap.ColumnHeading))
+                {
+                    continue;
+                }
+
+                SchedulableField? matchedField = null;
+
+                // 1. Conteo
+                if (fSnap.FieldType == ScheduleFieldType.Count)
+                {
+                    matchedField = availableFields.FirstOrDefault(f => f.FieldType == ScheduleFieldType.Count);
+                }
+                // 2. Parámetro por ID
+                else if (fSnap.ParameterId != ElementId.InvalidElementId)
+                {
+                    matchedField = availableFields.FirstOrDefault(f => f.ParameterId == fSnap.ParameterId);
+                    if (matchedField == null)
+                    {
+                        matchedField = availableFields.FirstOrDefault(f => f.GetName(doc).Equals(fSnap.Name, StringComparison.OrdinalIgnoreCase));
+                    }
+                }
+                // 3. Fallback por Nombre
+                else
+                {
+                    matchedField = availableFields.FirstOrDefault(f => f.GetName(doc).Equals(fSnap.Name, StringComparison.OrdinalIgnoreCase));
+                }
+
+                if (matchedField != null)
+                {
+                    try
+                    {
+                        ScheduleField tf = targetDef.AddField(matchedField);
+                        fieldMap[fSnap.SourceFieldId] = tf.FieldId;
+
+                        if (replicateFormat)
+                        {
+                            if (!string.IsNullOrEmpty(fSnap.ColumnHeading))
+                            {
+                                tf.ColumnHeading = fSnap.ColumnHeading;
+                            }
+
+                            tf.IsHidden = fSnap.IsHidden;
+                            try { tf.HeadingOrientation = fSnap.HeadingOrientation; } catch { }
+                            try { tf.HorizontalAlignment = fSnap.HorizontalAlignment; } catch { }
+                            try { tf.DisplayType = fSnap.DisplayType; } catch { }
+                            try
+                            {
+                                if (fSnap.GridColumnWidth > 0.0001)
+                                    tf.GridColumnWidth = fSnap.GridColumnWidth;
+                            }
+                            catch { }
+                            try
+                            {
+                                if (fSnap.FormatOptions != null)
+                                    tf.SetFormatOptions(fSnap.FormatOptions);
+                            }
+                            catch { }
+                        }
+
+                        replicatedCount++;
+                    }
+                    catch { }
+                }
+            }
+
+            // 5. Replicar Sorting & Grouping
+            if (replicateSorting)
+            {
+                foreach (var sSnap in snapshot.Sorts)
+                {
+                    if (fieldMap.TryGetValue(sSnap.SourceFieldId, out var targetFieldId))
+                    {
+                        try
+                        {
+                            var tsf = new ScheduleSortGroupField(targetFieldId, sSnap.SortOrder)
+                            {
+                                ShowHeader = sSnap.ShowHeader,
+                                ShowFooter = sSnap.ShowFooter,
+                                ShowBlankLine = sSnap.ShowBlankLine
+                            };
+                            targetDef.AddSortGroupField(tsf);
+                        }
+                        catch { }
+                    }
+                }
+            }
+
+            // 6. Totales y Agrupación
+            if (replicateTotals)
+            {
+                try { targetDef.IsItemized = snapshot.IsItemized; } catch { }
+                try
+                {
+                    targetDef.ShowGrandTotal = snapshot.ShowGrandTotal;
+                    if (snapshot.ShowGrandTotal)
+                    {
+                        try { targetDef.ShowGrandTotalTitle = snapshot.ShowGrandTotalTitle; } catch { }
+                        try { targetDef.ShowGrandTotalCount = snapshot.ShowGrandTotalCount; } catch { }
+                        try { targetDef.GrandTotalTitle = snapshot.GrandTotalTitle; } catch { }
+                    }
+                }
+                catch { }
+            }
+
+            try { targetDef.ShowTitle = snapshot.ShowTitle; } catch { }
+            try { targetDef.ShowHeaders = snapshot.ShowHeaders; } catch { }
+
+            // 7. Filtros
+            if (replicateFilters)
+            {
+                foreach (var fltSnap in snapshot.Filters)
+                {
+                    if (fieldMap.TryGetValue(fltSnap.SourceFieldId, out var targetFieldId))
+                    {
+                        try
+                        {
+                            ScheduleFilter? cloned = BuildFilter(fltSnap, targetFieldId);
+                            if (cloned != null) targetDef.AddFilter(cloned);
+                        }
+                        catch { }
+                    }
+                }
+            }
+
+            // 8. View Template
+            if (replicateTemplate && snapshot.ViewTemplateId != ElementId.InvalidElementId)
+            {
+                try { targetSchedule.ViewTemplateId = snapshot.ViewTemplateId; } catch { }
+            }
+
+            return replicatedCount;
         }
 
         /// <summary>
@@ -1049,17 +1076,84 @@ namespace RevitToSupabasePlugin
             {
                 t.Start();
 
+                var reservedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
                 foreach (var srcSchedule in schedules)
                 {
                     if (srcSchedule == null || !srcSchedule.IsValidObject) continue;
 
                     try
                     {
-                        ElementId newId = srcSchedule.Duplicate(ViewDuplicateOption.Duplicate);
-                        ViewSchedule newSchedule = (ViewSchedule)doc.GetElement(newId);
-                        if (newSchedule == null) continue;
+                        ViewSchedule? newSchedule = null;
 
-                        // 1. Determinar el nuevo nombre
+                        // Intentar duplicación nativa de Revit si la vista lo soporta
+                        if (srcSchedule.CanViewBeDuplicated(ViewDuplicateOption.Duplicate))
+                        {
+                            try
+                            {
+                                ElementId newId = srcSchedule.Duplicate(ViewDuplicateOption.Duplicate);
+                                newSchedule = doc.GetElement(newId) as ViewSchedule;
+                            }
+                            catch
+                            {
+                                newSchedule = null;
+                            }
+                        }
+
+                        // Si la duplicación nativa no está permitida (ej: vista de ensamblaje o restringida),
+                        // recrearla y transferir todos los campos, formato, filtros y ordenación
+                        if (newSchedule == null)
+                        {
+                            ScheduleSnapshot snapshot = TakeSnapshot(doc, srcSchedule);
+
+                            if (srcSchedule.IsAssemblyView && srcSchedule.AssociatedAssemblyInstanceId != ElementId.InvalidElementId)
+                            {
+                                if (snapshot.IsMaterialTakeoff)
+                                {
+                                    newSchedule = AssemblyViewUtils.CreateMaterialTakeoff(doc, srcSchedule.AssociatedAssemblyInstanceId);
+                                }
+                                else if (snapshot.CategoryId != ElementId.InvalidElementId)
+                                {
+                                    newSchedule = AssemblyViewUtils.CreateSingleCategorySchedule(doc, srcSchedule.AssociatedAssemblyInstanceId, snapshot.CategoryId);
+                                }
+                                else
+                                {
+                                    newSchedule = AssemblyViewUtils.CreatePartList(doc, srcSchedule.AssociatedAssemblyInstanceId);
+                                }
+                            }
+                            else
+                            {
+                                if (snapshot.IsMaterialTakeoff && snapshot.CategoryId != ElementId.InvalidElementId)
+                                {
+                                    newSchedule = ViewSchedule.CreateMaterialTakeoff(doc, snapshot.CategoryId);
+                                }
+                                else if (snapshot.CategoryId != ElementId.InvalidElementId)
+                                {
+                                    newSchedule = ViewSchedule.CreateSchedule(doc, snapshot.CategoryId);
+                                }
+                            }
+
+                            if (newSchedule != null)
+                            {
+                                ApplySnapshotToSchedule(
+                                    doc,
+                                    newSchedule,
+                                    snapshot,
+                                    replicateFormat: true,
+                                    replicateSorting: true,
+                                    replicateTotals: true,
+                                    replicateFilters: true,
+                                    replicateTemplate: true);
+                            }
+                        }
+
+                        if (newSchedule == null)
+                        {
+                            logMessages.Add($"Error: No se pudo generar una copia para la tabla '{srcSchedule.Name}'.");
+                            continue;
+                        }
+
+                        // 1. Determinar el nuevo nombre garantizado único
                         string originalName = srcSchedule.Name;
                         string newName = originalName;
 
@@ -1087,7 +1181,15 @@ namespace RevitToSupabasePlugin
                             newName = newName.Replace(c, '_');
                         }
 
-                        newSchedule.Name = GetUniqueScheduleName(doc, newName.Trim());
+                        string uniqueFinalName = GetUniqueScheduleName(doc, newName.Trim(), reservedNames);
+                        try
+                        {
+                            newSchedule.Name = uniqueFinalName;
+                        }
+                        catch
+                        {
+                            newSchedule.Name = GetUniqueScheduleName(doc, $"{originalName}_Copia", reservedNames);
+                        }
 
                         // 2. Modificar filtros si fue solicitado
                         int filtersModified = 0;
@@ -1368,7 +1470,7 @@ namespace RevitToSupabasePlugin
             }
         }
 
-        public static string GetUniqueScheduleName(Document doc, string desiredName)
+        public static string GetUniqueScheduleName(Document doc, string desiredName, ISet<string>? reservedNames = null)
         {
             var allViewNames = new HashSet<string>(
                 new FilteredElementCollector(doc)
@@ -1377,12 +1479,22 @@ namespace RevitToSupabasePlugin
                     .Select(v => v.Name),
                 StringComparer.OrdinalIgnoreCase);
 
+            if (reservedNames != null)
+            {
+                foreach (var r in reservedNames)
+                {
+                    allViewNames.Add(r);
+                }
+            }
+
             string uniqueName = desiredName;
             int suffix = 1;
             while (allViewNames.Contains(uniqueName))
             {
                 uniqueName = $"{desiredName} ({suffix++})";
             }
+
+            reservedNames?.Add(uniqueName);
             return uniqueName;
         }
 

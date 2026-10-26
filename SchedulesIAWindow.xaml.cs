@@ -349,13 +349,13 @@ namespace RevitToSupabasePlugin
                     filterFind, 
                     filterReplace);
 
+                foreach (var log in logs)
+                {
+                    txtAssemblyLog.Text = $"📑 {log}\n{txtAssemblyLog.Text}";
+                }
+
                 if (duplicates.Count > 0)
                 {
-                    foreach (var log in logs)
-                    {
-                        txtAssemblyLog.Text = $"📑 {log}\n{txtAssemblyLog.Text}";
-                    }
-
                     LoadSchedules();
 
                     // Marcar y enfocar las nuevas tablas duplicadas
@@ -364,6 +364,8 @@ namespace RevitToSupabasePlugin
                     {
                         s.IsChecked = newIds.Contains(s.Id);
                     }
+                    UpdateScheduleSelectionSummary();
+
                     var firstNew = _allSchedules.FirstOrDefault(s => newIds.Contains(s.Id));
                     if (firstNew != null)
                     {
@@ -375,16 +377,20 @@ namespace RevitToSupabasePlugin
                         ? $"\nFiltro asignado: '{filterReplace}'"
                         : "";
 
+                    var errorLines = logs.Where(l => l.StartsWith("Error", StringComparison.OrdinalIgnoreCase)).ToList();
+                    string errorNotice = errorLines.Count > 0 ? $"\n\nObservaciones ({errorLines.Count}):\n" + string.Join("\n", errorLines) : "";
+
                     MessageBox.Show(
                         $"Se duplicaron {duplicates.Count} tabla(s) exitosamente:{filterSummary}\n\n" +
-                        string.Join("\n", duplicates.Select(d => $"• {d.Name}")), 
+                        string.Join("\n", duplicates.Select(d => $"• {d.Name}")) + errorNotice, 
                         "Tablas Duplicadas con Éxito", 
                         MessageBoxButton.OK, 
                         MessageBoxImage.Information);
                 }
                 else
                 {
-                    MessageBox.Show("No se pudo duplicar ninguna de las tablas seleccionadas.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    string details = logs.Count > 0 ? "\n\nDetalles del error:\n" + string.Join("\n", logs) : "";
+                    MessageBox.Show("No se pudo duplicar ninguna de las tablas seleccionadas." + details, "Aviso de Duplicación", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
             catch (Exception ex)
