@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 
@@ -1005,6 +1006,248 @@ namespace RevitToSupabasePlugin
                 t.Commit();
                 return newVs;
             }
+        }
+
+        /// <summary>
+        /// Duplica un conjunto de tablas de planificación en una única transacción atómica, permitiendo
+        /// personalizar el patrón de nombrado y reasignar valores de filtros (ej: cambiar P01 por P03).
+        /// </summary>
+        public static (List<ViewSchedule> duplicatedSchedules, List<string> logMessages) DuplicateSchedules(
+            Document doc,
+            IList<ViewSchedule> schedules,
+            string? findName = null,
+            string? replaceName = null,
+            bool modifyFilters = false,
+            string? filterFindValue = null,
+            string? filterNewValue = null)
+        {
+            var resultList = new List<ViewSchedule>();
+            var logMessages = new List<string>();
+
+            if (schedules == null || schedules.Count == 0)
+                return (resultList, logMessages);
+
+            using (Transaction t = new Transaction(doc, "Duplicar Tablas de Planificación"))
+            {
+                t.Start();
+
+                foreach (var srcSchedule in schedules)
+                {
+                    if (srcSchedule == null || !srcSchedule.IsValidObject) continue;
+
+                    try
+                    {
+                        ElementId newId = srcSchedule.Duplicate(ViewDuplicateOption.Duplicate);
+                        ViewSchedule newSchedule = (ViewSchedule)doc.GetElement(newId);
+                        if (newSchedule == null) continue;
+
+                        // 1. Determinar el nuevo nombre
+                        string originalName = srcSchedule.Name;
+                        string newName = originalName;
+
+                        if (!string.IsNullOrWhiteSpace(findName) && originalName.IndexOf(findName, StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            newName = Regex.Replace(
+                                originalName, 
+                                Regex.Escape(findName), 
+                                replaceName ?? "", 
+                                RegexOptions.IgnoreCase);
+                        }
+                        else if (!string.IsNullOrWhiteSpace(replaceName) && string.IsNullOrWhiteSpace(findName))
+                        {
+                            newName = $"{originalName} {replaceName}";
+                        }
+                        else
+                        {
+                            newName = $"{originalName} (Copia)";
+                        }
+
+                        // Sanear caracteres inválidos de Revit
+                        char[] invalidChars = new char[] { '\\', ':', '{', '}', '[', ']', '|', ';', '<', '>', '?', '`', '~' };
+                        foreach (char c in invalidChars)
+                        {
+                            newName = newName.Replace(c, '_');
+                        }
+
+                        newSchedule.Name = GetUniqueScheduleName(doc, newName.Trim());
+
+                        // 2. Modificar filtros si fue solicitado
+                        int filtersModified = 0;
+                        if (modifyFilters && !string.IsNullOrEmpty(filterNewValue))
+                        {
+                            ScheduleDefinition def = newSchedule.Definition;
+                            IList<ScheduleFilter> currentFilters = def.GetFilters();
+
+                            for (int i = 0; i < currentFilters.Count; i++)
+                            {
+                                ScheduleFilter filter = currentFilters[i];
+                                ScheduleFieldId fieldId = filter.FieldId;
+                                ScheduleFilterType filterType = filter.FilterType;
+
+                                // Verificar si es filtro de string
+                                string? currentStrVal = null;
+                                try { currentStrVal = filter.GetStringValue(); } catch { }
+
+                                if (currentStrVal != null)
+                                {
+                                    bool shouldUpdate = false;
+                                    string updatedStrVal = currentStrVal;
+
+                                    if (string.IsNullOrWhiteSpace(filterFindValue))
+                                    {
+                                        shouldUpdate = true;
+                                        updatedStrVal = filterNewValue;
+                                    }
+                                    else if (currentStrVal.Equals(filterFindValue.Trim(), StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        shouldUpdate = true;
+                                        updatedStrVal = filterNewValue;
+                                    }
+                                    else if (currentStrVal.IndexOf(filterFindValue.Trim(), StringComparison.OrdinalIgnoreCase) >= 0)
+                                    {
+                                        shouldUpdate = true;
+                                        updatedStrVal = Regex.Replace(
+                                            currentStrVal, 
+                                            Regex.Escape(filterFindValue.Trim()), 
+                                            filterNewValue, 
+                                            RegexOptions.IgnoreCase);
+                                    }
+
+                                    if (shouldUpdate)
+                                    {
+                                        try
+                                        {
+                                            ScheduleFilter updatedFilter = new ScheduleFilter(fieldId, filterType, updatedStrVal);
+                                            def.SetFilter(i, updatedFilter);
+                                            filtersModified++;
+                                        }
+                                        catch (Exception fEx)
+                                        {
+                                            System.Diagnostics.Debug.WriteLine($"Error actualizando filtro en {newSchedule.Name}: {fEx.Message}");
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    // Comprobar si es filtro entero
+                                    try
+                                    {
+                                        int intVal = filter.GetIntegerValue();
+                                        if (int.TryParse(filterFindValue, out int findInt) && intVal == findInt && int.TryParse(filterNewValue, out int newInt))
+                                        {
+                                            def.SetFilter(i, new ScheduleFilter(fieldId, filterType, newInt));
+                                            filtersModified++;
+                                        }
+                                    }
+                                    catch { }
+                                }
+                            }
+                        }
+
+                        resultList.Add(newSchedule);
+                        string filterMsg = filtersModified > 0 ? $" [Filtro actualizado a '{filterNewValue}']" : "";
+                        logMessages.Add($"Tabla '{srcSchedule.Name}' duplicada como '{newSchedule.Name}'{filterMsg}.");
+                    }
+                    catch (Exception ex)
+                    {
+                        logMessages.Add($"Error al duplicar '{srcSchedule.Name}': {ex.Message}");
+                    }
+                }
+
+                t.Commit();
+            }
+
+            return (resultList, logMessages);
+        }
+
+        public class ScheduleFilterInfo
+        {
+            public string ScheduleName { get; set; } = string.Empty;
+            public string FieldName { get; set; } = string.Empty;
+            public ScheduleFilterType FilterType { get; set; }
+            public string FilterTypeDisplay { get; set; } = string.Empty;
+            public string CurrentValue { get; set; } = string.Empty;
+            public bool IsString { get; set; }
+
+            public string DisplaySummary => $"{ScheduleName} ➔ [{FieldName}] {FilterTypeDisplay} '{CurrentValue}'";
+        }
+
+        public static List<ScheduleFilterInfo> GetScheduleFiltersInfo(Document doc, IEnumerable<ViewSchedule> schedules)
+        {
+            var result = new List<ScheduleFilterInfo>();
+            if (schedules == null) return result;
+
+            foreach (var sched in schedules)
+            {
+                if (sched == null || !sched.IsValidObject) continue;
+                try
+                {
+                    ScheduleDefinition def = sched.Definition;
+                    IList<ScheduleFilter> filters = def.GetFilters();
+                    foreach (ScheduleFilter f in filters)
+                    {
+                        string fieldName = "Campo";
+                        try { fieldName = def.GetField(f.FieldId).GetName(); } catch { }
+
+                        string val = "";
+                        bool isStr = false;
+                        try
+                        {
+                            val = f.GetStringValue();
+                            isStr = true;
+                        }
+                        catch { }
+
+                        if (string.IsNullOrEmpty(val))
+                        {
+                            try { val = f.GetIntegerValue().ToString(); } catch { }
+                        }
+                        if (string.IsNullOrEmpty(val))
+                        {
+                            try { val = f.GetDoubleValue().ToString(); } catch { }
+                        }
+
+                        if (!string.IsNullOrEmpty(val))
+                        {
+                            result.Add(new ScheduleFilterInfo
+                            {
+                                ScheduleName = sched.Name,
+                                FieldName = fieldName,
+                                FilterType = f.FilterType,
+                                FilterTypeDisplay = GetFilterTypeName(f.FilterType),
+                                CurrentValue = val,
+                                IsString = isStr
+                            });
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            return result;
+        }
+
+        public static string GetFilterTypeName(ScheduleFilterType type)
+        {
+            string s = type.ToString();
+            return s switch
+            {
+                "Equal" => "IGUAL A",
+                "NotEqual" => "NO ES IGUAL A",
+                "Contains" => "CONTIENE",
+                "NotContains" or "DoesNotContain" => "NO CONTIENE",
+                "BeginsWith" => "COMIENZA CON",
+                "NotBeginsWith" => "NO COMIENZA CON",
+                "EndsWith" => "TERMINA CON",
+                "NotEndsWith" => "NO TERMINA CON",
+                "GreaterThan" => "MAYOR QUE",
+                "GreaterThanOrEqual" => "MAYOR O IGUAL QUE",
+                "LessThan" => "MENOR QUE",
+                "LessThanOrEqual" => "MENOR O IGUAL QUE",
+                "HasValue" => "TIENE VALOR",
+                "HasNoValue" => "NO TIENE VALOR",
+                _ => s
+            };
         }
 
         public static void DeleteSchedule(Document doc, ViewSchedule schedule)

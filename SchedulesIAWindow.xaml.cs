@@ -168,34 +168,203 @@ namespace RevitToSupabasePlugin
             }
         }
 
+        private List<ScheduleListItemViewModel> GetTargetSchedules()
+        {
+            var checkedItems = _allSchedules.Where(s => s.IsChecked && s.IsValid && _doc.GetElement(s.Id) != null).ToList();
+            if (checkedItems.Count > 0)
+            {
+                return checkedItems;
+            }
+
+            var selectedItems = lstSchedules.SelectedItems.OfType<ScheduleListItemViewModel>()
+                .Where(s => s.IsValid && _doc.GetElement(s.Id) != null).ToList();
+            if (selectedItems.Count > 0)
+            {
+                return selectedItems;
+            }
+
+            if (lstSchedules.SelectedItem is ScheduleListItemViewModel single && single.IsValid && _doc.GetElement(single.Id) != null)
+            {
+                return new List<ScheduleListItemViewModel> { single };
+            }
+
+            return new List<ScheduleListItemViewModel>();
+        }
+
+        private List<ScheduleListItemViewModel>? _schedulesBeingDuplicated;
+        private bool _syncFilterWithReplaceName = true;
+
         private void btnDuplicateSchedule_Click(object sender, RoutedEventArgs e)
         {
-            var target = lstSchedules.SelectedItem as ScheduleListItemViewModel;
-            if (target == null || !target.IsValid || _doc.GetElement(target.Id) == null)
+            var targets = GetTargetSchedules();
+            if (targets.Count == 0)
             {
-                MessageBox.Show("Por favor, selecciona una tabla válida en la lista para duplicarla.", "Selección Requerida", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Por favor, selecciona o marca con la casilla al menos una tabla para duplicarla.", "Selección Requerida", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            try
+            _schedulesBeingDuplicated = targets;
+
+            txtDupModalTitle.Text = targets.Count == 1 
+                ? "Duplicar Tabla de Planificación" 
+                : $"Duplicar {targets.Count} Tablas de Planificación";
+
+            lblDupTablesCount.Text = $"TABLAS SELECCIONADAS ({targets.Count}):";
+            icDupSelectedTables.ItemsSource = targets.Select(t => $"• {t.Name}").ToList();
+
+            // Analizar filtros existentes en las tablas seleccionadas
+            var filtersInfo = AssemblyScheduleService.GetScheduleFiltersInfo(_doc, targets.Select(t => t.Schedule));
+            if (filtersInfo.Count > 0)
             {
-                ViewSchedule newSched = AssemblyScheduleService.DuplicateSchedule(_doc, target.Schedule);
-                txtAssemblyLog.Text = $"📑 Tabla duplicada exitosamente: '{newSched.Name}'.\n{txtAssemblyLog.Text}";
+                txtDupDetectedFiltersSummary.Text = string.Join("\n", filtersInfo.Select(f => $"• {f.ScheduleName} ➔ [{f.FieldName}] {f.FilterTypeDisplay} '{f.CurrentValue}'"));
                 
-                LoadSchedules();
-                
-                // Seleccionar la nueva tabla
-                var found = _allSchedules.FirstOrDefault(s => s.Id == newSched.Id);
-                if (found != null)
+                string firstVal = filtersInfo[0].CurrentValue;
+                txtDupFilterFind.Text = firstVal;
+
+                if (targets.Any(t => t.Name.IndexOf(firstVal, StringComparison.OrdinalIgnoreCase) >= 0))
                 {
-                    lstSchedules.SelectedItem = found;
+                    txtDupFindName.Text = firstVal;
+                }
+                else
+                {
+                    txtDupFindName.Text = "";
                 }
 
-                MessageBox.Show($"Tabla duplicada con éxito:\n'{newSched.Name}'", "Tabla Duplicada", MessageBoxButton.OK, MessageBoxImage.Information);
+                txtDupReplaceName.Text = "";
+                txtDupFilterReplace.Text = "";
+                chkDupModifyFilters.IsChecked = true;
+                if (pnlDupFilterFields != null)
+                {
+                    pnlDupFilterFields.IsEnabled = true;
+                    pnlDupFilterFields.Opacity = 1.0;
+                }
+            }
+            else
+            {
+                txtDupDetectedFiltersSummary.Text = "(Las tablas seleccionadas no tienen ningún filtro configurado en Revit).";
+                txtDupFilterFind.Text = "";
+                txtDupFilterReplace.Text = "";
+                txtDupFindName.Text = "";
+                txtDupReplaceName.Text = "";
+                chkDupModifyFilters.IsChecked = false;
+                if (pnlDupFilterFields != null)
+                {
+                    pnlDupFilterFields.IsEnabled = false;
+                    pnlDupFilterFields.Opacity = 0.45;
+                }
+            }
+
+            _syncFilterWithReplaceName = true;
+            btnConfirmDuplicate.Content = targets.Count == 1 ? "📑 Duplicar Tabla" : $"📑 Duplicar {targets.Count} Tablas";
+            pnlDuplicateModal.Visibility = WpfVisibility.Visible;
+            txtDupReplaceName.Focus();
+            txtDupReplaceName.SelectAll();
+        }
+
+        private void txtDupReplaceName_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_syncFilterWithReplaceName && chkDupModifyFilters.IsChecked == true)
+            {
+                txtDupFilterReplace.Text = txtDupReplaceName.Text;
+            }
+        }
+
+        private void txtDupFilterReplace_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (txtDupFilterReplace.IsFocused)
+            {
+                _syncFilterWithReplaceName = false;
+            }
+        }
+
+        private void chkDupModifyFilters_Changed(object sender, RoutedEventArgs e)
+        {
+            if (pnlDupFilterFields != null)
+            {
+                pnlDupFilterFields.IsEnabled = chkDupModifyFilters.IsChecked == true;
+                pnlDupFilterFields.Opacity = chkDupModifyFilters.IsChecked == true ? 1.0 : 0.45;
+            }
+        }
+
+        private void btnCancelDuplicate_Click(object sender, RoutedEventArgs e)
+        {
+            pnlDuplicateModal.Visibility = WpfVisibility.Collapsed;
+            _schedulesBeingDuplicated = null;
+        }
+
+        private void btnConfirmDuplicate_Click(object sender, RoutedEventArgs e)
+        {
+            if (_schedulesBeingDuplicated == null || _schedulesBeingDuplicated.Count == 0)
+            {
+                pnlDuplicateModal.Visibility = WpfVisibility.Collapsed;
+                return;
+            }
+
+            string findName = txtDupFindName.Text?.Trim() ?? "";
+            string replaceName = txtDupReplaceName.Text?.Trim() ?? "";
+            bool modifyFilters = chkDupModifyFilters.IsChecked == true;
+            string filterFind = txtDupFilterFind.Text?.Trim() ?? "";
+            string filterReplace = txtDupFilterReplace.Text?.Trim() ?? "";
+
+            pnlDuplicateModal.Visibility = WpfVisibility.Collapsed;
+
+            try
+            {
+                var targetSchedules = _schedulesBeingDuplicated.Select(s => s.Schedule).ToList();
+                var (duplicates, logs) = AssemblyScheduleService.DuplicateSchedules(
+                    _doc, 
+                    targetSchedules, 
+                    findName, 
+                    replaceName, 
+                    modifyFilters, 
+                    filterFind, 
+                    filterReplace);
+
+                if (duplicates.Count > 0)
+                {
+                    foreach (var log in logs)
+                    {
+                        txtAssemblyLog.Text = $"📑 {log}\n{txtAssemblyLog.Text}";
+                    }
+
+                    LoadSchedules();
+
+                    // Marcar y enfocar las nuevas tablas duplicadas
+                    var newIds = new HashSet<ElementId>(duplicates.Select(d => d.Id));
+                    foreach (var s in _allSchedules)
+                    {
+                        s.IsChecked = newIds.Contains(s.Id);
+                    }
+                    var firstNew = _allSchedules.FirstOrDefault(s => newIds.Contains(s.Id));
+                    if (firstNew != null)
+                    {
+                        lstSchedules.SelectedItem = firstNew;
+                        lstSchedules.ScrollIntoView(firstNew);
+                    }
+
+                    string filterSummary = (modifyFilters && !string.IsNullOrEmpty(filterReplace))
+                        ? $"\nFiltro asignado: '{filterReplace}'"
+                        : "";
+
+                    MessageBox.Show(
+                        $"Se duplicaron {duplicates.Count} tabla(s) exitosamente:{filterSummary}\n\n" +
+                        string.Join("\n", duplicates.Select(d => $"• {d.Name}")), 
+                        "Tablas Duplicadas con Éxito", 
+                        MessageBoxButton.OK, 
+                        MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show("No se pudo duplicar ninguna de las tablas seleccionadas.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al duplicar la tabla: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error durante la duplicación de tablas: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                _schedulesBeingDuplicated = null;
             }
         }
 
@@ -259,18 +428,7 @@ namespace RevitToSupabasePlugin
 
         private void btnDeleteSchedule_Click(object sender, RoutedEventArgs e)
         {
-            // Determinar si hay tablas marcadas con Checkbox o si se borra la seleccionada
-            var checkedSchedules = _allSchedules.Where(s => s.IsChecked).ToList();
-            List<ScheduleListItemViewModel> targetsToDelete = new List<ScheduleListItemViewModel>();
-
-            if (checkedSchedules.Count > 0)
-            {
-                targetsToDelete = checkedSchedules;
-            }
-            else if (lstSchedules.SelectedItem is ScheduleListItemViewModel singleSelected)
-            {
-                targetsToDelete.Add(singleSelected);
-            }
+            var targetsToDelete = GetTargetSchedules();
 
             if (targetsToDelete.Count == 0)
             {

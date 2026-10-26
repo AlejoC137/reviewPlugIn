@@ -170,6 +170,7 @@
 
                     <!-- LISTA DE TABLAS -->
                     <ListBox x:Name="lstSchedules" Grid.Row="3" SelectionChanged="lstSchedules_SelectionChanged" 
+                             SelectionMode="Extended"
                              Background="#FFFFFF" Foreground="#1C1C19" BorderBrush="#1C1C19" BorderThickness="1"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ContextMenu>
@@ -221,7 +222,7 @@
                                     </Grid.ColumnDefinitions>
 
                                     <!-- CHECKBOX PARA ACCIONES POR LOTE -->
-                                    <CheckBox Grid.RowSpan="2" Style="{StaticResource ArcaCheckBox}" IsChecked="{Binding IsChecked}" VerticalAlignment="Center" Margin="0,0,6,0" ToolTip="Marcar para eliminación masiva"/>
+                                    <CheckBox Grid.RowSpan="2" Style="{StaticResource ArcaCheckBox}" IsChecked="{Binding IsChecked}" VerticalAlignment="Center" Margin="0,0,6,0" ToolTip="Marcar para duplicar, renombrar o eliminar"/>
 
                                     <!-- NOMBRE DE TABLA -->
                                     <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="#1C1C19" FontSize="11" Grid.Row="0" Grid.Column="1" TextTrimming="CharacterEllipsis"/>
@@ -439,6 +440,117 @@
                         <Button Content="Guardar Nombre" Click="btnSaveRename_Click" Style="{StaticResource PrimaryButton}" Padding="12,5" FontSize="11"/>
                     </StackPanel>
                 </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- MODAL OVERLAY PARA DUPLICAR TABLAS Y REASIGNAR FILTROS / PARÁMETROS -->
+        <Grid x:Name="pnlDuplicateModal" Grid.Row="0" Grid.RowSpan="4" Background="#7F1C1C19" Visibility="Collapsed">
+            <Border Width="580" MaxHeight="620" Background="#FCF9F4" BorderBrush="#0F4369" BorderThickness="2" CornerRadius="0" Padding="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- HEADER -->
+                    <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="📑" FontSize="16" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBlock x:Name="txtDupModalTitle" Text="Duplicar Tablas de Planificación" FontSize="13.5" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Text="Crea copias exactas en el modelo con personalización de nombres y reasignación de filtros de parámetros (ej: P01 ➔ P03)." 
+                                   FontSize="10.5" Foreground="#72777F" Margin="0,2,0,0"/>
+                    </StackPanel>
+
+                    <!-- CONTENIDO SCROLLEABLE -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,0,12">
+                        <StackPanel>
+                            <!-- 1. TABLAS SELECCIONADAS -->
+                            <TextBlock x:Name="lblDupTablesCount" Text="TABLAS SELECCIONADAS (0):" FontSize="10" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,0,4"/>
+                            <Border Background="#FFFFFF" BorderBrush="#C2C7CF" BorderThickness="1" Padding="6" MaxHeight="80" Margin="0,0,0,10">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl x:Name="icDupSelectedTables">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" FontSize="10.5" Foreground="#1C1C19" Margin="2,1" TextTrimming="CharacterEllipsis"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Border>
+
+                            <!-- 2. REGLAS DE NOMBRADO -->
+                            <Border Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="1" Padding="10" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="1. NOMBRE DE LAS NUEVAS TABLAS" FontSize="10.5" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,0,6"/>
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="10"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Buscar texto en nombre:" FontSize="10" Foreground="#72777F" Margin="0,0,0,2"/>
+                                            <TextBox x:Name="txtDupFindName" Style="{StaticResource ArcaTextBox}" FontSize="11" ToolTip="Texto que se buscará en el nombre original (ej: P01)"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Reemplazar por:" FontSize="10" Foreground="#72777F" Margin="0,0,0,2"/>
+                                            <TextBox x:Name="txtDupReplaceName" Style="{StaticResource ArcaTextBox}" FontSize="11" TextChanged="txtDupReplaceName_TextChanged" ToolTip="Texto con el que se sustituirá (ej: P03)"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Text="💡 Si dejas 'Buscar' vacío, se agregará '(Copia)' o el texto de reemplazo al final del nombre." 
+                                               FontSize="9.5" Foreground="#72777F" FontStyle="Italic"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 3. REASIGNACIÓN DE FILTROS / PARÁMETROS -->
+                            <Border Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1" Padding="10">
+                                <StackPanel>
+                                    <CheckBox x:Name="chkDupModifyFilters" Style="{StaticResource ArcaCheckBox}" 
+                                              Content="2. Reasignar filtros de parámetros en las tablas duplicadas" 
+                                              IsChecked="True" FontWeight="Bold" Foreground="#0F4369" 
+                                              Checked="chkDupModifyFilters_Changed" Unchecked="chkDupModifyFilters_Changed" Margin="0,0,0,6"/>
+
+                                    <StackPanel x:Name="pnlDupFilterFields">
+                                        <!-- FILTROS DETECTADOS -->
+                                        <TextBlock Text="Filtros detectados en las tablas seleccionadas:" FontSize="9.5" Foreground="#72777F" Margin="0,0,0,2"/>
+                                        <Border Background="#F6F3EE" BorderBrush="#C2C7CF" BorderThickness="1" Padding="6" MaxHeight="65" Margin="0,0,0,8">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <TextBlock x:Name="txtDupDetectedFiltersSummary" Text="Analizando filtros..." FontSize="9.5" Foreground="#1C1C19" TextWrapping="Wrap"/>
+                                            </ScrollViewer>
+                                        </Border>
+
+                                        <!-- VALORES DE FILTRO: BUSCAR Y REEMPLAZAR -->
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="10"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Valor actual en filtro (buscar):" FontSize="10" Foreground="#72777F" Margin="0,0,0,2"/>
+                                                <TextBox x:Name="txtDupFilterFind" Style="{StaticResource ArcaTextBox}" FontSize="11" ToolTip="Valor actual del filtro en Revit (ej: P01)"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Nuevo valor en las copias:" FontSize="10" Foreground="#72777F" Margin="0,0,0,2"/>
+                                                <TextBox x:Name="txtDupFilterReplace" Style="{StaticResource ArcaTextBox}" FontSize="11" TextChanged="txtDupFilterReplace_TextChanged" ToolTip="Nuevo valor a aplicar en el filtro (ej: P03)"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Text="🎯 Ejemplo: Si el filtro original tiene 'Nivel IGUAL a P01', en la copia pasará automáticamente a 'Nivel IGUAL a P03'." 
+                                                   FontSize="9.5" Foreground="#0F4369" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- BOTONES INFERIORES -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Cancelar" Click="btnCancelDuplicate_Click" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" Padding="14,6" FontSize="11"/>
+                        <Button x:Name="btnConfirmDuplicate" Content="📑 Duplicar Tablas" Click="btnConfirmDuplicate_Click" Style="{StaticResource PrimaryButton}" Padding="16,6" FontSize="11"/>
+                    </StackPanel>
+                </Grid>
             </Border>
         </Grid>
     </Grid>
