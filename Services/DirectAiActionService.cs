@@ -83,6 +83,15 @@ namespace reviewPlugIn.Services
         [JsonProperty("instruction")]
         public string Instruction { get; set; } = "";
 
+        [JsonProperty("iteration_mode")]
+        public string IterationMode { get; set; } = "ALL_ELEMENTS";
+
+        [JsonProperty("naming_column")]
+        public string NamingColumn { get; set; } = "";
+
+        [JsonProperty("grouping_column")]
+        public string GroupingColumn { get; set; } = "";
+
         [JsonProperty("target_schedule_id")]
         public string TargetScheduleId { get; set; } = "";
 
@@ -623,6 +632,18 @@ namespace reviewPlugIn.Services
                 ?? outerNode?["target_schedule_name"]?.ToString()
                 ?? "";
 
+            string iterationMode = raToken["iteration_mode"]?.ToString()
+                ?? outerNode?["iteration_mode"]?.ToString()
+                ?? "ALL_ELEMENTS";
+
+            string namingColumn = raToken["naming_column"]?.ToString()
+                ?? outerNode?["naming_column"]?.ToString()
+                ?? "";
+
+            string groupingColumn = raToken["grouping_column"]?.ToString()
+                ?? outerNode?["grouping_column"]?.ToString()
+                ?? "";
+
             if (string.IsNullOrWhiteSpace(description) && !string.IsNullOrWhiteSpace(instruction))
             {
                 description = instruction;
@@ -642,6 +663,9 @@ namespace reviewPlugIn.Services
                 Category = category,
                 Operation = operation,
                 Instruction = instruction,
+                IterationMode = iterationMode,
+                NamingColumn = namingColumn,
+                GroupingColumn = groupingColumn,
                 TargetScheduleId = targetScheduleId,
                 TargetScheduleName = targetScheduleName,
                 Filter = filterObj,
