@@ -32,12 +32,17 @@ namespace RevitToSupabasePlugin
         private ScheduleListItemViewModel? _selectedTemplate;
         private List<ScheduleFieldDisplayItem> _currentTemplateFields = new List<ScheduleFieldDisplayItem>();
 
+        // Módulo de Cuadro de Puertas & Ensamblajes Batch
+        private List<DoorScheduleFieldConfig> _doorFields = new List<DoorScheduleFieldConfig>();
+        private List<DoorItemViewModel> _allDoors = new List<DoorItemViewModel>();
+
         public SchedulesIAWindow(Document doc, UIDocument? uidoc = null)
         {
             InitializeComponent();
             _doc = doc;
             _uidoc = uidoc;
 
+            InitDoorModule();
             RefreshAll();
         }
 
@@ -46,6 +51,7 @@ namespace RevitToSupabasePlugin
             LoadSchedules();
             LoadAssemblies();
             UpdateTemplateSelectionState();
+            LoadDoors();
         }
 
         #region 1. Carga y Filtro de Tablas
@@ -996,6 +1002,238 @@ namespace RevitToSupabasePlugin
         private void btnRefreshAll_Click(object sender, RoutedEventArgs e)
         {
             RefreshAll();
+        }
+
+        #endregion
+
+        #region 5. Módulo: Cuadro de Puertas & Batch Assemblies / Vistas
+
+        private void InitDoorModule()
+        {
+            _doorFields = DoorAssemblyManagerService.GetDefaultDoorFields();
+            if (lstDoorFieldsConfig != null)
+            {
+                lstDoorFieldsConfig.ItemsSource = _doorFields;
+            }
+        }
+
+        private void LoadDoors()
+        {
+            try
+            {
+                bool groupByInstance = rbDoorGroupInstance?.IsChecked == true;
+                _allDoors = DoorAssemblyManagerService.GetDoorItems(_doc, groupByInstance);
+                ApplyDoorFilter();
+            }
+            catch (Exception ex)
+            {
+                if (txtDoorSummary != null)
+                {
+                    txtDoorSummary.Text = $"Error cargando puertas: {ex.Message}";
+                }
+            }
+        }
+
+        private void ApplyDoorFilter()
+        {
+            if (_allDoors == null || lstDoorItems == null) return;
+
+            string searchText = txtSearchDoors?.Text?.Trim().ToLowerInvariant() ?? "";
+            var query = _allDoors.AsEnumerable();
+
+            if (!string.IsNullOrEmpty(searchText))
+            {
+                query = query.Where(d =>
+                    d.FamilyName.ToLowerInvariant().Contains(searchText) ||
+                    d.TypeName.ToLowerInvariant().Contains(searchText) ||
+                    d.Mark.ToLowerInvariant().Contains(searchText) ||
+                    d.LevelName.ToLowerInvariant().Contains(searchText));
+            }
+
+            var filtered = query.ToList();
+            lstDoorItems.ItemsSource = filtered;
+
+            UpdateDoorSummaryText();
+        }
+
+        private void UpdateDoorSummaryText()
+        {
+            if (txtDoorSummary == null || _allDoors == null) return;
+
+            int total = _allDoors.Count;
+            int selected = _allDoors.Count(d => d.IsSelected);
+            int inAss = _allDoors.Count(d => d.AlreadyInAssembly);
+            int totalInstances = _allDoors.Sum(d => d.InstanceCount);
+
+            bool isByType = rbDoorGroupType?.IsChecked == true;
+            string unit = isByType ? "tipos" : "ejemplares";
+
+            txtDoorSummary.Text = $"Catálogo: {total} {unit} ({totalInstances} puertas en total en el modelo) | ☑️ {selected} seleccionadas | 📦 {inAss} ya en ensamblaje";
+        }
+
+        private void rbDoorGroupMode_Checked(object sender, RoutedEventArgs e)
+        {
+            LoadDoors();
+        }
+
+        private void txtSearchDoors_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ApplyDoorFilter();
+        }
+
+        private void btnSelectAllDoors_Click(object sender, RoutedEventArgs e)
+        {
+            if (lstDoorItems?.ItemsSource is IEnumerable<DoorItemViewModel> items)
+            {
+                foreach (var d in items) d.IsSelected = true;
+                UpdateDoorSummaryText();
+            }
+        }
+
+        private void btnDeselectAllDoors_Click(object sender, RoutedEventArgs e)
+        {
+            if (lstDoorItems?.ItemsSource is IEnumerable<DoorItemViewModel> items)
+            {
+                foreach (var d in items) d.IsSelected = false;
+                UpdateDoorSummaryText();
+            }
+        }
+
+        private void btnSelectDoorsWithoutAssembly_Click(object sender, RoutedEventArgs e)
+        {
+            if (lstDoorItems?.ItemsSource is IEnumerable<DoorItemViewModel> items)
+            {
+                foreach (var d in items) d.IsSelected = !d.AlreadyInAssembly;
+                UpdateDoorSummaryText();
+            }
+        }
+
+        private void btnSelectAllDoorFields_Click(object sender, RoutedEventArgs e)
+        {
+            foreach (var f in _doorFields) f.IsSelected = true;
+            lstDoorFieldsConfig.Items.Refresh();
+        }
+
+        private void btnDeselectAllDoorFields_Click(object sender, RoutedEventArgs e)
+        {
+            foreach (var f in _doorFields) f.IsSelected = false;
+            lstDoorFieldsConfig.Items.Refresh();
+        }
+
+        private void btnResetDoorFields_Click(object sender, RoutedEventArgs e)
+        {
+            _doorFields = DoorAssemblyManagerService.GetDefaultDoorFields();
+            lstDoorFieldsConfig.ItemsSource = _doorFields;
+        }
+
+        private void btnGenerateDoorSchedule_Click(object sender, RoutedEventArgs e)
+        {
+            string schedName = txtDoorScheduleName?.Text?.Trim() ?? "CUADRO GENERAL DE PUERTAS";
+            bool itemize = chkDoorItemize?.IsChecked ?? false;
+
+            var (sched, msg) = DoorAssemblyManagerService.CreateOrUpdateDoorSchedule(_doc, schedName, _doorFields, itemize);
+
+            txtAssemblyLog.Text = $"📋 {msg}\n{txtAssemblyLog.Text}";
+
+            if (sched != null)
+            {
+                LoadSchedules();
+                MessageBox.Show(msg, "Cuadro de Puertas Generado", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show(msg, "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void btnCreateDoorAssembliesOnly_Click(object sender, RoutedEventArgs e)
+        {
+            ExecuteBatchDoorCreation(createViews: false);
+        }
+
+        private void btnCreateDoorAssembliesAndViews_Click(object sender, RoutedEventArgs e)
+        {
+            ExecuteBatchDoorCreation(createViews: true);
+        }
+
+        private void ExecuteBatchDoorCreation(bool createViews)
+        {
+            var selectedDoors = _allDoors.Where(d => d.IsSelected).ToList();
+            if (selectedDoors.Count == 0)
+            {
+                MessageBox.Show("Por favor selecciona al menos una puerta o tipo en la lista.", "Selección Requerida", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            bool groupByInstance = rbDoorGroupInstance?.IsChecked == true;
+
+            var logSb = new StringBuilder();
+            logSb.AppendLine($"=== INICIO: BATCH CREACIÓN DE ENSAMBLAJES DE PUERTAS ===");
+            logSb.AppendLine($"Hora: {DateTime.Now:HH:mm:ss} | Modo: {(groupByInstance ? "Por Ejemplar" : "Por Tipo de Puerta")}");
+            logSb.AppendLine($"Puertas seleccionadas: {selectedDoors.Count}");
+
+            // 1. Crear Ensamblajes
+            var (createdAssemblies, assLogs) = DoorAssemblyManagerService.CreateBatchDoorAssemblies(_doc, selectedDoors, groupByInstance);
+
+            foreach (var l in assLogs)
+            {
+                logSb.AppendLine($"• {l}");
+            }
+
+            int createdViewsCount = 0;
+
+            // 2. Generar Vistas si fue solicitado
+            if (createViews && createdAssemblies.Count > 0)
+            {
+                logSb.AppendLine("\n--- GENERACIÓN BATCH DE VISTAS TÉCNICAS ---");
+
+                var viewOpts = new AssemblyBatchViewOptions
+                {
+                    CreateSchedule = chkBatchViewSchedule?.IsChecked ?? true,
+                    ScheduleNameTemplate = "Despiece y Medidas",
+                    CreatePlan = chkBatchViewPlan?.IsChecked ?? true,
+                    CreateFrontElevation = chkBatchViewFront?.IsChecked ?? true,
+                    CreateBackElevation = chkBatchViewBack?.IsChecked ?? false,
+                    Create3DOrthographic = chkBatchView3D?.IsChecked ?? true,
+                    CreateSection = chkBatchViewSection?.IsChecked ?? false
+                };
+
+                // Si hay una tabla de puertas o plantilla activa, usarla como molde
+                ViewSchedule? masterTemplate = _selectedTemplate?.Schedule;
+                if (masterTemplate == null)
+                {
+                    // Buscar si existe el cuadro de puertas
+                    masterTemplate = new FilteredElementCollector(_doc)
+                        .OfClass(typeof(ViewSchedule))
+                        .Cast<ViewSchedule>()
+                        .FirstOrDefault(s => !s.IsTemplate && s.Definition.CategoryId == new ElementId(BuiltInCategory.OST_Doors));
+                }
+
+                var (viewsCount, viewLogs) = DoorAssemblyManagerService.CreateBatchAssemblyViews(_doc, createdAssemblies, viewOpts, masterTemplate);
+                createdViewsCount = viewsCount;
+
+                foreach (var vl in viewLogs)
+                {
+                    logSb.AppendLine(vl);
+                }
+            }
+
+            logSb.AppendLine("--------------------------------------------------");
+            logSb.AppendLine($"RESUMEN FINAL:");
+            logSb.AppendLine($"• Ensamblajes creados: {createdAssemblies.Count}");
+            if (createViews) logSb.AppendLine($"• Vistas/Tablas técnicas generadas: {createdViewsCount}");
+            logSb.AppendLine($"Hora de término: {DateTime.Now:HH:mm:ss}");
+
+            txtAssemblyLog.Text = logSb.ToString() + "\n" + txtAssemblyLog.Text;
+
+            // Refrescar todos los listados de la interfaz
+            RefreshAll();
+
+            string completionMsg = createViews
+                ? $"¡Proceso Batch Completado con Éxito!\n\n• Ensamblajes creados: {createdAssemblies.Count}\n• Vistas y despieces técnicos generados: {createdViewsCount}\n\nLos ensamblajes y sus vistas correspondientes ya están disponibles en el Navegador de Proyectos de Revit."
+                : $"¡Ensamblajes Batch Creados con Éxito!\n\n• Ensamblajes generados: {createdAssemblies.Count}\n\nPuedes generar sus vistas en cualquier momento.";
+
+            MessageBox.Show(completionMsg, "Operación Batch Exitosa", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         #endregion

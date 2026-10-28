@@ -259,7 +259,49 @@
 
         <!-- DATA GRID DE SHEETS -->
         <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}" Padding="0">
-            <DataGrid x:Name="dgSheets" AutoGenerateColumns="False" CanUserAddRows="False"
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- BARRA DE INSERCIÓN / DESPLAZAMIENTO EN CASCADA -->
+                <Border Grid.Row="0" Background="#FFF7ED" BorderBrush="#FED7AA" BorderThickness="0,0,0,1" CornerRadius="6,6,0,0" Padding="12,8">
+                    <StackPanel>
+                        <TextBlock Text="➕ INSERTAR / DESPLAZAR EN CASCADA (selecciona una lámina de referencia en la tabla)" FontSize="11" FontWeight="Bold" Foreground="#C2410C" Margin="0,0,0,6"/>
+                        <WrapPanel Orientation="Horizontal">
+                            <StackPanel Margin="0,0,8,4">
+                                <TextBlock Text="Nombre nueva lámina:" FontSize="10" FontWeight="Bold" Foreground="#555550" Margin="0,0,0,2"/>
+                                <TextBox x:Name="txtInsertName" Width="220" ToolTip="Nombre de la lámina que se va a crear"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,8,4">
+                                <TextBlock Text="Cartela (Title Block):" FontSize="10" FontWeight="Bold" Foreground="#555550" Margin="0,0,0,2"/>
+                                <ComboBox x:Name="cmbTitleBlock" Width="230"/>
+                            </StackPanel>
+                            <Button Content="⬆️ Insertar Antes" Style="{StaticResource PrimaryButtonStyle}" Click="BtnInsertBefore_Click" Margin="0,0,6,4" VerticalAlignment="Bottom"
+                                    ToolTip="Crea la lámina con el número de la seleccionada y desplaza +1 la seleccionada y las siguientes de la misma serie"/>
+                            <Button Content="⬇️ Insertar Después" Style="{StaticResource PrimaryButtonStyle}" Click="BtnInsertAfter_Click" Margin="0,0,8,4" VerticalAlignment="Bottom"
+                                    ToolTip="Crea la lámina con el número siguiente a la seleccionada y desplaza +1 todas las siguientes de la misma serie"/>
+                            <CheckBox x:Name="chkCopyProps" Content="Copiar propiedades de la referencia" IsChecked="True" FontSize="11" VerticalAlignment="Bottom" Margin="0,0,16,8"
+                                      ToolTip="Duplica en la nueva lámina todos los parámetros editables de la lámina seleccionada (dibujado por, fecha, parámetros compartidos/de proyecto, revisiones), los parámetros de la cartela y su posición"/>
+
+                            <Border Width="1" Background="#FED7AA" Margin="0,0,16,4"/>
+
+                            <StackPanel Margin="0,0,8,4">
+                                <TextBlock Text="Cantidad:" FontSize="10" FontWeight="Bold" Foreground="#555550" Margin="0,0,0,2"/>
+                                <TextBox x:Name="txtShiftAmount" Text="1" Width="50"/>
+                            </StackPanel>
+                            <Button Content="➕ Desplazar +N" Style="{StaticResource SecondaryButtonStyle}" Click="BtnShiftUp_Click" Margin="0,0,6,4" VerticalAlignment="Bottom"
+                                    ToolTip="Suma N a la lámina seleccionada y a todas las siguientes de la misma serie (reserva huecos)"/>
+                            <Button Content="➖ Desplazar -N" Style="{StaticResource SecondaryButtonStyle}" Click="BtnShiftDown_Click" Margin="0,0,12,4" VerticalAlignment="Bottom"
+                                    ToolTip="Resta N a la lámina seleccionada y a todas las siguientes de la misma serie (cierra huecos)"/>
+                            <CheckBox x:Name="chkStopAtGap" Content="Detener en el primer hueco" FontSize="11" VerticalAlignment="Bottom" Margin="0,0,0,8"
+                                      ToolTip="Al insertar o desplazar +N, solo mueve las láminas necesarias hasta encontrar un número libre"/>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+            <DataGrid Grid.Row="1" x:Name="dgSheets" AutoGenerateColumns="False" CanUserAddRows="False"
                       CanUserDeleteRows="False" SelectionMode="Single"
                       HeadersVisibility="Column" GridLinesVisibility="Horizontal"
                       HorizontalGridLinesBrush="#EAE5DC" Background="#FFFFFF"
@@ -288,6 +330,7 @@
                     <DataGridTextColumn Header="Estado" Binding="{Binding StatusText}" IsReadOnly="True" Width="*"/>
                 </DataGrid.Columns>
             </DataGrid>
+            </Grid>
         </Border>
 
         <!-- BARRA INFERIOR DE ACCIONES -->

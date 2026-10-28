@@ -8,10 +8,16 @@ using System.Linq;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Microsoft.Win32;
 using TaskDialog = Autodesk.Revit.UI.TaskDialog;
+using TextBox = System.Windows.Controls.TextBox;
+using DataGrid = System.Windows.Controls.DataGrid;
+using DataGridCell = System.Windows.Controls.DataGridCell;
+using DataGridRow = System.Windows.Controls.DataGridRow;
 
 namespace RevitToSupabasePlugin
 {
@@ -61,6 +67,9 @@ namespace RevitToSupabasePlugin
 
         public string FamilyKindText => IsLoadableFamily ? "Cargable (.rfa)" : "Sistema";
 
+        public bool IsFamilyModified => !string.IsNullOrEmpty(NewFamilyName) && NewFamilyName != OriginalFamilyName;
+        public bool IsTypeModified => !string.IsNullOrEmpty(NewTypeName) && NewTypeName != OriginalTypeName;
+
         public bool IsSelected
         {
             get => _isSelected;
@@ -84,6 +93,7 @@ namespace RevitToSupabasePlugin
                 {
                     _newFamilyName = val;
                     OnPropertyChanged(nameof(NewFamilyName));
+                    OnPropertyChanged(nameof(IsFamilyModified));
                     Validate();
                 }
             }
@@ -99,6 +109,7 @@ namespace RevitToSupabasePlugin
                 {
                     _newTypeName = val;
                     OnPropertyChanged(nameof(NewTypeName));
+                    OnPropertyChanged(nameof(IsTypeModified));
                     Validate();
                 }
             }
@@ -159,7 +170,7 @@ namespace RevitToSupabasePlugin
             bool typeChanged = !string.IsNullOrEmpty(typ) && typ != origTyp;
 
             // 1. Validar caracteres ilegales en nombre de familia
-            if (familyChanged && IsLoadableFamily)
+            if (familyChanged)
             {
                 if (string.IsNullOrWhiteSpace(fam))
                 {
@@ -215,6 +226,9 @@ namespace RevitToSupabasePlugin
                 ValidationStatus = RevisorValidationStatus.Unchanged;
                 StatusText = "Sin cambios";
             }
+
+            OnPropertyChanged(nameof(IsFamilyModified));
+            OnPropertyChanged(nameof(IsTypeModified));
         }
 
         public void SetError(string message)
@@ -222,6 +236,8 @@ namespace RevitToSupabasePlugin
             ValidationStatus = RevisorValidationStatus.Error;
             ErrorMessage = message;
             StatusText = $"❌ {message}";
+            OnPropertyChanged(nameof(IsFamilyModified));
+            OnPropertyChanged(nameof(IsTypeModified));
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -531,15 +547,15 @@ namespace RevitToSupabasePlugin
         {
             if (_allItems == null || _allItems.Count == 0) return;
 
-            // 1. Unicidad de nombres de familias cargables
+            // 1. Unicidad de nombres de familias
             var familyGroups = _allItems
-                .Where(i => i != null && i.IsLoadableFamily && !string.IsNullOrWhiteSpace(i.NewFamilyName))
+                .Where(i => i != null && !string.IsNullOrWhiteSpace(i.NewFamilyName))
                 .GroupBy(i => (i.NewFamilyName ?? "").Trim().ToLowerInvariant());
 
             foreach (var grp in familyGroups)
             {
-                var distinctFamIds = grp.Select(i => i.FamilyId).Where(id => id != null).Distinct().ToList();
-                if (distinctFamIds.Count > 1)
+                var distinctFamKeys = grp.Select(i => i.FamilyId != null ? i.FamilyId.ToString() : $"{i.CategoryName}:::{i.OriginalFamilyName}").Distinct().ToList();
+                if (distinctFamKeys.Count > 1)
                 {
                     foreach (var item in grp)
                     {
@@ -583,7 +599,7 @@ namespace RevitToSupabasePlugin
 
             foreach (var item in _displayedItems)
             {
-                if (modifyFamilies && item.IsLoadableFamily)
+                if (modifyFamilies)
                 {
                     item.NewFamilyName = TransformText(item.OriginalFamilyName, find, replace, matchCase, prefix, suffix, caseFormat);
                 }
@@ -687,14 +703,146 @@ namespace RevitToSupabasePlugin
             FilterAndRefreshGrid();
         }
 
+        private void DgElements_BeginningEdit(object sender, DataGridBeginningEditEventArgs e)
+        {
+            // Permitir edición libre con doble clic en todas las celdas (estilo DiRoots)
+        }
+
         private void DgElements_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
         {
-            if (!_isInitialized) return;
+            if (!_isInitialized || e.EditAction != DataGridEditAction.Commit) return;
+
+            if (e.Row.Item is FamilyRevisorItem item)
+            {
+                bool isFamCol = e.Column == colFamily || (e.Column?.Header?.ToString()?.Contains("Familia") == true);
+                if (isFamCol && e.EditingElement is TextBox txtFam)
+                {
+                    string newFamName = txtFam.Text?.Trim() ?? string.Empty;
+
+                    // Patrón DiRoots: Propagar el nuevo nombre de familia a TODOS los tipos de la misma familia
+                    if (!string.IsNullOrEmpty(newFamName))
+                    {
+                        Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            var matchingItems = _allItems.Where(x => x != null && (
+                                (item.FamilyId != null && x.FamilyId == item.FamilyId) ||
+                                (x.CategoryName == item.CategoryName && x.OriginalFamilyName == item.OriginalFamilyName)
+                            )).ToList();
+
+                            foreach (var sister in matchingItems)
+                            {
+                                sister.NewFamilyName = newFamName;
+                            }
+                            ValidateUniqueness();
+                            UpdateSummaryLabel();
+                        }), System.Windows.Threading.DispatcherPriority.Background);
+                        return;
+                    }
+                }
+            }
+
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 ValidateUniqueness();
                 UpdateSummaryLabel();
             }), System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        private void DgElements_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount == 2)
+            {
+                DependencyObject? dep = e.OriginalSource as DependencyObject;
+                while (dep != null && dep is not DataGridCell && dep != dgElements)
+                {
+                    dep = VisualTreeHelper.GetParent(dep);
+                }
+
+                if (dep is DataGridCell cell)
+                {
+                    DependencyObject? rowDep = cell;
+                    while (rowDep != null && rowDep is not DataGridRow && rowDep != dgElements)
+                    {
+                        rowDep = VisualTreeHelper.GetParent(rowDep);
+                    }
+
+                    if (rowDep is DataGridRow row && row.Item is FamilyRevisorItem item)
+                    {
+                        DataGridColumn? targetCol = null;
+                        if (cell.Column == colFamily || cell.Column == colOriginalFamily)
+                        {
+                            targetCol = colFamily;
+                        }
+                        else if (cell.Column == colType || cell.Column == colOriginalType)
+                        {
+                            targetCol = colType;
+                        }
+
+                        if (targetCol != null)
+                        {
+                            e.Handled = true;
+                            dgElements.Focus();
+                            dgElements.SelectedItem = item;
+                            dgElements.CurrentCell = new DataGridCellInfo(item, targetCol);
+                            Dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                dgElements.BeginEdit();
+                            }), System.Windows.Threading.DispatcherPriority.Input);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void DgElements_PreparingCellForEdit(object sender, DataGridPreparingCellForEditEventArgs e)
+        {
+            if (e.EditingElement is TextBox tb)
+            {
+                tb.Focus();
+                tb.SelectAll();
+            }
+        }
+
+        private void DgElements_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not DataGrid dg) return;
+
+            var dep = e.OriginalSource as DependencyObject;
+            while (dep != null && dep is not DataGridCell && dep != dg)
+            {
+                dep = VisualTreeHelper.GetParent(dep);
+            }
+
+            if (dep is DataGridCell cell)
+            {
+                DependencyObject? rowDep = cell;
+                while (rowDep != null && rowDep is not DataGridRow && rowDep != dg)
+                {
+                    rowDep = VisualTreeHelper.GetParent(rowDep);
+                }
+
+                if (rowDep is DataGridRow row && row.Item is FamilyRevisorItem item)
+                {
+                    DataGridColumn? targetCol = null;
+                    if (cell.Column == colFamily || cell.Column == colOriginalFamily)
+                    {
+                        targetCol = colFamily;
+                    }
+                    else if (cell.Column == colType || cell.Column == colOriginalType)
+                    {
+                        targetCol = colType;
+                    }
+
+                    if (targetCol != null)
+                    {
+                        e.Handled = true;
+                        dg.Focus();
+                        dg.SelectedItem = item;
+                        dg.CurrentCell = new DataGridCellInfo(item, targetCol);
+                        dg.BeginEdit();
+                    }
+                }
+            }
         }
 
         private void BtnResetRules_Click(object sender, RoutedEventArgs e)
@@ -890,7 +1038,7 @@ namespace RevitToSupabasePlugin
 
                     if (match != null)
                     {
-                        if (!string.IsNullOrEmpty(newFam) && match.IsLoadableFamily) match.NewFamilyName = newFam;
+                        if (!string.IsNullOrEmpty(newFam)) match.NewFamilyName = newFam;
                         if (!string.IsNullOrEmpty(newType)) match.NewTypeName = newType;
                         updatedCount++;
                     }
@@ -923,7 +1071,7 @@ namespace RevitToSupabasePlugin
                 fam = string.Join("_", fam.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
                 typ = string.Join("_", typ.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
 
-                if (item.IsLoadableFamily) item.NewFamilyName = fam;
+                item.NewFamilyName = fam;
                 if (item.TypeId != null) item.NewTypeName = typ;
 
                 standardized++;
@@ -984,17 +1132,22 @@ namespace RevitToSupabasePlugin
             int typesRenamed = 0;
             var errors = new List<string>();
 
-            var familyGroups = itemsToChange
-                .Where(i => i.IsLoadableFamily && i.FamilyId != null && i.NewFamilyName != i.OriginalFamilyName)
+            var loadableFamilyGroups = itemsToChange
+                .Where(i => i.FamilyId != null && i.NewFamilyName != i.OriginalFamilyName)
                 .GroupBy(i => i.FamilyId)
+                .ToList();
+
+            var otherFamilyGroups = itemsToChange
+                .Where(i => i.FamilyId == null && i.NewFamilyName != i.OriginalFamilyName)
+                .GroupBy(i => new { i.CategoryName, i.OriginalFamilyName })
                 .ToList();
 
             using (Transaction trans = new Transaction(_doc, "Family Revisor: Renombramiento Masivo"))
             {
                 trans.Start();
 
-                // 1. Renombrar Familias
-                foreach (var grp in familyGroups)
+                // 1. Renombrar Familias Cargables en Revit
+                foreach (var grp in loadableFamilyGroups)
                 {
                     try
                     {
@@ -1011,7 +1164,32 @@ namespace RevitToSupabasePlugin
                     }
                 }
 
-                // 2. Renombrar Tipos
+                // 2. Intentar actualizar parámetro de Familia en ElementTypes (Familias de Sistema / Otros)
+                foreach (var grp in otherFamilyGroups)
+                {
+                    try
+                    {
+                        var item = grp.First();
+                        bool anySet = false;
+                        foreach (var itm in grp)
+                        {
+                            if (itm.TypeId != null && _doc.GetElement(itm.TypeId) is ElementType et)
+                            {
+                                Parameter? p = et.get_Parameter(BuiltInParameter.ALL_MODEL_FAMILY_NAME)
+                                            ?? et.get_Parameter(BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM);
+                                if (p != null && !p.IsReadOnly)
+                                {
+                                    p.Set(item.NewFamilyName);
+                                    anySet = true;
+                                }
+                            }
+                        }
+                        if (anySet) familiesRenamed++;
+                    }
+                    catch { }
+                }
+
+                // 3. Renombrar Tipos
                 foreach (var item in itemsToChange)
                 {
                     if (item.TypeId == null || item.NewTypeName == item.OriginalTypeName) continue;

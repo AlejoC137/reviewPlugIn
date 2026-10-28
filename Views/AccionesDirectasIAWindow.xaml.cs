@@ -69,64 +69,91 @@ namespace reviewPlugIn.Views
         private void LoadExampleJson()
         {
             txtJsonInput.Text = @"{
-  ""name"": ""Esquema BIM: Normalización y Cómputos en Revit"",
-  ""description"": ""Esquema jerárquico con capa de acciones ejecutables en Revit"",
-  ""blockType"": ""text"",
-  ""children"": [
+  ""schema_version"": ""2.0-revit-schema"",
+  ""schema_title"": ""FLUJO DE TRABAJO BIM: ENSAMBLAJES Y DOCUMENTACIÓN DE PUERTAS"",
+  ""generated_at"": ""2026-10-27T14:32:00.000Z"",
+  ""total_actions"": 3,
+  ""enabled_actions"": 3,
+  ""actions"": [
     {
-      ""name"": ""1. AUDITORÍA Y CODIFICACIÓN DE MUROS"",
-      ""blockType"": ""text"",
-      ""children"": [
-        {
-          ""name"": ""Codificar Muros del Modelo"",
-          ""description"": ""Actualiza Comentarios en todos los muros"",
-          ""blockType"": ""revit_action"",
-          ""revitAction"": {
-            ""enabled"": true,
-            ""order"": 1,
-            ""phase"": ""Fase 1: Normalización"",
-            ""category"": ""Walls"",
-            ""tool"": ""modify_parameters"",
-            ""filter"": {
-              ""type_name"": """",
-              ""family_name"": """",
-              ""level_name"": """",
-              ""search_text"": """"
-            },
-            ""element_ids"": [],
-            ""parameters"": {
-              ""Comments"": ""NORMALIZADO DESDE ESQUEMA ARCA REVIEW""
-            }
-          },
-          ""children"": []
-        }
-      ]
+      ""id"": ""act_001"",
+      ""order"": 1,
+      ""enabled"": true,
+      ""step_name"": ""➕ CREAR: Ensamblajes de Puertas del Proyecto"",
+      ""process"": ""Carpintería Metálica y Madera"",
+      ""phase"": ""Fase 1: Ensamblajes"",
+      ""path"": ""CARPINTERÍAS › PUERTAS › ENSAMBLAJES"",
+      ""description"": ""Empaqueta las puertas del modelo en ensamblajes (AssemblyInstances) agrupadas por Tipo"",
+      ""action"": ""create_assemblies"",
+      ""tool"": ""create_assemblies"",
+      ""category"": ""Doors"",
+      ""filter"": {
+        ""type_name"": """",
+        ""family_name"": """",
+        ""level_name"": """",
+        ""search_text"": """"
+      },
+      ""element_ids"": [],
+      ""parameters"": {
+        ""ScheduleName"": ""Tabla de planificación de puertas CIC - Trabajo"",
+        ""Fields"": ""Family, Type, Recuento, Nivel"",
+        ""TargetCategory"": ""Doors"",
+        ""GroupBy"": ""Type""
+      },
+      ""operation"": ""CREATE"",
+      ""iteration_mode"": ""BY_TYPE""
     },
     {
-      ""name"": ""2. DOCUMENTACIÓN Y TABLAS BIM"",
-      ""blockType"": ""text"",
-      ""children"": [
-        {
-          ""name"": ""Crear Tabla de Cuantificación de Muros"",
-          ""description"": ""Crea ViewSchedule automáticamente"",
-          ""blockType"": ""revit_action"",
-          ""revitAction"": {
-            ""enabled"": true,
-            ""order"": 2,
-            ""phase"": ""Fase 2: Documentación"",
-            ""category"": ""Schedules"",
-            ""tool"": ""create_schedule"",
-            ""filter"": { ""type_name"": """", ""family_name"": """", ""level_name"": """", ""search_text"": """" },
-            ""element_ids"": [],
-            ""parameters"": {
-              ""ScheduleName"": ""ARCA_COMPUTO_MUROS_BIM"",
-              ""TargetCategory"": ""Walls"",
-              ""Fields"": ""Family and Type,Base Constraint,Length,Area,Volume,Comments""
-            }
-          },
-          ""children"": []
-        }
-      ]
+      ""id"": ""act_002"",
+      ""order"": 2,
+      ""enabled"": true,
+      ""step_name"": ""➕ GENERAR: Vistas y Tablas de Ensamblaje"",
+      ""process"": ""Carpintería Metálica y Madera"",
+      ""phase"": ""Fase 2: Documentación"",
+      ""path"": ""CARPINTERÍAS › PUERTAS › VISTAS"",
+      ""description"": ""Genera vista 3D, planta, elevación frontal y tabla de despiece para cada ensamblaje de puerta"",
+      ""action"": ""create_assembly_views"",
+      ""tool"": ""create_assembly_views"",
+      ""category"": ""Doors"",
+      ""filter"": {
+        ""type_name"": """",
+        ""family_name"": """",
+        ""level_name"": """",
+        ""search_text"": """"
+      },
+      ""element_ids"": [],
+      ""parameters"": {
+        ""ScheduleName"": ""NUEVA_Tabla de despiece de puertas"",
+        ""Fields"": ""Nivel, Familia y tipo, Área, Comentarios"",
+        ""ViewsToCreate"": ""Schedule,3D,Plan,Section""
+      },
+      ""operation"": ""CREATE"",
+      ""iteration_mode"": ""ALL_ELEMENTS""
+    },
+    {
+      ""id"": ""act_003"",
+      ""order"": 3,
+      ""enabled"": true,
+      ""step_name"": ""🏷️ NORMALIZAR: Parámetro Comments ISO 19650"",
+      ""process"": ""Control de Calidad BIM"",
+      ""phase"": ""Fase 3: Auditoría"",
+      ""path"": ""CARPINTERÍAS › PUERTAS › AUDITORÍA"",
+      ""description"": ""Asigna el sello de normalización en Comentarios de todas las puertas"",
+      ""action"": ""modify_parameters"",
+      ""tool"": ""modify_parameters"",
+      ""category"": ""Doors"",
+      ""filter"": {
+        ""type_name"": """",
+        ""family_name"": """",
+        ""level_name"": """",
+        ""search_text"": """"
+      },
+      ""element_ids"": [],
+      ""parameters"": {
+        ""Comments"": ""AUDITADO ARCA REVIEW""
+      },
+      ""operation"": ""UPDATE"",
+      ""iteration_mode"": ""ALL_ELEMENTS""
     }
   ]
 }";
@@ -176,11 +203,13 @@ namespace reviewPlugIn.Views
             {
                 string prompt = DirectAiActionService.BuildSystemPrompt(_doc);
                 Clipboard.SetText(prompt);
-                txtFooterStatus.Text = "✅ Mega-Prompt de Esquemas Revit copiado al portapapeles. Pégalo en tu IA o en ARCA Review.";
+                txtFooterStatus.Text = "✅ Mega-Prompt de Alta Rigurosidad (Zero-Laxity) copiado al portapapeles con contexto real de Revit.";
                 MessageBox.Show(
-                    "¡Prompt Maestro de Esquemas y Acciones de Revit copiado al portapapeles!\n\n" +
-                    "1. Pégalo en Gemini, ChatGPT o Claude y describe el proceso BIM que necesitas.\n" +
-                    "2. El JSON generado sirve tanto en el Mapa de Esquemas de ARCA Review Web como en este Receptor del Plugin.",
+                    "¡Mega-Prompt de Automatización Revit 2.0 copiado al portapapeles!\n\n" +
+                    "• Contiene directivas estrictas de CERO LAXITUD y Cero Alucinaciones para que la IA responda únicamente con JSON 2.0 válido sin charla conversacional.\n" +
+                    "• Incluye el contexto real extraído de tu modelo activo (niveles, tablas existentes, categorías y tipos).\n" +
+                    "• Soporta ingesta de flujos de trabajo en Markdown, creación de tablas, ensamblajes de puertas/familias, vistas de detalle y auditoría.\n\n" +
+                    "Pégalo en Gemini, ChatGPT o Claude y adjunta tu instrucción o flujo de trabajo.",
                     "Prompt IA Copiado",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);

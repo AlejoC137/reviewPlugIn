@@ -271,6 +271,7 @@ namespace RevitToSupabasePlugin
                 panelAnotacion.AddItem(btnHub);
 
                 PushButtonData btnAmbientador = CreateBtnData("cmdAmbientador", "Ambientador", "CommandPlanAmbientador", "icon_plan_ambientador");
+                btnAmbientador.ToolTip = "Ambientador de Cotas para Ensamblajes de Puertas: Acotado inteligente, paramétrico y automático de vistas técnicas (Elevaciones Frontales, Posteriores, Plantas de Detalle y Secciones).";
                 PushButtonData btnDetalles = CreateBtnData("cmdGestorDetalles", "Gestor Detalles", "CommandGestorDetalles", "icon_detalles");
                 panelAnotacion.AddStackedItems(btnAmbientador, btnDetalles);
 

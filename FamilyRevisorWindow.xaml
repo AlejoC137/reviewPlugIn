@@ -291,72 +291,150 @@
             </StackPanel>
         </Border>
 
-        <!-- 4. TABLA DATA GRID CON VISTA PREVIA Y VALIDACIÓN EN VIVO -->
+        <!-- 4. TABLA DATA GRID CON VISTA PREVIA Y VALIDACIÓN EN VIVO (ESTILO DIROOTS) -->
         <Border Grid.Row="3" Style="{StaticResource CardBorderStyle}" Padding="0">
-            <DataGrid x:Name="dgElements" AutoGenerateColumns="False" CanUserAddRows="False"
-                      CanUserDeleteRows="False" SelectionMode="Single"
-                      HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                      HorizontalGridLinesBrush="#EAE5DC" Background="#FFFFFF"
-                      BorderThickness="0" RowHeight="28" FontSize="11"
-                      CellEditEnding="DgElements_CellEditEnding">
-                <DataGrid.Columns>
-                    <DataGridCheckBoxColumn Header="[X]" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="40"/>
-                    
-                    <DataGridTextColumn Header="Categoría" Binding="{Binding CategoryName}" IsReadOnly="True" Width="140"/>
-                    
-                    <DataGridTextColumn Header="Familia Actual" Binding="{Binding OriginalFamilyName}" IsReadOnly="True" Width="180"/>
-                    
-                    <DataGridTextColumn Header="Nueva Familia" Binding="{Binding NewFamilyName, UpdateSourceTrigger=PropertyChanged}" Width="210">
-                        <DataGridTextColumn.ElementStyle>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="FontWeight" Value="SemiBold"/>
-                                <Setter Property="Foreground" Value="#0F4369"/>
-                                <Setter Property="ToolTip" Value="{Binding ErrorMessage}"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasError}" Value="True">
-                                        <Setter Property="Foreground" Value="#DC2626"/>
-                                        <Setter Property="FontWeight" Value="Bold"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </DataGridTextColumn.ElementStyle>
-                    </DataGridTextColumn>
-                    
-                    <DataGridTextColumn Header="Tipo Actual" Binding="{Binding OriginalTypeName}" IsReadOnly="True" Width="180"/>
-                    
-                    <DataGridTextColumn Header="Nuevo Tipo" Binding="{Binding NewTypeName, UpdateSourceTrigger=PropertyChanged}" Width="210">
-                        <DataGridTextColumn.ElementStyle>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="FontWeight" Value="SemiBold"/>
-                                <Setter Property="Foreground" Value="#059669"/>
-                                <Setter Property="ToolTip" Value="{Binding ErrorMessage}"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasError}" Value="True">
-                                        <Setter Property="Foreground" Value="#DC2626"/>
-                                        <Setter Property="FontWeight" Value="Bold"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </DataGridTextColumn.ElementStyle>
-                    </DataGridTextColumn>
-                    
-                    <DataGridTextColumn Header="Tipo de Familia" Binding="{Binding FamilyKindText}" IsReadOnly="True" Width="110"/>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-                    <DataGridTextColumn Header="Estado de Validación" Binding="{Binding StatusText}" IsReadOnly="True" Width="*">
-                        <DataGridTextColumn.ElementStyle>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="ToolTip" Value="{Binding ErrorMessage}"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasError}" Value="True">
-                                        <Setter Property="Foreground" Value="#DC2626"/>
-                                        <Setter Property="FontWeight" Value="Bold"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </DataGridTextColumn.ElementStyle>
-                    </DataGridTextColumn>
-                </DataGrid.Columns>
-            </DataGrid>
+                <!-- Barra de sugerencia e información de edición in-place -->
+                <Border Grid.Row="0" Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="12,5">
+                    <Grid>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="💡 Tip:" FontWeight="Bold" Foreground="#0F4369" FontSize="11" Margin="0,0,5,0"/>
+                            <TextBlock Text="Haz doble clic sobre el texto de cualquier Familia o Tipo para editarlo al instante. Las familias cargables (.rfa) sincronizan todos sus tipos en tiempo real." FontSize="11" Foreground="#475569"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <DataGrid x:Name="dgElements" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False"
+                          CanUserDeleteRows="False" SelectionMode="Single" SelectionUnit="FullRow"
+                          HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                          HorizontalGridLinesBrush="#EAE5DC" Background="#FFFFFF"
+                          BorderThickness="0" RowHeight="28" FontSize="11"
+                          IsReadOnly="False" CanUserSortColumns="True"
+                          BeginningEdit="DgElements_BeginningEdit"
+                          CellEditEnding="DgElements_CellEditEnding"
+                          PreparingCellForEdit="DgElements_PreparingCellForEdit"
+                          PreviewMouseLeftButtonDown="DgElements_PreviewMouseLeftButtonDown"
+                          MouseDoubleClick="DgElements_MouseDoubleClick">
+                    <DataGrid.Columns>
+                        <DataGridCheckBoxColumn Header="[X]" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="38"/>
+                        
+                        <DataGridTextColumn Header="Categoría" Binding="{Binding CategoryName}" IsReadOnly="True" Width="130"/>
+                        
+                        <!-- Columna Familia Renombrable con Doble Clic (Patrón DiRoots) -->
+                        <DataGridTextColumn x:Name="colFamily" Header="Familia (Doble clic ✏️)" Binding="{Binding NewFamilyName, UpdateSourceTrigger=PropertyChanged}" Width="210">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                    <Setter Property="Foreground" Value="#1C1C19"/>
+                                    <Setter Property="ToolTip" Value="Doble clic para editar el nombre de la familia"/>
+                                    <Style.Triggers>
+                                        <!-- Familia Modificada (Estilo DiRoots) -->
+                                        <DataTrigger Binding="{Binding IsFamilyModified}" Value="True">
+                                            <Setter Property="Foreground" Value="#0F4369"/>
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                            <Setter Property="ToolTip" Value="{Binding OriginalFamilyName, StringFormat='Modificado. Original: {0}'}"/>
+                                        </DataTrigger>
+                                        <!-- Error o Colisión -->
+                                        <DataTrigger Binding="{Binding HasError}" Value="True">
+                                            <Setter Property="Foreground" Value="#DC2626"/>
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                            <Setter Property="ToolTip" Value="{Binding ErrorMessage}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                            <DataGridTextColumn.CellStyle>
+                                <Style BasedOn="{StaticResource {x:Type DataGridCell}}" TargetType="DataGridCell">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsFamilyModified}" Value="True">
+                                            <Setter Property="Background" Value="#FEF3C7"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding HasError}" Value="True">
+                                            <Setter Property="Background" Value="#FEE2E2"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGridTextColumn.CellStyle>
+                        </DataGridTextColumn>
+
+                        <DataGridTextColumn x:Name="colOriginalFamily" Header="Familia Original" Binding="{Binding OriginalFamilyName}" IsReadOnly="True" Width="170">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#6B7280"/>
+                                    <Setter Property="ToolTip" Value="Nombre original en Revit (Doble clic para editar nombre de familia)"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        
+                        <!-- Columna Tipo Renombrable con Doble Clic -->
+                        <DataGridTextColumn x:Name="colType" Header="Tipo (Doble clic ✏️)" Binding="{Binding NewTypeName, UpdateSourceTrigger=PropertyChanged}" Width="210">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                    <Setter Property="Foreground" Value="#1C1C19"/>
+                                    <Setter Property="ToolTip" Value="Doble clic para editar el nombre del tipo"/>
+                                    <Style.Triggers>
+                                        <!-- Tipo Modificado -->
+                                        <DataTrigger Binding="{Binding IsTypeModified}" Value="True">
+                                            <Setter Property="Foreground" Value="#059669"/>
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                            <Setter Property="ToolTip" Value="{Binding OriginalTypeName, StringFormat='Modificado. Original: {0}'}"/>
+                                        </DataTrigger>
+                                        <!-- Error o Colisión -->
+                                        <DataTrigger Binding="{Binding HasError}" Value="True">
+                                            <Setter Property="Foreground" Value="#DC2626"/>
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                            <Setter Property="ToolTip" Value="{Binding ErrorMessage}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                            <DataGridTextColumn.CellStyle>
+                                <Style BasedOn="{StaticResource {x:Type DataGridCell}}" TargetType="DataGridCell">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsTypeModified}" Value="True">
+                                            <Setter Property="Background" Value="#ECFDF5"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding HasError}" Value="True">
+                                            <Setter Property="Background" Value="#FEE2E2"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGridTextColumn.CellStyle>
+                        </DataGridTextColumn>
+
+                        <DataGridTextColumn x:Name="colOriginalType" Header="Tipo Original" Binding="{Binding OriginalTypeName}" IsReadOnly="True" Width="170">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#6B7280"/>
+                                    <Setter Property="ToolTip" Value="Nombre original del tipo en Revit (Doble clic para editar tipo)"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        
+                        <DataGridTextColumn Header="Naturaleza" Binding="{Binding FamilyKindText}" IsReadOnly="True" Width="105"/>
+
+                        <DataGridTextColumn Header="Estado de Validación" Binding="{Binding StatusText}" IsReadOnly="True" Width="*">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="ToolTip" Value="{Binding ErrorMessage}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasError}" Value="True">
+                                            <Setter Property="Foreground" Value="#DC2626"/>
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
         </Border>
 
         <!-- 5. BARRA INFERIOR DE ACCIONES Y DESHACER (UNDO) -->

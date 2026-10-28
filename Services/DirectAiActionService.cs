@@ -99,6 +99,13 @@ namespace reviewPlugIn.Services
         public string TargetScheduleName { get; set; } = "";
 
         // UI / Simulation properties
+        [JsonProperty("enabled")]
+        public bool Enabled
+        {
+            get => IsSelected;
+            set => IsSelected = value;
+        }
+
         [JsonIgnore]
         public bool IsSelected { get; set; } = true;
 
@@ -249,131 +256,362 @@ namespace reviewPlugIn.Services
         }
 
         /// <summary>
-        /// Genera el Mega-Prompt para que cualquier IA (Gemini, ChatGPT, Claude)
-        /// construya Esquemas Jerárquicos con Capa de Acciones de Revit o Colas de Acciones.
+        /// Extrae un resumen exhaustivo y dinámico del modelo de Revit activo
+        /// (niveles, fases, tablas de planificación existentes, categorías con recuentos y familias muestra)
+        /// para alimentar al Mega-Prompt de la IA y evitar alucinaciones.
         /// </summary>
-        public static string BuildSystemPrompt(Document doc)
+        public static string ExtractModelContextSummary(Document doc)
         {
+            if (doc == null) return "Sin modelo Revit activo conectado.";
+
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine("Actúa como un Director BIM Senior (ISO 19650) y Arquitecto de Automatización en Autodesk Revit API para el sistema ARCA Review.");
-            sb.AppendLine("Tu objetivo es generar un ESQUEMA JERÁRQUICO DE PROCESOS Y ACCIONES DE REVIT en formato JSON puro.");
-            sb.AppendLine("Este JSON es compatible tanto con el Lienzo de Esquemas y la Pestaña de Acciones de ARCA Review Web como con el Receptor del Plugin en Revit.");
-            sb.AppendLine();
+            sb.AppendLine($"=== CONTEXTO DEL MODELO REVIT ACTIVO: '{doc.Title}' ===");
 
-            if (doc != null)
+            // 1. Niveles
+            try
             {
-                sb.AppendLine($"CONTEXTO DEL MODELO REVIT ACTIVO: '{doc.Title}'");
-                try
+                var levels = new FilteredElementCollector(doc)
+                    .OfClass(typeof(Level))
+                    .Cast<Level>()
+                    .OrderBy(l => l.Elevation)
+                    .Select(l => l.Name)
+                    .ToList();
+                if (levels.Count > 0)
                 {
-                    var levels = new FilteredElementCollector(doc)
-                        .OfClass(typeof(Level))
-                        .Cast<Level>()
-                        .Select(l => l.Name)
-                        .Take(15)
-                        .ToList();
-                    if (levels.Count > 0)
-                        sb.AppendLine($"Niveles detectados en el modelo: {string.Join(", ", levels)}");
+                    sb.AppendLine($"• NIVELES DETECTADOS ({levels.Count}):");
+                    sb.AppendLine("  " + string.Join(", ", levels));
                 }
-                catch { }
-                sb.AppendLine();
             }
+            catch { }
 
-            sb.AppendLine("CATEGORÍAS DE REVIT SOPORTADAS (campo `category`):");
-            sb.AppendLine("- Walls, Floors, Doors, Windows, Rooms, Ceilings, Roofs");
-            sb.AppendLine("- StructuralColumns, StructuralFraming, StructuralFoundation");
-            sb.AppendLine("- PlumbingFixtures, PipeCurves, DuctCurves, ElectricalEquipment, LightingFixtures");
-            sb.AppendLine("- Furniture, GenericModel, Sheets, Views, Schedules, Materials");
-            sb.AppendLine();
-            sb.AppendLine("HERRAMIENTAS Y ACCIONES DE REVIT SOPORTADAS (campo `tool` o `action`):");
-            sb.AppendLine("1. \"modify_parameters\" -> Modifica parámetros de instancia o tipo en elementos filtrados.");
-            sb.AppendLine("2. \"assign_type\" -> Cambia el tipo de familia de los elementos filtrados al tipo indicado en `parameters.TargetTypeName`.");
-            sb.AppendLine("3. \"manage_sheets\" -> Actualiza parámetros de planos (Sheet Name, Sheet Number, Drawn By, Approved By) o crea láminas nuevas.");
-            sb.AppendLine("4. \"create_schedule\" -> Crea una tabla de planificación en Revit (`ScheduleName`, `TargetCategory`, `Fields`).");
-            sb.AppendLine("5. \"sync_materials\" -> Crea o actualiza un material BIM (`MaterialName`, `ColorHex`, `ApplyToElements`).");
-            sb.AppendLine("6. \"convert_walls_to_bricks\" -> Configura y marca muros para despiece de ladrillos 3D (`BrickFamily`, `MortarThicknessMm`).");
-            sb.AppendLine("7. \"convert_floors_to_tiles\" -> Configura y marca pisos para despiece de baldosas 3D (`TileWidthMm`, `TileLengthMm`, `JointMm`).");
-            sb.AppendLine("8. \"convert_steel_deck\" -> Configura entrepisos colaborantes (`DeckProfile`, `ConcreteToppingMm`).");
-            sb.AppendLine("9. \"audit_qaqc\" -> Audita parámetros obligatorios (`RequiredParameters`, `StampOnPass`, `StampOnFail`).");
-            sb.AppendLine();
-            sb.AppendLine("FORMATO JSON OBLIGATORIO (ESQUEMA JERÁRQUICO CON CAPA REVIT):");
-            sb.AppendLine(@"{
-  ""name"": ""Proceso Maestro de Automatización BIM en Revit"",
-  ""description"": ""Esquema de acciones organizadas por fases y categorías de Revit"",
-  ""blockType"": ""text"",
-  ""children"": [
-    {
-      ""name"": ""FASE 1: AUDITORÍA Y CODIFICACIÓN DE MUROS"",
-      ""description"": ""Normalización paramétrica de muros según matriz BIM"",
-      ""blockType"": ""text"",
-      ""children"": [
-        {
-          ""name"": ""Codificar Muros Interiores 15cm"",
-          ""description"": ""Asigna Comentarios y Clasificación de Incendio"",
-          ""blockType"": ""revit_action"",
-          ""revitAction"": {
-            ""enabled"": true,
-            ""order"": 1,
-            ""phase"": ""Fase 1: Normalización"",
-            ""category"": ""Walls"",
-            ""tool"": ""modify_parameters"",
-            ""filter"": {
-              ""type_name"": ""15"",
-              ""family_name"": ""Basic Wall"",
-              ""level_name"": """",
-              ""search_text"": """"
-            },
-            ""element_ids"": [],
-            ""parameters"": {
-              ""Comments"": ""MURO AUDITADO ISO 19650"",
-              ""Fire Rating"": ""60 min""
+            // 2. Fases del proyecto
+            try
+            {
+                var phases = new FilteredElementCollector(doc)
+                    .OfClass(typeof(Phase))
+                    .Cast<Phase>()
+                    .Select(p => p.Name)
+                    .ToList();
+                if (phases.Count > 0)
+                {
+                    sb.AppendLine($"• FASES DE CONSTRUCCIÓN: {string.Join(", ", phases)}");
+                }
             }
-          },
-          ""children"": []
-        }
-      ]
-    },
-    {
-      ""name"": ""FASE 2: DOCUMENTACIÓN Y TABLAS DE PLANIFICACIÓN"",
-      ""description"": ""Creación de tablas de cómputos y estandarización de láminas"",
-      ""blockType"": ""text"",
-      ""children"": [
-        {
-          ""name"": ""Crear Tabla de Cuantificación de Muros"",
-          ""description"": ""Crea ViewSchedule con campos de área, longitud y volumen"",
-          ""blockType"": ""revit_action"",
-          ""revitAction"": {
-            ""enabled"": true,
-            ""order"": 2,
-            ""phase"": ""Fase 2: Documentación"",
-            ""category"": ""Schedules"",
-            ""tool"": ""create_schedule"",
-            ""filter"": { ""type_name"": """", ""family_name"": """", ""level_name"": """", ""search_text"": """" },
-            ""element_ids"": [],
-            ""parameters"": {
-              ""ScheduleName"": ""ARCA_COMPUTO_MUROS_BIM"",
-              ""TargetCategory"": ""Walls"",
-              ""Fields"": ""Family and Type,Base Constraint,Length,Area,Volume,Comments""
+            catch { }
+
+            // 3. Tablas de Planificación (ViewSchedules) reales en el proyecto
+            try
+            {
+                var schedules = new FilteredElementCollector(doc)
+                    .OfClass(typeof(ViewSchedule))
+                    .Cast<ViewSchedule>()
+                    .Where(vs => !vs.IsTemplate && !vs.IsInternalKeynoteSchedule)
+                    .Select(vs =>
+                    {
+                        string cat = "Multi";
+                        try
+                        {
+                            if (vs.Definition?.CategoryId != null && vs.Definition.CategoryId != ElementId.InvalidElementId)
+                            {
+                                var c = Category.GetCategory(doc, vs.Definition.CategoryId);
+                                if (c != null) cat = c.Name;
+                            }
+                        }
+                        catch { }
+                        return $"\"{vs.Name}\" [{cat}]";
+                    })
+                    .OrderBy(s => s)
+                    .Take(75)
+                    .ToList();
+
+                if (schedules.Count > 0)
+                {
+                    sb.AppendLine($"• TABLAS DE PLANIFICACIÓN DEL PROYECTO ({schedules.Count} detectadas):");
+                    sb.AppendLine("  " + string.Join("; ", schedules));
+                }
             }
-          },
-          ""children"": []
-        }
-      ]
-    }
-  ]
-}");
-            sb.AppendLine();
-            sb.AppendLine("INSTRUCCIÓN DEL USUARIO:");
-            sb.AppendLine("[Escribe aquí el proceso o las acciones de Revit que deseas generar...]");
+            catch { }
+
+            // 4. Categorías principales con recuentos y familias/tipos muestra
+            try
+            {
+                var keyCats = new[]
+                {
+                    BuiltInCategory.OST_Doors,
+                    BuiltInCategory.OST_Walls,
+                    BuiltInCategory.OST_Floors,
+                    BuiltInCategory.OST_Windows,
+                    BuiltInCategory.OST_Rooms,
+                    BuiltInCategory.OST_Furniture,
+                    BuiltInCategory.OST_Casework,
+                    BuiltInCategory.OST_PlumbingFixtures,
+                    BuiltInCategory.OST_Ceilings,
+                    BuiltInCategory.OST_GenericModel,
+                    BuiltInCategory.OST_Sheets
+                };
+
+                sb.AppendLine("• CATEGORÍAS PRINCIPALES Y TIPOS DETECTADOS EN EL MODELO:");
+                foreach (var bic in keyCats)
+                {
+                    try
+                    {
+                        var elements = new FilteredElementCollector(doc)
+                            .OfCategory(bic)
+                            .WhereElementIsNotElementType()
+                            .ToElements();
+
+                        if (elements.Count == 0) continue;
+
+                        string catName = bic.ToString().Replace("OST_", "");
+                        var sampleTypes = elements
+                            .Select(e =>
+                            {
+                                var tid = e.GetTypeId();
+                                return tid != ElementId.InvalidElementId ? doc.GetElement(tid)?.Name : null;
+                            })
+                            .Where(n => !string.IsNullOrEmpty(n))
+                            .Distinct()
+                            .Take(6)
+                            .ToList();
+
+                        string sampleStr = sampleTypes.Count > 0 ? $" | Tipos muestra: {string.Join(", ", sampleTypes)}" : "";
+                        sb.AppendLine($"  - {catName}: {elements.Count} elementos{sampleStr}");
+                    }
+                    catch { }
+                }
+            }
+            catch { }
 
             return sb.ToString();
         }
 
         /// <summary>
+        /// Genera el Mega-Prompt de Alta Rigurosidad (Zero-Laxity) para cualquier IA (Gemini, ChatGPT, Claude).
+        /// Obliga a la IA a responder con un JSON 2.0-revit-schema sin texto conversacional,
+        /// con especificaciones precisas para flujos de trabajo basados en Markdown y esquemas de Revit.
+        /// </summary>
+        public static string BuildSystemPrompt(Document doc)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("ROL DEL SISTEMA: Motor de Automatización BIM y Arquitecto Senior en Autodesk Revit API (ARCA Review / ISO 19650).");
+            sb.AppendLine("OBJETIVO: Convertir solicitudes de usuario, instrucciones de procesos o ESQUEMAS EN FORMATO MARKDOWN / JSON en un documento ejecutable que cumple estrictamente la especificación `schema_version: \"2.0-revit-schema\"` para el Plugin de Revit.");
+            sb.AppendLine();
+            sb.AppendLine("═══════════════════════════════════════════════════════════════════════════════════════");
+            sb.AppendLine("REGLAS INQUEBRANTABLES (CERO LAXITUD - ZERO HALLUCINATIONS):");
+            sb.AppendLine("═══════════════════════════════════════════════════════════════════════════════════════");
+            sb.AppendLine("1. SALIDA ESTRICTA: Tu respuesta DEBE SER EXCLUSIVAMENTE UN BLOQUE JSON VÁLIDO (o cercado con ```json).");
+            sb.AppendLine("   ESTÁ TERMINANTEMENTE PROHIBIDO incluir introducciones ('¡Hola!', 'Por supuesto, aquí tienes el esquema...'), conclusiones, o explicaciones conversacionales fuera del JSON.");
+            sb.AppendLine("2. FIDELIDAD AL ESQUEMA MARKDOWN: Si el usuario te proporciona un esquema de trabajo en Markdown (por ejemplo un mapa de procesos de ARCA Review, un contexto con tablas de planificación, o un árbol `schema_tree`), DEBES INGERIR Y TRADUCIR CADA PASO a una acción concreta en la lista `actions`.");
+            sb.AppendLine("3. COHERENCIA CON EL MODELO REVIT: Utiliza nombres de tablas, categorías y parámetros que COINCIDAN con el CONTEXTO DEL MODELO incluido abajo. No inventes nombres de tablas si ya existen en el proyecto.");
+            sb.AppendLine("4. ENCADENAMIENTO DE ENSAMBLAJES: Si el flujo pide crear ensamblajes (`create_assemblies`) a partir de una tabla (ej. puertas) y luego generar vistas (`create_assembly_views`), genera ambas acciones secuenciales respetando `order: 1`, `order: 2` y la misma categoría.");
+            sb.AppendLine();
+            sb.AppendLine("═══════════════════════════════════════════════════════════════════════════════════════");
+            sb.AppendLine("CATÁLOGO DE HERRAMIENTAS REVIT SOPORTADAS (campo `action` o `tool`):");
+            sb.AppendLine("═══════════════════════════════════════════════════════════════════════════════════════");
+            sb.AppendLine("1. \"create_assemblies\":");
+            sb.AppendLine("   - Empaqueta elementos de Revit en Ensamblajes (`AssemblyInstance`).");
+            sb.AppendLine("   - `category`: Categoría a ensamblar (ej. Doors, Windows, Furniture, Casework, Walls).");
+            sb.AppendLine("   - `parameters`: {");
+            sb.AppendLine("       \"ScheduleName\": \"Nombre de tabla de referencia\",");
+            sb.AppendLine("       \"Fields\": \"Family, Type, Recuento, Nivel\",");
+            sb.AppendLine("       \"TargetCategory\": \"Doors\",");
+            sb.AppendLine("       \"GroupBy\": \"Type\" (o \"Instance\")");
+            sb.AppendLine("     }");
+            sb.AppendLine("   - `iteration_mode`: \"BY_TYPE\" (un ensamblaje por tipo de familia) o \"BY_INSTANCE\" (uno por elemento).");
+            sb.AppendLine();
+            sb.AppendLine("2. \"create_assembly_views\":");
+            sb.AppendLine("   - Genera vistas de detalle (Planta, Sección, Isométrica 3D y Tabla de Despiece) para los ensamblajes generados.");
+            sb.AppendLine("   - `category`: Categoría del ensamblaje (ej. Doors, Windows).");
+            sb.AppendLine("   - `parameters`: {");
+            sb.AppendLine("       \"ScheduleName\": \"Nombre de la tabla de despiece/ensamblaje\",");
+            sb.AppendLine("       \"Fields\": \"Nivel, Familia y tipo, Área, Comentarios\",");
+            sb.AppendLine("       \"ViewsToCreate\": \"Schedule,3D,Plan,Section\"");
+            sb.AppendLine("     }");
+            sb.AppendLine();
+            sb.AppendLine("3. \"create_schedule\":");
+            sb.AppendLine("   - Crea una nueva tabla de planificación (`ViewSchedule`) en el modelo.");
+            sb.AppendLine("   - `category`: \"Schedules\"");
+            sb.AppendLine("   - `parameters`: {");
+            sb.AppendLine("       \"ScheduleName\": \"Nombre único de la nueva tabla\",");
+            sb.AppendLine("       \"TargetCategory\": \"Doors | Walls | Rooms | Floors | ...\",");
+            sb.AppendLine("       \"Fields\": \"Family and Type, Base Constraint, Area, Volume, Comments\"");
+            sb.AppendLine("     }");
+            sb.AppendLine();
+            sb.AppendLine("4. \"duplicate_schedule\":");
+            sb.AppendLine("   - Duplica una tabla de planificación existente en el modelo y opcionalmente adiciona campos.");
+            sb.AppendLine("   - `category`: \"Schedules\"");
+            sb.AppendLine("   - `parameters`: {");
+            sb.AppendLine("       \"SourceScheduleName\": \"Nombre de tabla existente en el modelo\",");
+            sb.AppendLine("       \"ScheduleName\": \"Nombre de la nueva tabla clonada\",");
+            sb.AppendLine("       \"Fields\": \"Campos adicionales o filtrados\"");
+            sb.AppendLine("     }");
+            sb.AppendLine();
+            sb.AppendLine("5. \"modify_parameters\":");
+            sb.AppendLine("   - Modifica parámetros de tipo o de instancia en elementos filtrados por categoría, tipo, familia o nivel.");
+            sb.AppendLine("   - `category`: Walls, Floors, Doors, Windows, Rooms, etc.");
+            sb.AppendLine("   - `filter`: { \"type_name\": \"...\", \"family_name\": \"...\", \"level_name\": \"...\", \"search_text\": \"...\" }");
+            sb.AppendLine("   - `parameters`: Diccionario con nombres de parámetros y sus valores a asignar (ej. { \"Comments\": \"AUDITADO\", \"Fire Rating\": \"60 min\" }).");
+            sb.AppendLine();
+            sb.AppendLine("6. \"assign_type\":");
+            sb.AppendLine("   - Cambia el tipo de familia de los elementos filtrados.");
+            sb.AppendLine("   - `parameters`: { \"TargetTypeName\": \"Nombre exacto del tipo destino\" }");
+            sb.AppendLine();
+            sb.AppendLine("7. \"manage_sheets\":");
+            sb.AppendLine("   - Crea o actualiza planos/láminas en Revit (`ViewSheet`).");
+            sb.AppendLine("   - `parameters`: { \"Sheet Name\": \"...\", \"Sheet Number\": \"...\", \"Drawn By\": \"...\", \"Approved By\": \"...\" }");
+            sb.AppendLine();
+            sb.AppendLine("8. \"sync_materials\":");
+            sb.AppendLine("   - Crea o actualiza un material BIM y lo asigna/sella en elementos.");
+            sb.AppendLine("   - `parameters`: { \"MaterialName\": \"...\", \"ColorHex\": \"#10B981\", \"ApplyToElements\": \"true\" }");
+            sb.AppendLine();
+            sb.AppendLine("9. \"audit_qaqc\":");
+            sb.AppendLine("   - Audita parámetros obligatorios en elementos del modelo.");
+            sb.AppendLine("   - `parameters`: { \"RequiredParameters\": \"Comments,Mark\", \"StampOnPass\": \"QAQC_OK\", \"StampOnFail\": \"QAQC_INCOMPLETO\" }");
+            sb.AppendLine();
+            sb.AppendLine("10. \"convert_walls_to_bricks\" / \"convert_floors_to_tiles\" / \"convert_steel_deck\":");
+            sb.AppendLine("   - Despiece constructivo y cálculo de piezas modular.");
+            sb.AppendLine();
+            sb.AppendLine("═══════════════════════════════════════════════════════════════════════════════════════");
+            sb.AppendLine("ESTRUCTURA EXACTA DEL JSON (FORMATO 2.0-REVIT-SCHEMA):");
+            sb.AppendLine("═══════════════════════════════════════════════════════════════════════════════════════");
+            sb.AppendLine(@"{
+  ""schema_version"": ""2.0-revit-schema"",
+  ""schema_title"": ""FLUJO DE TRABAJO BIM: ENSAMBLAJES Y CÓMPUTOS"",
+  ""generated_at"": ""2026-10-27T14:32:00.000Z"",
+  ""total_actions"": 2,
+  ""enabled_actions"": 2,
+  ""actions"": [
+    {
+      ""id"": ""act_001"",
+      ""order"": 1,
+      ""enabled"": true,
+      ""step_name"": ""➕ CREAR: Ensamblajes de Puertas"",
+      ""process"": ""Carpinterías y Despieces"",
+      ""phase"": ""Fase 1: Ensamblajes"",
+      ""path"": ""CARPINTERÍAS › PUERTAS › ENSAMBLAJES"",
+      ""description"": ""Crear AssemblyInstances para las puertas agrupándolas por tipo de familia"",
+      ""action"": ""create_assemblies"",
+      ""tool"": ""create_assemblies"",
+      ""category"": ""Doors"",
+      ""filter"": {
+        ""type_name"": """",
+        ""family_name"": """",
+        ""level_name"": """",
+        ""search_text"": """"
+      },
+      ""element_ids"": [],
+      ""parameters"": {
+        ""ScheduleName"": ""Tabla de planificación de puertas CIC - Trabajo"",
+        ""Fields"": ""Family, Type, Recuento, Nivel"",
+        ""TargetCategory"": ""Doors"",
+        ""GroupBy"": ""Type""
+      },
+      ""operation"": ""CREATE"",
+      ""iteration_mode"": ""BY_TYPE""
+    },
+    {
+      ""id"": ""act_002"",
+      ""order"": 2,
+      ""enabled"": true,
+      ""step_name"": ""➕ GENERAR: Vistas y Tablas de Ensamblaje"",
+      ""process"": ""Carpinterías y Despieces"",
+      ""phase"": ""Fase 2: Documentación de Ensamblajes"",
+      ""path"": ""CARPINTERÍAS › PUERTAS › VISTAS"",
+      ""description"": ""Generar vista isométrica 3D, planta, elevación y tabla de despiece para cada ensamblaje"",
+      ""action"": ""create_assembly_views"",
+      ""tool"": ""create_assembly_views"",
+      ""category"": ""Doors"",
+      ""filter"": {
+        ""type_name"": """",
+        ""family_name"": """",
+        ""level_name"": """",
+        ""search_text"": """"
+      },
+      ""element_ids"": [],
+      ""parameters"": {
+        ""ScheduleName"": ""NUEVA_Tabla de despiece de puertas"",
+        ""Fields"": ""Nivel, Familia y tipo, Área, Comentarios"",
+        ""ViewsToCreate"": ""Schedule,3D,Plan,Section""
+      },
+      ""operation"": ""CREATE"",
+      ""iteration_mode"": ""ALL_ELEMENTS""
+    }
+  ]
+}");
+            sb.AppendLine();
+
+            if (doc != null)
+            {
+                sb.AppendLine("═══════════════════════════════════════════════════════════════════════════════════════");
+                sb.AppendLine("CONTEXTO REAL EXTRAÍDO DEL MODELO REVIT ACTIVO:");
+                sb.AppendLine("═══════════════════════════════════════════════════════════════════════════════════════");
+                sb.AppendLine(ExtractModelContextSummary(doc));
+                sb.AppendLine();
+            }
+
+            sb.AppendLine("═══════════════════════════════════════════════════════════════════════════════════════");
+            sb.AppendLine("INSTRUCCIÓN / SOLICITUD A PROCESAR:");
+            sb.AppendLine("═══════════════════════════════════════════════════════════════════════════════════════");
+            sb.AppendLine("[Pega aquí el esquema en Markdown o escribe el flujo de trabajo BIM que deseas convertir en acciones de Revit...]");
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Extrae limpiamente el bloque JSON principal desde un texto que puede contener
+        /// formato Markdown (```json ... ```), explicaciones introductorias o comentarios de IA.
+        /// </summary>
+        public static string ExtractJsonFromMarkdown(string rawText)
+        {
+            if (string.IsNullOrWhiteSpace(rawText)) return "";
+            string text = rawText.Trim();
+
+            // 1. Si contiene bloque cercado ```json ... ``` o ```markdown ... ``` o ``` ... ```
+            var match = System.Text.RegularExpressions.Regex.Match(
+                text,
+                @"```(?:json|markdown)?\s*([\s\S]*?)\s*```",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            if (match.Success)
+            {
+                string candidate = match.Groups[1].Value.Trim();
+                if ((candidate.StartsWith("{") && candidate.EndsWith("}")) ||
+                    (candidate.StartsWith("[") && candidate.EndsWith("]")))
+                {
+                    return candidate;
+                }
+            }
+
+            // 2. Si no hay bloque cercado o fue insuficiente, buscar el primer '{' y último '}'
+            int firstBrace = text.IndexOf('{');
+            int lastBrace = text.LastIndexOf('}');
+            int firstBracket = text.IndexOf('[');
+            int lastBracket = text.LastIndexOf(']');
+
+            if (firstBrace >= 0 && lastBrace > firstBrace)
+            {
+                if (firstBracket >= 0 && lastBracket > firstBracket && firstBracket < firstBrace && lastBracket > lastBrace)
+                {
+                    return text.Substring(firstBracket, lastBracket - firstBracket + 1).Trim();
+                }
+                return text.Substring(firstBrace, lastBrace - firstBrace + 1).Trim();
+            }
+
+            if (firstBracket >= 0 && lastBracket > firstBracket)
+            {
+                return text.Substring(firstBracket, lastBracket - firstBracket + 1).Trim();
+            }
+
+            return text;
+        }
+
+        /// <summary>
         /// Parsea cualquier estructura JSON de entrada:
-        /// 1. Paquete compilado de ARCA Review (`{ "actions": [...], "schema_tree": {...} }`)
+        /// 1. Paquete compilado de ARCA Review (`{ "schema_version": "2.0-revit-schema", "actions": [...], "schema_tree": {...} }`)
         /// 2. Árbol de Esquema Jerárquico (`{ "name": "...", "children": [...] }` con `revitAction` en los nodos)
         /// 3. Array plano de acciones (`[ { "action": "...", "category": "...", ... } ]`)
         /// 4. Objeto de acción individual (`{ "action": "...", ... }`)
+        /// Soporta directamente entradas pegadas desde bloques de Markdown o chats de IA.
         /// </summary>
         public static List<DirectAiActionItem> ParseActionsJson(string rawJson, out string detectedSchemaTitle)
         {
@@ -381,18 +619,9 @@ namespace reviewPlugIn.Services
             if (string.IsNullOrWhiteSpace(rawJson))
                 throw new ArgumentException("El texto JSON está vacío.");
 
-            string clean = rawJson.Trim();
-
-            // Strip markdown code blocks ```json ... ``` if present
-            if (clean.StartsWith("```"))
-            {
-                int firstNewline = clean.IndexOf('\n');
-                if (firstNewline > 0)
-                    clean = clean.Substring(firstNewline + 1);
-                if (clean.EndsWith("```"))
-                    clean = clean.Substring(0, clean.Length - 3);
-                clean = clean.Trim();
-            }
+            string clean = ExtractJsonFromMarkdown(rawJson);
+            if (string.IsNullOrWhiteSpace(clean))
+                clean = rawJson.Trim();
 
             var token = JToken.Parse(clean);
             var list = new List<DirectAiActionItem>();
@@ -700,6 +929,57 @@ namespace reviewPlugIn.Services
                         continue;
                     }
 
+                    if (tool == "duplicate_schedule")
+                    {
+                        string sName = item.Parameters != null && item.Parameters.TryGetValue("SourceScheduleName", out var src)
+                            ? src
+                            : (item.TargetScheduleName ?? "Tabla");
+                        item.MatchedCount = 1;
+                        item.SimulationStatus = $"✅ Duplicará Tabla '{sName}'";
+                        continue;
+                    }
+
+                    if (tool == "create_assemblies" || tool == "create_assembly")
+                    {
+                        var matchedElem = ResolveTargetElements(doc, item);
+                        item.MatchedRevitIds = matchedElem.Select(e => e.Id).ToList();
+                        item.MatchedCount = item.MatchedRevitIds.Count;
+                        int alreadyInAssembly = matchedElem.Count(e => e.AssemblyInstanceId != ElementId.InvalidElementId);
+                        int available = item.MatchedCount - alreadyInAssembly;
+                        item.SimulationStatus = available > 0
+                            ? $"✅ Creará Ensamblajes ({available} elem. disponibles)"
+                            : (item.MatchedCount > 0 ? "ℹ️ Elementos ya en ensamblajes" : "⚠️ 0 elementos para ensamblar");
+                        continue;
+                    }
+
+                    if (tool == "create_assembly_views")
+                    {
+                        BuiltInCategory? bic = ResolveBuiltInCategory(item.Category);
+                        int assemblyCount = 0;
+                        try
+                        {
+                            var assColl = new FilteredElementCollector(doc)
+                                .OfClass(typeof(AssemblyInstance))
+                                .Cast<AssemblyInstance>();
+                            if (bic.HasValue)
+                            {
+                                var cId = new ElementId(bic.Value);
+                                assemblyCount = assColl.Count(a => a.NamingCategoryId == cId || a.GetMemberIds().Any(m => doc.GetElement(m)?.Category?.Id == cId));
+                            }
+                            else
+                            {
+                                assemblyCount = assColl.Count();
+                            }
+                        }
+                        catch { }
+
+                        item.MatchedCount = Math.Max(1, assemblyCount);
+                        item.SimulationStatus = assemblyCount > 0
+                            ? $"✅ Generará Vistas/Tablas ({assemblyCount} ensamblajes)"
+                            : "⚡ Generará Vistas en ensamblajes de la cadena";
+                        continue;
+                    }
+
                     if (tool == "sync_materials")
                     {
                         var matchedMat = ResolveTargetElements(doc, item);
@@ -770,6 +1050,39 @@ namespace reviewPlugIn.Services
                                 totalElementsUpdated++;
                                 totalParamsUpdated++;
                                 item.SimulationStatus = "🎉 Tabla Creada";
+                            }
+                            continue;
+                        }
+
+                        if (tool == "duplicate_schedule")
+                        {
+                            if (ExecuteDuplicateScheduleAction(doc, item, logs))
+                            {
+                                totalElementsUpdated++;
+                                totalParamsUpdated++;
+                                item.SimulationStatus = "🎉 Tabla Duplicada";
+                            }
+                            continue;
+                        }
+
+                        if (tool == "create_assemblies" || tool == "create_assembly")
+                        {
+                            if (ExecuteCreateAssembliesAction(doc, item, logs, out int createdAss))
+                            {
+                                totalElementsUpdated += createdAss;
+                                totalParamsUpdated += createdAss;
+                                item.SimulationStatus = $"🎉 {createdAss} Ensamblajes Creados";
+                            }
+                            continue;
+                        }
+
+                        if (tool == "create_assembly_views")
+                        {
+                            if (ExecuteCreateAssemblyViewsAction(doc, item, logs, out int createdViews))
+                            {
+                                totalElementsUpdated += createdViews;
+                                totalParamsUpdated += createdViews;
+                                item.SimulationStatus = $"🎉 {createdViews} Vistas Creadas";
                             }
                             continue;
                         }
@@ -936,6 +1249,354 @@ namespace reviewPlugIn.Services
                 : $"{stampFail} (Falta: {string.Join(", ", missing)})";
 
             return SetElementOrTypeParameter(doc, el, "Comments", finalStamp, out _);
+        }
+
+        private static bool ExecuteCreateAssembliesAction(
+            Document doc,
+            DirectAiActionItem item,
+            List<string> logs,
+            out int createdAssembliesCount)
+        {
+            createdAssembliesCount = 0;
+            var elements = ResolveTargetElements(doc, item);
+            if (elements.Count == 0)
+            {
+                logs.Add($"  [Paso #{item.Order}] No se encontraron elementos de categoría '{item.Category}' para ensamblar.");
+                return false;
+            }
+
+            // Opcional: Si se especificó ScheduleName en parámetros y no existe aún la tabla, la creamos
+            if (item.Parameters != null && item.Parameters.TryGetValue("ScheduleName", out var sn) && !string.IsNullOrWhiteSpace(sn))
+            {
+                var existingSched = new FilteredElementCollector(doc)
+                    .OfClass(typeof(ViewSchedule))
+                    .Cast<ViewSchedule>()
+                    .FirstOrDefault(vs => vs.Name.Equals(sn, StringComparison.OrdinalIgnoreCase));
+
+                if (existingSched == null)
+                {
+                    ExecuteCreateScheduleAction(doc, item, logs);
+                }
+            }
+
+            // Determinar categoría para el ensamblaje
+            BuiltInCategory? bic = ResolveBuiltInCategory(item.Category);
+            ElementId namingCatId = bic.HasValue ? new ElementId(bic.Value) : (elements.First().Category?.Id ?? ElementId.InvalidElementId);
+            if (namingCatId == ElementId.InvalidElementId)
+            {
+                logs.Add($"  [Paso #{item.Order}] Categoría '{item.Category}' no válida como categoría de ensamblaje.");
+                return false;
+            }
+
+            // Filtrar elementos que NO pertenezcan ya a un ensamblaje
+            var availableElements = elements.Where(e => e.AssemblyInstanceId == ElementId.InvalidElementId).ToList();
+            if (availableElements.Count == 0)
+            {
+                logs.Add($"  [Paso #{item.Order}] Todos los {elements.Count} elementos de {item.Category} ya pertenecen a un ensamblaje.");
+                return true;
+            }
+
+            // Determinar agrupación: ByInstance o ByType
+            bool groupByInstance = string.Equals(item.IterationMode, "BY_INSTANCE", StringComparison.OrdinalIgnoreCase);
+            if (item.Parameters != null && item.Parameters.TryGetValue("GroupBy", out var gb))
+            {
+                if (string.Equals(gb, "Instance", StringComparison.OrdinalIgnoreCase))
+                    groupByInstance = true;
+            }
+
+            var groups = groupByInstance
+                ? availableElements.Select(e => new List<Element> { e }).ToList()
+                : availableElements.GroupBy(e => e.GetTypeId()).Select(g => g.ToList()).ToList();
+
+            foreach (var group in groups)
+            {
+                try
+                {
+                    var memberIds = group.Select(e => e.Id).ToList();
+                    var assembly = AssemblyInstance.Create(doc, memberIds, namingCatId);
+                    if (assembly != null)
+                    {
+                        createdAssembliesCount++;
+                        string typeName = GetElementTypeName(doc, group.First());
+                        string famName = GetElementFamilyName(doc, group.First());
+                        string desiredName = !string.IsNullOrWhiteSpace(famName) && !string.IsNullOrWhiteSpace(typeName)
+                            ? $"{famName} - {typeName}"
+                            : (typeName ?? "Ensamblaje");
+
+                        try
+                        {
+                            assembly.AssemblyTypeName = desiredName;
+                        }
+                        catch { }
+
+                        // Aplicar parámetros si aplica
+                        if (item.Parameters != null)
+                        {
+                            foreach (var kv in item.Parameters)
+                            {
+                                if (kv.Key.Equals("Fields", StringComparison.OrdinalIgnoreCase) ||
+                                    kv.Key.Equals("ScheduleName", StringComparison.OrdinalIgnoreCase) ||
+                                    kv.Key.Equals("TargetCategory", StringComparison.OrdinalIgnoreCase) ||
+                                    kv.Key.Equals("GroupBy", StringComparison.OrdinalIgnoreCase))
+                                    continue;
+
+                                SetElementOrTypeParameter(doc, assembly, kv.Key, kv.Value, out _);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logs.Add($"  ⚠️ Error al ensamblar grupo: {ex.Message}");
+                }
+            }
+
+            try
+            {
+                doc.Regenerate();
+            }
+            catch { }
+
+            logs.Add($"  ✅ Creados {createdAssembliesCount} ensamblaje(s) para {item.Category} ({availableElements.Count} elementos empaquetados).");
+            return createdAssembliesCount > 0;
+        }
+
+        private static bool ExecuteCreateAssemblyViewsAction(
+            Document doc,
+            DirectAiActionItem item,
+            List<string> logs,
+            out int createdViewsCount)
+        {
+            createdViewsCount = 0;
+            BuiltInCategory? bic = ResolveBuiltInCategory(item.Category);
+            ElementId catId = bic.HasValue ? new ElementId(bic.Value) : ElementId.InvalidElementId;
+
+            // Buscar ensamblajes relevantes
+            var allAssemblies = new FilteredElementCollector(doc)
+                .OfClass(typeof(AssemblyInstance))
+                .Cast<AssemblyInstance>()
+                .ToList();
+
+            List<AssemblyInstance> targetAssemblies;
+            if (bic.HasValue)
+            {
+                targetAssemblies = allAssemblies.Where(a =>
+                {
+                    if (a.NamingCategoryId == catId) return true;
+                    return a.GetMemberIds().Any(mId => doc.GetElement(mId)?.Category?.Id == catId);
+                }).ToList();
+            }
+            else
+            {
+                targetAssemblies = allAssemblies;
+            }
+
+            if (targetAssemblies.Count == 0)
+            {
+                logs.Add($"  [Paso #{item.Order}] No se encontraron ensamblajes de categoría '{item.Category}' para generar vistas.");
+                return false;
+            }
+
+            string schedName = "Despiece y Cómputo";
+            string fieldsCsv = "Family, Type, Recuento, Nivel";
+            if (item.Parameters != null)
+            {
+                if (item.Parameters.TryGetValue("ScheduleName", out var sn) && !string.IsNullOrWhiteSpace(sn))
+                    schedName = sn;
+                if (item.Parameters.TryGetValue("Fields", out var fl) && !string.IsNullOrWhiteSpace(fl))
+                    fieldsCsv = fl;
+            }
+
+            var requestedFields = fieldsCsv
+                .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(f => f.Trim())
+                .Where(f => !string.IsNullOrEmpty(f))
+                .ToList();
+
+            foreach (var assembly in targetAssemblies)
+            {
+                if (!assembly.AllowsAssemblyViewCreation())
+                    continue;
+
+                string aName = assembly.AssemblyTypeName ?? assembly.Name;
+
+                // 1. Crear Tabla de Ensamblaje
+                try
+                {
+                    ViewSchedule? newSched = null;
+                    if (catId != ElementId.InvalidElementId)
+                    {
+                        try
+                        {
+                            newSched = AssemblyViewUtils.CreateSingleCategorySchedule(doc, assembly.Id, catId);
+                        }
+                        catch
+                        {
+                            newSched = AssemblyViewUtils.CreatePartList(doc, assembly.Id);
+                        }
+                    }
+                    else
+                    {
+                        newSched = AssemblyViewUtils.CreatePartList(doc, assembly.Id);
+                    }
+
+                    if (newSched != null)
+                    {
+                        try
+                        {
+                            newSched.Name = $"{aName} - {schedName}";
+                        }
+                        catch
+                        {
+                            newSched.Name = $"{aName} - {schedName}_{DateTime.Now:HHmmss}";
+                        }
+
+                        var def = newSched.Definition;
+                        var schedFields = def.GetSchedulableFields();
+                        foreach (var rf in requestedFields)
+                        {
+                            var found = schedFields.FirstOrDefault(sf =>
+                                sf.GetName(doc).Equals(rf, StringComparison.OrdinalIgnoreCase) ||
+                                sf.GetName(doc).IndexOf(rf, StringComparison.OrdinalIgnoreCase) >= 0);
+                            if (found != null)
+                            {
+                                try { def.AddField(found); } catch { }
+                            }
+                        }
+                        createdViewsCount++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logs.Add($"  ⚠️ Tabla de ensamblaje para '{aName}': {ex.Message}");
+                }
+
+                // 2. Crear Vista 3D Isométrica
+                try
+                {
+                    var v3d = AssemblyViewUtils.Create3DOrthographic(doc, assembly.Id);
+                    if (v3d != null)
+                    {
+                        try { v3d.Name = $"{aName} - Vista 3D"; } catch { }
+                        createdViewsCount++;
+                    }
+                }
+                catch { }
+
+                // 3. Crear Vista de Planta de Detalle
+                try
+                {
+                    var vPlan = AssemblyViewUtils.CreateDetailSection(doc, assembly.Id, AssemblyDetailViewOrientation.HorizontalDetail);
+                    if (vPlan != null)
+                    {
+                        try { vPlan.Name = $"{aName} - Planta"; } catch { }
+                        createdViewsCount++;
+                    }
+                }
+                catch { }
+
+                // 4. Crear Vista de Elevación Frontal
+                try
+                {
+                    var vElev = AssemblyViewUtils.CreateDetailSection(doc, assembly.Id, AssemblyDetailViewOrientation.ElevationFront);
+                    if (vElev != null)
+                    {
+                        try { vElev.Name = $"{aName} - Elevación Frontal"; } catch { }
+                        createdViewsCount++;
+                    }
+                }
+                catch { }
+            }
+
+            logs.Add($"  ✅ Generadas {createdViewsCount} vistas/tablas para {targetAssemblies.Count} ensamblaje(s) de {item.Category}.");
+            return createdViewsCount > 0;
+        }
+
+        private static bool ExecuteDuplicateScheduleAction(
+            Document doc,
+            DirectAiActionItem item,
+            List<string> logs)
+        {
+            string sourceName = "";
+            string newName = "Tabla Duplicada";
+            if (item.Parameters != null)
+            {
+                if (item.Parameters.TryGetValue("SourceScheduleName", out var s1)) sourceName = s1;
+                else if (item.Parameters.TryGetValue("TargetScheduleName", out var s2)) sourceName = s2;
+                else if (!string.IsNullOrWhiteSpace(item.TargetScheduleName)) sourceName = item.TargetScheduleName;
+
+                if (item.Parameters.TryGetValue("ScheduleName", out var n1)) newName = n1;
+                else if (item.Parameters.TryGetValue("NewScheduleName", out var n2)) newName = n2;
+            }
+
+            ViewSchedule? srcSchedule = null;
+            var allSchedules = new FilteredElementCollector(doc)
+                .OfClass(typeof(ViewSchedule))
+                .Cast<ViewSchedule>()
+                .Where(vs => !vs.IsTemplate)
+                .ToList();
+
+            if (!string.IsNullOrWhiteSpace(sourceName))
+            {
+                srcSchedule = allSchedules.FirstOrDefault(vs => vs.Name.IndexOf(sourceName, StringComparison.OrdinalIgnoreCase) >= 0);
+            }
+
+            if (srcSchedule == null)
+            {
+                BuiltInCategory? bic = ResolveBuiltInCategory(item.Category);
+                if (bic.HasValue)
+                {
+                    var catId = new ElementId(bic.Value);
+                    srcSchedule = allSchedules.FirstOrDefault(vs => vs.Definition?.CategoryId == catId);
+                }
+            }
+
+            if (srcSchedule == null)
+            {
+                logs.Add($"  [Paso #{item.Order}] No se encontró la tabla de planificación '{sourceName}' para duplicar.");
+                return false;
+            }
+
+            try
+            {
+                ElementId dupId = srcSchedule.Duplicate(ViewDuplicateOption.Duplicate);
+                var dupSchedule = doc.GetElement(dupId) as ViewSchedule;
+                if (dupSchedule != null)
+                {
+                    try
+                    {
+                        dupSchedule.Name = newName;
+                    }
+                    catch
+                    {
+                        dupSchedule.Name = $"{newName}_{DateTime.Now:HHmmss}";
+                    }
+
+                    if (item.Parameters != null && item.Parameters.TryGetValue("Fields", out var fieldsCsv) && !string.IsNullOrWhiteSpace(fieldsCsv))
+                    {
+                        var def = dupSchedule.Definition;
+                        var schedFields = def.GetSchedulableFields();
+                        var reqFields = fieldsCsv.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(f => f.Trim());
+                        foreach (var rf in reqFields)
+                        {
+                            var f = schedFields.FirstOrDefault(sf => sf.GetName(doc).IndexOf(rf, StringComparison.OrdinalIgnoreCase) >= 0);
+                            if (f != null)
+                            {
+                                try { def.AddField(f); } catch { }
+                            }
+                        }
+                    }
+
+                    logs.Add($"  ✅ Tabla '{srcSchedule.Name}' duplicada como '{dupSchedule.Name}'.");
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                logs.Add($"  ❌ Error al duplicar tabla '{srcSchedule.Name}': {ex.Message}");
+            }
+
+            return false;
         }
 
         private static bool ExecuteCreateScheduleAction(

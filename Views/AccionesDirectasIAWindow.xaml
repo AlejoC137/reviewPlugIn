@@ -85,7 +85,7 @@
                     <Button x:Name="btnCopyPrompt"
                             Style="{StaticResource SecondaryButton}"
                             Background="#FACC15" Foreground="#1C1C19" BorderBrush="#1C1C19"
-                            Content="🤖 Copiar Prompt IA (Esquema Revit)"
+                            Content="🤖 Copiar Mega-Prompt IA (Zero-Laxity 2.0)"
                             Margin="0,0,6,0"
                             Click="BtnCopyPrompt_Click"/>
                     <Button x:Name="btnLoadExample"
@@ -145,7 +145,7 @@
 
                 <Grid Grid.Row="0" Margin="0,0,0,6">
                     <TextBlock x:Name="txtSchemaHeaderLabel"
-                               Text="1. PEGAR JSON DE ESQUEMA O COLA DE ACCIONES REVIT (ACEPTA ÁRBOL JERÁRQUICO O LISTA DE ACCIONES)"
+                               Text="1. PEGAR ESQUEMA JSON O BLOQUE MARKDOWN (ESQUEMA REVIT 2.0 / ÁRBOL DE PROCESOS)"
                                FontWeight="Bold" FontSize="10.5" Foreground="#0F4369" VerticalAlignment="Center"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button x:Name="btnPasteClipboard"

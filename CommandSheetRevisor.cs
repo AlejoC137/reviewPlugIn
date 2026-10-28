@@ -35,7 +35,7 @@ namespace RevitToSupabasePlugin
             catch (Exception ex)
             {
                 message = ex.Message;
-                TaskDialog.Show("Error", "No se pudo abrir ProSheets (Renombrador de Sheets): " + ex.Message);
+                TaskDialog.Show("Error", "No se pudo abrir ProSheets (Renombrador de Sheets): " + ex.Message + "\n\n" + ex);
                 return Result.Failed;
             }
         }

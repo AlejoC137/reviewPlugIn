@@ -49,10 +49,10 @@
                         <TextBlock Text="📊" FontSize="18" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <TextBlock Text="GESTOR CENTRAL DE TABLAS &amp; ENSAMBLAJES" FontSize="14" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
                         <Border Background="#D1E4F9" BorderBrush="#0F4369" BorderThickness="1" CornerRadius="0" Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="V2.0 PRO" FontSize="9" FontWeight="Bold" Foreground="#0F4369"/>
+                            <TextBlock Text="V2.5 CUADRO PUERTAS PRO" FontSize="9" FontWeight="Bold" Foreground="#0F4369"/>
                         </Border>
                     </StackPanel>
-                    <TextBlock Text="Gestión global de cómputos de obra, generación automática para ensamblajes y clonación segura de formatos sin dañar tablas originales." 
+                    <TextBlock Text="Gestión global de cómputos de obra, cuadro técnico de carpinterías/puertas, generación batch de ensamblajes y clonación segura de formatos." 
                                FontSize="11" Foreground="#72777F" Margin="0,2,0,0"/>
                 </StackPanel>
 
@@ -67,353 +67,558 @@
                     <Button x:Name="btnQuickPlumbing" Content="🚰 Plumbing Sheet" Click="btnQuickPlumbing_Click" 
                             Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" ToolTip="Genera tablas completas de Fontanería / Cómputo Hidrosanitario"/>
                     <Button x:Name="btnRefreshAll" Content="🔄 Recargar Todo" Click="btnRefreshAll_Click" 
-                            Style="{StaticResource PrimaryButton}" ToolTip="Recarga todas las tablas y ensamblajes del modelo"/>
+                            Style="{StaticResource PrimaryButton}" ToolTip="Recarga todas las tablas, ensamblajes y puertas del modelo"/>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- PANEL PRINCIPAL A 2 COLUMNAS -->
-        <Grid Grid.Row="2" Margin="12,10,12,6">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="460" MinWidth="360"/>
-                <ColumnDefinition Width="8"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+        <!-- PANEL PRINCIPAL CON TABCONTROL -->
+        <TabControl x:Name="tabMainModules" Grid.Row="2" Background="Transparent" BorderThickness="0" Margin="12,8,12,6">
+            <TabControl.Resources>
+                <Style TargetType="TabItem">
+                    <Setter Property="Background" Value="#F6F3EE"/>
+                    <Setter Property="Foreground" Value="#72777F"/>
+                    <Setter Property="FontSize" Value="11.5"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="Padding" Value="16,8"/>
+                    <Setter Property="Margin" Value="0,0,4,0"/>
+                    <Setter Property="BorderBrush" Value="#C2C7CF"/>
+                    <Style.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="#FFFFFF"/>
+                            <Setter Property="Foreground" Value="#0F4369"/>
+                            <Setter Property="FontWeight" Value="Bold"/>
+                            <Setter Property="BorderBrush" Value="#0F4369"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </TabControl.Resources>
 
-            <!-- COLUMNA IZQUIERDA: GESTOR DE TABLAS DEL PROYECTO & PLANTILLAS -->
-            <GroupBox Header="1. Gestor de Tablas del Proyecto &amp; Plantillas" Style="{StaticResource ArcaGroupBox}" Grid.Column="0" Margin="0,0,2,0">
-                <Grid Margin="2,4,2,2">
-                    <Grid.RowDefinitions>
-                        <!-- 0: Filtro de Alcance & Buscador -->
-                        <RowDefinition Height="Auto"/>
-                        <!-- 1: Barra de Herramientas de Gestión de Tablas -->
-                        <RowDefinition Height="Auto"/>
-                        <!-- 2: Aviso de Plantilla Activa -->
-                        <RowDefinition Height="Auto"/>
-                        <!-- 3: Lista de Tablas -->
-                        <RowDefinition Height="*"/>
-                        <!-- 4: Detalle de Campos -->
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
+            <!-- PESTAÑA 1: GESTOR GENERAL DE TABLAS & ENSAMBLAJES -->
+            <TabItem Header="📊 Gestor General de Tablas &amp; Ensamblajes">
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="460" MinWidth="360"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
-                    <!-- FILTRO DE ALCANCE Y BUSCADOR -->
-                    <StackPanel Grid.Row="0" Margin="0,0,0,4">
-                        <!-- FILTRO RÁPIDO DE ALCANCE (TODAS / PROYECTO / ENSAMBLAJES) -->
-                        <Grid Margin="0,0,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <RadioButton x:Name="rbFilterAll" Content="Todas" IsChecked="True" Checked="rbTableScope_Checked" Style="{StaticResource ArcaRadioButton}" Margin="0,0,8,0" FontSize="10.5"/>
-                                <RadioButton x:Name="rbFilterProject" Content="🏢 Proyecto" IsChecked="False" Checked="rbTableScope_Checked" Style="{StaticResource ArcaRadioButton}" Margin="0,0,8,0" FontSize="10.5"/>
-                                <RadioButton x:Name="rbFilterAssembly" Content="📦 Ensamblajes" IsChecked="False" Checked="rbTableScope_Checked" Style="{StaticResource ArcaRadioButton}" FontSize="10.5"/>
-                            </StackPanel>
-
-                            <TextBlock x:Name="txtScheduleCountSummary" Grid.Column="1" Text="0 tablas" FontSize="10" Foreground="#72777F" VerticalAlignment="Center"/>
-                        </Grid>
-
-                        <!-- BUSCADOR -->
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="txtSearchSchedules" Style="{StaticResource ArcaTextBox}" TextChanged="txtSearchSchedules_TextChanged" 
-                                     ToolTip="Filtrar tablas por nombre o categoría..."/>
-                            <TextBlock Text="🔍 Buscar tabla..." IsHitTestVisible="False" Foreground="#72777F" 
-                                       Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"
-                                       Visibility="{Binding Text.IsEmpty, ElementName=txtSearchSchedules, Converter={StaticResource BoolToVis}}"/>
-                            <Button x:Name="btnClearTemplate" Grid.Column="1" Content="✕ Sin Plantilla" Click="btnClearTemplate_Click" 
-                                    Style="{StaticResource SecondaryButton}" Margin="6,0,0,0" Padding="8,4" FontSize="10.5" 
-                                    ToolTip="Deselecciona la plantilla para usar el Modo Estándar Automático"/>
-                        </Grid>
-                    </StackPanel>
-
-                    <!-- BARRA DE GESTIÓN DE TABLAS (REVIEW ACTIONS) -->
-                    <Border Grid.Row="1" Background="#EDE8DF" BorderBrush="#C2C7CF" BorderThickness="1" Padding="4,3" Margin="0,0,0,4">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-
-                            <!-- ACCIONES SOBRE TABLA SELECCIONADA -->
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button x:Name="btnOpenSchedule" Content="👁️ Abrir" Click="btnOpenSchedule_Click" 
-                                        Style="{StaticResource SecondaryButton}" Padding="6,2" FontSize="10" Margin="0,0,3,0"
-                                        ToolTip="Abre e inspecciona la tabla seleccionada en el viewport activo de Revit"/>
-                                <Button x:Name="btnDuplicateSchedule" Content="📑 Duplicar" Click="btnDuplicateSchedule_Click" 
-                                        Style="{StaticResource SecondaryButton}" Padding="6,2" FontSize="10" Margin="0,0,3,0"
-                                        ToolTip="Crea una copia idéntica de la tabla seleccionada en Revit"/>
-                                <Button x:Name="btnRenameSchedule" Content="✏️ Renombrar" Click="btnRenameSchedule_Click" 
-                                        Style="{StaticResource SecondaryButton}" Padding="6,2" FontSize="10" Margin="0,0,3,0"
-                                        ToolTip="Renombra la tabla seleccionada con validación técnica"/>
-                                <Button x:Name="btnDeleteSchedule" Content="🗑️ Eliminar" Click="btnDeleteSchedule_Click" 
-                                        Style="{StaticResource DangerButton}" Padding="7,2" FontSize="10"
-                                        ToolTip="Elimina la tabla seleccionada (o las marcadas con check) con confirmación previa"/>
-                            </StackPanel>
-
-                            <!-- SELECCIÓN EN LOTE PARA GESTIÓN -->
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button Content="☑️" Click="btnSelectAllSchedules_Click" Style="{StaticResource SecondaryButton}" Padding="4,2" FontSize="9.5" Margin="0,0,2,0" ToolTip="Marcar todas para eliminación masiva"/>
-                                <Button Content="◻️" Click="btnDeselectAllSchedules_Click" Style="{StaticResource SecondaryButton}" Padding="4,2" FontSize="9.5" ToolTip="Desmarcar todas"/>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-
-                    <!-- AVISO DE MODO ACTIVO -->
-                    <Border x:Name="pnlActiveTemplateBadge" Grid.Row="2" Background="#D1E4F9" BorderBrush="#0F4369" BorderThickness="1" CornerRadius="0" Padding="8,4" Margin="0,0,0,4">
-                        <TextBlock x:Name="txtSelectedTemplateInfo" Text="Modo activo: Estándar Automático (Sin Plantilla)" FontSize="10.5" FontWeight="SemiBold" Foreground="#0F4369" TextWrapping="Wrap"/>
-                    </Border>
-
-                    <!-- LISTA DE TABLAS -->
-                    <ListBox x:Name="lstSchedules" Grid.Row="3" SelectionChanged="lstSchedules_SelectionChanged" 
-                             SelectionMode="Extended"
-                             Background="#FFFFFF" Foreground="#1C1C19" BorderBrush="#1C1C19" BorderThickness="1"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                        <ListBox.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Header="👁️ Abrir en Revit" Click="btnOpenSchedule_Click"/>
-                                <MenuItem Header="📑 Duplicar Tabla" Click="btnDuplicateSchedule_Click"/>
-                                <MenuItem Header="✏️ Renombrar Tabla" Click="btnRenameSchedule_Click"/>
-                                <Separator/>
-                                <MenuItem Header="🗑️ Eliminar Tabla" Click="btnDeleteSchedule_Click"/>
-                            </ContextMenu>
-                        </ListBox.ContextMenu>
-                        <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
-                                <Setter Property="Padding" Value="0"/>
-                                <Setter Property="Margin" Value="0,1"/>
-                                <Setter Property="Cursor" Value="Hand"/>
-                                <Setter Property="Template">
-                                     <Setter.Value>
-                                         <ControlTemplate TargetType="ListBoxItem">
-                                             <Border x:Name="ItemBorder" Background="#FFFFFF" BorderBrush="#C2C7CF" BorderThickness="0,0,0,1" Padding="6,4">
-                                                 <ContentPresenter/>
-                                             </Border>
-                                             <ControlTemplate.Triggers>
-                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                     <Setter TargetName="ItemBorder" Property="Background" Value="#F6F3EE"/>
-                                                     <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#0F4369"/>
-                                                 </Trigger>
-                                                 <Trigger Property="IsSelected" Value="True">
-                                                     <Setter TargetName="ItemBorder" Property="Background" Value="#D1E4F9"/>
-                                                     <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#0F4369"/>
-                                                 </Trigger>
-                                             </ControlTemplate.Triggers>
-                                         </ControlTemplate>
-                                     </Setter.Value>
-                                 </Setter>
-                            </Style>
-                        </ListBox.ItemContainerStyle>
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-
-                                    <!-- CHECKBOX PARA ACCIONES POR LOTE -->
-                                    <CheckBox Grid.RowSpan="2" Style="{StaticResource ArcaCheckBox}" 
-                                              IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                                              Click="chkScheduleItem_Click"
-                                              VerticalAlignment="Center" Margin="0,0,6,0" 
-                                              ToolTip="Marcar para duplicar, renombrar o eliminar"/>
-
-                                    <!-- NOMBRE DE TABLA -->
-                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="#1C1C19" FontSize="11" Grid.Row="0" Grid.Column="1" TextTrimming="CharacterEllipsis"/>
-
-                                    <!-- BADGES (ALCANCE Y SI ESTÁ EN PLANO) -->
-                                    <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Margin="4,0,0,0">
-                                        <!-- BADGE EN PLANO (SI ESTÁ COLOCADA EN SHEET) -->
-                                        <Border CornerRadius="0" Padding="4,1" Margin="0,0,3,0" VerticalAlignment="Center" Background="#4A148C"
-                                                Visibility="{Binding HasSheetBadge, Converter={StaticResource BoolToVis}}"
-                                                ToolTip="Esta tabla está colocada en al menos una lámina del proyecto">
-                                            <TextBlock Text="{Binding SheetBadge}" FontSize="8" FontWeight="Bold" Foreground="#FFFFFF"/>
-                                        </Border>
-                                        <!-- BADGE DE ALCANCE -->
-                                        <Border CornerRadius="0" Padding="5,1" VerticalAlignment="Center" Background="{Binding ScopeBadgeColor}">
-                                            <TextBlock Text="{Binding ScopeBadge}" FontSize="8.5" FontWeight="Bold" Foreground="#FFFFFF"/>
-                                        </Border>
-                                    </StackPanel>
-
-                                    <!-- DETALLES: TIPO, CATEGORÍA Y CAMPOS -->
-                                    <TextBlock Text="{Binding DisplaySubtitle}" FontSize="9.5" Foreground="#72777F" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"/>
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-
-                    <!-- DETALLES DE CAMPOS DE LA TABLA SELECCIONADA -->
-                    <GroupBox x:Name="grpFieldDetails" Header="Campos de la Plantilla Seleccionada" Style="{StaticResource ArcaGroupBox}" Grid.Row="4" Margin="0,4,0,0" Height="165">
-                        <Grid Margin="0,2,0,0">
+                    <!-- COLUMNA IZQUIERDA: GESTOR DE TABLAS DEL PROYECTO & PLANTILLAS -->
+                    <GroupBox Header="1. Gestor de Tablas del Proyecto &amp; Plantillas" Style="{StaticResource ArcaGroupBox}" Grid.Column="0" Margin="0,0,2,0">
+                        <Grid Margin="2,4,2,2">
                             <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,3">
-                                <CheckBox x:Name="chkOnlySelectedFields" Style="{StaticResource ArcaCheckBox}" Content="Solo campos marcados" IsChecked="False" FontSize="10" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                <Button Content="Todos" Click="btnSelectAllFields_Click" Style="{StaticResource SecondaryButton}" Padding="5,1" FontSize="9" Margin="0,0,3,0"/>
-                                <Button Content="Ninguno" Click="btnDeselectAllFields_Click" Style="{StaticResource SecondaryButton}" Padding="5,1" FontSize="9"/>
-                            </StackPanel>
+                            <!-- FILTRO DE ALCANCE Y BUSCADOR -->
+                            <StackPanel Grid.Row="0" Margin="0,0,0,4">
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <RadioButton x:Name="rbFilterAll" Content="Todas" IsChecked="True" Checked="rbTableScope_Checked" Style="{StaticResource ArcaRadioButton}" Margin="0,0,8,0" FontSize="10.5"/>
+                                        <RadioButton x:Name="rbFilterProject" Content="🏢 Proyecto" IsChecked="False" Checked="rbTableScope_Checked" Style="{StaticResource ArcaRadioButton}" Margin="0,0,8,0" FontSize="10.5"/>
+                                        <RadioButton x:Name="rbFilterAssembly" Content="📦 Ensamblajes" IsChecked="False" Checked="rbTableScope_Checked" Style="{StaticResource ArcaRadioButton}" FontSize="10.5"/>
+                                    </StackPanel>
 
-                            <ListBox x:Name="lstTemplateFields" Grid.Row="1" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <CheckBox Style="{StaticResource ArcaCheckBox}" Content="{Binding DisplayName}" IsChecked="{Binding IsSelected}" FontSize="10" Margin="2,1"/>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
+                                    <TextBlock x:Name="txtScheduleCountSummary" Grid.Column="1" Text="0 tablas" FontSize="10" Foreground="#72777F" VerticalAlignment="Center"/>
+                                </Grid>
 
-                            <TextBlock x:Name="txtFieldsSummary" Grid.Row="2" Text="Selecciona una tabla arriba para inspeccionar sus campos." FontSize="9" Foreground="#72777F" Margin="0,2,0,0"/>
-                        </Grid>
-                    </GroupBox>
-                </Grid>
-            </GroupBox>
-
-            <!-- SPLITTER DIVISOR -->
-            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Center" Background="#C2C7CF" Cursor="SizeWE"/>
-
-            <!-- COLUMNA DERECHA: ENSAMBLAJES Y REPLICACIÓN -->
-            <GroupBox Header="2. Ensamblajes (Assemblies) y Generación de Tablas" Style="{StaticResource ArcaGroupBox}" Grid.Column="2" Margin="2,0,0,0">
-                <Grid Margin="2,6,2,2">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <!-- BUSCADOR Y SELECCIÓN DE ENSAMBLAJES -->
-                    <Grid Grid.Row="0" Margin="0,0,0,6">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBox x:Name="txtSearchAssembly" Style="{StaticResource ArcaTextBox}" TextChanged="txtSearchAssembly_TextChanged" 
-                                 ToolTip="Filtrar ensamblajes por tipo o nombre..."/>
-                        <TextBlock Text="🔍 Filtrar ensamblajes..." IsHitTestVisible="False" Foreground="#72777F" 
-                                   Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"
-                                   Visibility="{Binding Text.IsEmpty, ElementName=txtSearchAssembly, Converter={StaticResource BoolToVis}}"/>
-
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="6,0,0,0">
-                            <Button Content="Todos" Click="btnSelectAllAssemblies_Click" Style="{StaticResource SecondaryButton}" Padding="7,4" FontSize="10.5" Margin="0,0,4,0"/>
-                            <Button Content="Ninguno" Click="btnDeselectAllAssemblies_Click" Style="{StaticResource SecondaryButton}" Padding="7,4" FontSize="10.5" Margin="0,0,4,0"/>
-                            <Button Content="Solo sin Tabla" Click="btnSelectWithoutSchedule_Click" Style="{StaticResource SecondaryButton}" Padding="7,4" FontSize="10.5" Margin="0,0,4,0" ToolTip="Selecciona solo ensamblajes que no tengan ninguna tabla"/>
-                            <Button Content="📐 Selección Revit" Click="btnSelectFromRevit_Click" Style="{StaticResource SecondaryButton}" Padding="7,4" FontSize="10.5" ToolTip="Marca los ensamblajes seleccionados actualmente en el visor de Revit"/>
-                        </StackPanel>
-                    </Grid>
-
-                    <TextBlock x:Name="txtAssembliesSummary" Grid.Row="1" Text="Cargando ensamblajes..." FontSize="10.5" Foreground="#72777F" Margin="2,0,0,6"/>
-
-                    <!-- LISTA DE ENSAMBLAJES -->
-                    <ListBox x:Name="lstAssemblies" Grid.Row="2" Background="#FFFFFF" Foreground="#1C1C19" BorderBrush="#1C1C19" BorderThickness="1"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                        <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
-                                <Setter Property="Padding" Value="0"/>
-                                <Setter Property="Margin" Value="0,1"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="ListBoxItem">
-                                            <Border x:Name="ItemBorder" Background="#FFFFFF" BorderBrush="#C2C7CF" BorderThickness="0,0,0,1" Padding="8,6">
-                                                <ContentPresenter/>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="ItemBorder" Property="Background" Value="#F6F3EE"/>
-                                                    <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#0F4369"/>
-                                                </Trigger>
-                                                <Trigger Property="IsSelected" Value="True">
-                                                    <Setter TargetName="ItemBorder" Property="Background" Value="#D1E4F9"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </ListBox.ItemContainerStyle>
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="txtSearchSchedules" Style="{StaticResource ArcaTextBox}" TextChanged="txtSearchSchedules_TextChanged" 
+                                             ToolTip="Filtrar tablas por nombre o categoría..."/>
+                                    <TextBlock Text="🔍 Buscar tabla..." IsHitTestVisible="False" Foreground="#72777F" 
+                                               Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"
+                                               Visibility="{Binding Text.IsEmpty, ElementName=txtSearchSchedules, Converter={StaticResource BoolToVis}}"/>
+                                    <Button x:Name="btnClearTemplate" Grid.Column="1" Content="✕ Sin Plantilla" Click="btnClearTemplate_Click" 
+                                            Style="{StaticResource SecondaryButton}" Margin="6,0,0,0" Padding="8,4" FontSize="10.5" 
+                                            ToolTip="Deselecciona la plantilla para usar el Modo Estándar Automático"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- BARRA DE GESTIÓN DE TABLAS -->
+                            <Border Grid.Row="1" Background="#EDE8DF" BorderBrush="#C2C7CF" BorderThickness="1" Padding="4,3" Margin="0,0,0,4">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- CHECKBOX -->
-                                    <CheckBox Style="{StaticResource ArcaCheckBox}" IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-
-                                    <!-- INFO ENSAMBLAJE -->
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="#1C1C19" FontSize="11.5"/>
-                                            <TextBlock Text=" — " Foreground="#72777F" Margin="4,0"/>
-                                            <TextBlock Text="{Binding TypeName}" Foreground="#0F4369" FontWeight="SemiBold" FontSize="11"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                            <TextBlock Text="{Binding MemberCount, StringFormat='{}{0} elementos'}" FontSize="10" Foreground="#72777F" Margin="0,0,8,0"/>
-                                            <TextBlock Text="Categorías: " FontSize="10" Foreground="#72777F"/>
-                                            <TextBlock Text="{Binding CategoriesSummary}" FontSize="10" Foreground="#1C1C19" TextTrimming="CharacterEllipsis"/>
-                                        </StackPanel>
-                                        <TextBlock Text="{Binding ExistingScheduleInfo}" FontSize="10" Foreground="#059669" FontWeight="SemiBold" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button x:Name="btnOpenSchedule" Content="👁️ Abrir" Click="btnOpenSchedule_Click" 
+                                                Style="{StaticResource SecondaryButton}" Padding="6,2" FontSize="10" Margin="0,0,3,0"
+                                                ToolTip="Abre e inspecciona la tabla seleccionada en el viewport activo de Revit"/>
+                                        <Button x:Name="btnDuplicateSchedule" Content="📑 Duplicar" Click="btnDuplicateSchedule_Click" 
+                                                Style="{StaticResource SecondaryButton}" Padding="6,2" FontSize="10" Margin="0,0,3,0"
+                                                ToolTip="Crea una copia idéntica de la tabla seleccionada en Revit"/>
+                                        <Button x:Name="btnRenameSchedule" Content="✏️ Renombrar" Click="btnRenameSchedule_Click" 
+                                                Style="{StaticResource SecondaryButton}" Padding="6,2" FontSize="10" Margin="0,0,3,0"
+                                                ToolTip="Renombra la tabla seleccionada con validación técnica"/>
+                                        <Button x:Name="btnDeleteSchedule" Content="🗑️ Eliminar" Click="btnDeleteSchedule_Click" 
+                                                Style="{StaticResource DangerButton}" Padding="7,2" FontSize="10"
+                                                ToolTip="Elimina la tabla seleccionada (o las marcadas con check) con confirmación previa"/>
                                     </StackPanel>
 
-                                    <!-- ESTADO / BADGE -->
-                                    <Border Grid.Column="2" Background="{Binding StatusColor}" CornerRadius="0" Padding="6,2" VerticalAlignment="Center" Margin="6,0,0,0">
-                                        <TextBlock Text="{Binding StatusBadge}" FontSize="8.5" FontWeight="Bold" Foreground="#FFFFFF"/>
-                                    </Border>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Content="☑️" Click="btnSelectAllSchedules_Click" Style="{StaticResource SecondaryButton}" Padding="4,2" FontSize="9.5" Margin="0,0,2,0" ToolTip="Marcar todas para eliminación masiva"/>
+                                        <Button Content="◻️" Click="btnDeselectAllSchedules_Click" Style="{StaticResource SecondaryButton}" Padding="4,2" FontSize="9.5" ToolTip="Desmarcar todas"/>
+                                    </StackPanel>
                                 </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                            </Border>
 
-                    <!-- CONFIGURACIÓN DE GENERACIÓN -->
-                    <GroupBox Header="Opciones de Generación en Ensamblajes" Style="{StaticResource ArcaGroupBox}" Grid.Row="3" Margin="0,6,0,6">
-                        <StackPanel Margin="0,4,0,0">
-                            <!-- OPCIONES MODO ESTÁNDAR (VISIBLE CUANDO NO HAY PLANTILLA) -->
-                            <StackPanel x:Name="pnlStandardOptions" Visibility="Visible">
-                                <TextBlock Text="Tipo de tabla estándar a generar:" FontSize="10.5" Foreground="#72777F" Margin="0,0,0,4"/>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <RadioButton x:Name="rbPartList" Style="{StaticResource ArcaRadioButton}" Content="📋 Lista de Piezas (Part List Multi-categoría)" IsChecked="True"/>
-                                    <RadioButton x:Name="rbMaterialTakeoff" Style="{StaticResource ArcaRadioButton}" Content="🧱 Cómputo de Materiales (Material Takeoff)" IsChecked="False"/>
-                                </StackPanel>
-                                <CheckBox x:Name="chkGroupIdentical" Style="{StaticResource ArcaCheckBox}" Content="Agrupar elementos idénticos y calcular totales (Itemize instances = false)" IsChecked="True"/>
-                            </StackPanel>
+                            <!-- AVISO DE MODO ACTIVO -->
+                            <Border x:Name="pnlActiveTemplateBadge" Grid.Row="2" Background="#D1E4F9" BorderBrush="#0F4369" BorderThickness="1" CornerRadius="0" Padding="8,4" Margin="0,0,0,4">
+                                <TextBlock x:Name="txtSelectedTemplateInfo" Text="Modo activo: Estándar Automático (Sin Plantilla)" FontSize="10.5" FontWeight="SemiBold" Foreground="#0F4369" TextWrapping="Wrap"/>
+                            </Border>
 
-                            <!-- OPCIONES MODO PLANTILLA (VISIBLE CUANDO HAY PLANTILLA SELECCIONADA) -->
-                            <StackPanel x:Name="pnlTemplateOptions" Visibility="Collapsed">
-                                <TextBlock Text="Ajustes de réplica desde la tabla plantilla:" FontSize="10.5" Foreground="#72777F" Margin="0,0,0,4"/>
-                                <WrapPanel Margin="0,0,0,4">
-                                    <CheckBox x:Name="chkReplicateFormat" Style="{StaticResource ArcaCheckBox}" Content="Formato de columnas y cabeceras" IsChecked="True" Margin="0,0,12,4"/>
-                                    <CheckBox x:Name="chkReplicateSorting" Style="{StaticResource ArcaCheckBox}" Content="Ordenación y agrupamiento" IsChecked="True" Margin="0,0,12,4"/>
-                                    <CheckBox x:Name="chkReplicateTotals" Style="{StaticResource ArcaCheckBox}" Content="Totales y subtotales generales" IsChecked="True" Margin="0,0,12,4"/>
-                                    <CheckBox x:Name="chkReplicateFilters" Style="{StaticResource ArcaCheckBox}" Content="Filtros originales (⚠️ Desmarcado para evitar tablas vacías)" IsChecked="False" Margin="0,0,12,4" 
-                                              ToolTip="Los filtros de tablas maestras suelen filtrar por ejemplar o tipo específico. Dejar desmarcado para que el ensamble muestre todas sus piezas."/>
-                                </WrapPanel>
-                            </StackPanel>
-                        </StackPanel>
+                            <!-- LISTA DE TABLAS -->
+                            <ListBox x:Name="lstSchedules" Grid.Row="3" SelectionChanged="lstSchedules_SelectionChanged" 
+                                     SelectionMode="Extended"
+                                     Background="#FFFFFF" Foreground="#1C1C19" BorderBrush="#1C1C19" BorderThickness="1"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="👁️ Abrir en Revit" Click="btnOpenSchedule_Click"/>
+                                        <MenuItem Header="📑 Duplicar Tabla" Click="btnDuplicateSchedule_Click"/>
+                                        <MenuItem Header="✏️ Renombrar Tabla" Click="btnRenameSchedule_Click"/>
+                                        <Separator/>
+                                        <MenuItem Header="🗑️ Eliminar Tabla" Click="btnDeleteSchedule_Click"/>
+                                    </ContextMenu>
+                                </ListBox.ContextMenu>
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Padding" Value="0"/>
+                                        <Setter Property="Margin" Value="0,1"/>
+                                        <Setter Property="Cursor" Value="Hand"/>
+                                        <Setter Property="Template">
+                                             <Setter.Value>
+                                                 <ControlTemplate TargetType="ListBoxItem">
+                                                     <Border x:Name="ItemBorder" Background="#FFFFFF" BorderBrush="#C2C7CF" BorderThickness="0,0,0,1" Padding="6,4">
+                                                         <ContentPresenter/>
+                                                     </Border>
+                                                     <ControlTemplate.Triggers>
+                                                         <Trigger Property="IsMouseOver" Value="True">
+                                                             <Setter TargetName="ItemBorder" Property="Background" Value="#F6F3EE"/>
+                                                             <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#0F4369"/>
+                                                         </Trigger>
+                                                         <Trigger Property="IsSelected" Value="True">
+                                                             <Setter TargetName="ItemBorder" Property="Background" Value="#D1E4F9"/>
+                                                             <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#0F4369"/>
+                                                         </Trigger>
+                                                     </ControlTemplate.Triggers>
+                                                 </ControlTemplate>
+                                             </Setter.Value>
+                                         </Setter>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <CheckBox Grid.RowSpan="2" Style="{StaticResource ArcaCheckBox}" 
+                                                      IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                                      Click="chkScheduleItem_Click"
+                                                      VerticalAlignment="Center" Margin="0,0,6,0" 
+                                                      ToolTip="Marcar para duplicar, renombrar o eliminar"/>
+
+                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="#1C1C19" FontSize="11" Grid.Row="0" Grid.Column="1" TextTrimming="CharacterEllipsis"/>
+
+                                            <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Margin="4,0,0,0">
+                                                <Border CornerRadius="0" Padding="4,1" Margin="0,0,3,0" VerticalAlignment="Center" Background="#4A148C"
+                                                        Visibility="{Binding HasSheetBadge, Converter={StaticResource BoolToVis}}"
+                                                        ToolTip="Esta tabla está colocada en al menos una lámina del proyecto">
+                                                    <TextBlock Text="{Binding SheetBadge}" FontSize="8" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                                </Border>
+                                                <Border CornerRadius="0" Padding="5,1" VerticalAlignment="Center" Background="{Binding ScopeBadgeColor}">
+                                                    <TextBlock Text="{Binding ScopeBadge}" FontSize="8.5" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                                </Border>
+                                            </StackPanel>
+
+                                            <TextBlock Text="{Binding DisplaySubtitle}" FontSize="9.5" Foreground="#72777F" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <!-- DETALLES DE CAMPOS DE LA TABLA SELECCIONADA -->
+                            <GroupBox x:Name="grpFieldDetails" Header="Campos de la Plantilla Seleccionada" Style="{StaticResource ArcaGroupBox}" Grid.Row="4" Margin="0,4,0,0" Height="165">
+                                <Grid Margin="0,2,0,0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,3">
+                                        <CheckBox x:Name="chkOnlySelectedFields" Style="{StaticResource ArcaCheckBox}" Content="Solo campos marcados" IsChecked="False" FontSize="10" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                        <Button Content="Todos" Click="btnSelectAllFields_Click" Style="{StaticResource SecondaryButton}" Padding="5,1" FontSize="9" Margin="0,0,3,0"/>
+                                        <Button Content="Ninguno" Click="btnDeselectAllFields_Click" Style="{StaticResource SecondaryButton}" Padding="5,1" FontSize="9"/>
+                                    </StackPanel>
+
+                                    <ListBox x:Name="lstTemplateFields" Grid.Row="1" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <CheckBox Style="{StaticResource ArcaCheckBox}" Content="{Binding DisplayName}" IsChecked="{Binding IsSelected}" FontSize="10" Margin="2,1"/>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+
+                                    <TextBlock x:Name="txtFieldsSummary" Grid.Row="2" Text="Selecciona una tabla arriba para inspeccionar sus campos." FontSize="9" Foreground="#72777F" Margin="0,2,0,0"/>
+                                </Grid>
+                            </GroupBox>
+                        </Grid>
                     </GroupBox>
 
-                    <!-- BOTÓN DE ACCIÓN PRINCIPAL (ESTILO REVIEW ÉXITO) -->
-                    <Button x:Name="btnExecute" Grid.Row="4" Click="btnExecute_Click" 
-                            Style="{StaticResource SuccessButton}" Height="40" FontSize="11.5" Margin="0,2,0,0"
-                            Content="⚡ GENERAR / REPLICAR TABLAS EN ENSAMBLAJES SELECCIONADOS"/>
+                    <!-- SPLITTER DIVISOR -->
+                    <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Center" Background="#C2C7CF" Cursor="SizeWE"/>
+
+                    <!-- COLUMNA DERECHA: ENSAMBLAJES Y REPLICACIÓN -->
+                    <GroupBox Header="2. Ensamblajes (Assemblies) y Generación de Tablas" Style="{StaticResource ArcaGroupBox}" Grid.Column="2" Margin="2,0,0,0">
+                        <Grid Margin="2,6,2,2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- BUSCADOR Y SELECCIÓN DE ENSAMBLAJES -->
+                            <Grid Grid.Row="0" Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="txtSearchAssembly" Style="{StaticResource ArcaTextBox}" TextChanged="txtSearchAssembly_TextChanged" 
+                                         ToolTip="Filtrar ensamblajes por tipo o nombre..."/>
+                                <TextBlock Text="🔍 Filtrar ensamblajes..." IsHitTestVisible="False" Foreground="#72777F" 
+                                           Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"
+                                           Visibility="{Binding Text.IsEmpty, ElementName=txtSearchAssembly, Converter={StaticResource BoolToVis}}"/>
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="6,0,0,0">
+                                    <Button Content="Todos" Click="btnSelectAllAssemblies_Click" Style="{StaticResource SecondaryButton}" Padding="7,4" FontSize="10.5" Margin="0,0,4,0"/>
+                                    <Button Content="Ninguno" Click="btnDeselectAllAssemblies_Click" Style="{StaticResource SecondaryButton}" Padding="7,4" FontSize="10.5" Margin="0,0,4,0"/>
+                                    <Button Content="Solo sin Tabla" Click="btnSelectWithoutSchedule_Click" Style="{StaticResource SecondaryButton}" Padding="7,4" FontSize="10.5" Margin="0,0,4,0" ToolTip="Selecciona solo ensamblajes que no tengan ninguna tabla"/>
+                                    <Button Content="📐 Selección Revit" Click="btnSelectFromRevit_Click" Style="{StaticResource SecondaryButton}" Padding="7,4" FontSize="10.5" ToolTip="Marca los ensamblajes seleccionados actualmente en el visor de Revit"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock x:Name="txtAssembliesSummary" Grid.Row="1" Text="Cargando ensamblajes..." FontSize="10.5" Foreground="#72777F" Margin="2,0,0,6"/>
+
+                            <!-- LISTA DE ENSAMBLAJES -->
+                            <ListBox x:Name="lstAssemblies" Grid.Row="2" Background="#FFFFFF" Foreground="#1C1C19" BorderBrush="#1C1C19" BorderThickness="1"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Padding" Value="0"/>
+                                        <Setter Property="Margin" Value="0,1"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ListBoxItem">
+                                                    <Border x:Name="ItemBorder" Background="#FFFFFF" BorderBrush="#C2C7CF" BorderThickness="0,0,0,1" Padding="8,6">
+                                                        <ContentPresenter/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                             <Setter TargetName="ItemBorder" Property="Background" Value="#F6F3EE"/>
+                                                             <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#0F4369"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsSelected" Value="True">
+                                                            <Setter TargetName="ItemBorder" Property="Background" Value="#D1E4F9"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <CheckBox Style="{StaticResource ArcaCheckBox}" IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="#1C1C19" FontSize="11.5"/>
+                                                    <TextBlock Text=" — " Foreground="#72777F" Margin="4,0"/>
+                                                    <TextBlock Text="{Binding TypeName}" Foreground="#0F4369" FontWeight="SemiBold" FontSize="11"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                    <TextBlock Text="{Binding MemberCount, StringFormat='{}{0} elementos'}" FontSize="10" Foreground="#72777F" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="Categorías: " FontSize="10" Foreground="#72777F"/>
+                                                    <TextBlock Text="{Binding CategoriesSummary}" FontSize="10" Foreground="#1C1C19" TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding ExistingScheduleInfo}" FontSize="10" Foreground="#059669" FontWeight="SemiBold" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+
+                                            <Border Grid.Column="2" Background="{Binding StatusColor}" CornerRadius="0" Padding="6,2" VerticalAlignment="Center" Margin="6,0,0,0">
+                                                <TextBlock Text="{Binding StatusBadge}" FontSize="8.5" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                            </Border>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <!-- CONFIGURACIÓN DE GENERACIÓN -->
+                            <GroupBox Header="Opciones de Generación en Ensamblajes" Style="{StaticResource ArcaGroupBox}" Grid.Row="3" Margin="0,6,0,6">
+                                <StackPanel Margin="0,4,0,0">
+                                    <StackPanel x:Name="pnlStandardOptions" Visibility="Visible">
+                                        <TextBlock Text="Tipo de tabla estándar a generar:" FontSize="10.5" Foreground="#72777F" Margin="0,0,0,4"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                            <RadioButton x:Name="rbPartList" Style="{StaticResource ArcaRadioButton}" Content="📋 Lista de Piezas (Part List Multi-categoría)" IsChecked="True"/>
+                                            <RadioButton x:Name="rbMaterialTakeoff" Style="{StaticResource ArcaRadioButton}" Content="🧱 Cómputo de Materiales (Material Takeoff)" IsChecked="False"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="chkGroupIdentical" Style="{StaticResource ArcaCheckBox}" Content="Agrupar elementos idénticos y calcular totales (Itemize instances = false)" IsChecked="True"/>
+                                    </StackPanel>
+
+                                    <StackPanel x:Name="pnlTemplateOptions" Visibility="Collapsed">
+                                        <TextBlock Text="Ajustes de réplica desde la tabla plantilla:" FontSize="10.5" Foreground="#72777F" Margin="0,0,0,4"/>
+                                        <WrapPanel Margin="0,0,0,4">
+                                            <CheckBox x:Name="chkReplicateFormat" Style="{StaticResource ArcaCheckBox}" Content="Formato de columnas y cabeceras" IsChecked="True" Margin="0,0,12,4"/>
+                                            <CheckBox x:Name="chkReplicateSorting" Style="{StaticResource ArcaCheckBox}" Content="Ordenación y agrupamiento" IsChecked="True" Margin="0,0,12,4"/>
+                                            <CheckBox x:Name="chkReplicateTotals" Style="{StaticResource ArcaCheckBox}" Content="Totales y subtotales generales" IsChecked="True" Margin="0,0,12,4"/>
+                                            <CheckBox x:Name="chkReplicateFilters" Style="{StaticResource ArcaCheckBox}" Content="Filtros originales (⚠️ Desmarcado para evitar tablas vacías)" IsChecked="False" Margin="0,0,12,4" 
+                                                      ToolTip="Los filtros de tablas maestras suelen filtrar por ejemplar o tipo específico. Dejar desmarcado para que el ensamble muestre todas sus piezas."/>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </StackPanel>
+                            </GroupBox>
+
+                            <!-- BOTÓN DE ACCIÓN PRINCIPAL -->
+                            <Button x:Name="btnExecute" Grid.Row="4" Click="btnExecute_Click" 
+                                    Style="{StaticResource SuccessButton}" Height="40" FontSize="11.5" Margin="0,2,0,0"
+                                    Content="⚡ GENERAR / REPLICAR TABLAS EN ENSAMBLAJES SELECCIONADOS"/>
+                        </Grid>
+                    </GroupBox>
                 </Grid>
-            </GroupBox>
-        </Grid>
+            </TabItem>
+
+            <!-- PESTAÑA 2: CUADRO DE PUERTAS & BATCH ASSEMBLIES / VISTAS -->
+            <TabItem Header="🚪 Cuadro de Puertas &amp; Ensamblajes Batch">
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="420" MinWidth="340"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- COLUMNA IZQUIERDA: CONFIGURADOR DEL CUADRO DE PUERTAS -->
+                    <GroupBox Header="1. Configurar &amp; Crear Cuadro Maestro de Puertas" Style="{StaticResource ArcaGroupBox}" Grid.Column="0">
+                        <Grid Margin="2,4,2,2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- NOMBRE DEL CUADRO -->
+                            <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                                <TextBlock Text="Nombre del Cuadro de Puertas en Revit:" FontSize="10.5" FontWeight="SemiBold" Foreground="#0F4369" Margin="0,0,0,3"/>
+                                <TextBox x:Name="txtDoorScheduleName" Style="{StaticResource ArcaTextBox}" Text="CUADRO GENERAL DE PUERTAS" FontSize="11"/>
+                            </StackPanel>
+
+                            <!-- OPCIONES DE TOTALES Y AGRUPACIÓN -->
+                            <StackPanel Grid.Row="1" Margin="0,0,0,8">
+                                <CheckBox x:Name="chkDoorItemize" Style="{StaticResource ArcaCheckBox}" Content="Detallar cada ejemplar (Itemize instances)" IsChecked="False" Margin="0,0,0,4"/>
+                                <TextBlock Text="Campos y Columnas Técnicas del Cuadro:" FontSize="10.5" FontWeight="SemiBold" Foreground="#0F4369" Margin="0,2,0,2"/>
+                            </StackPanel>
+
+                            <!-- LISTA DE CAMPOS TÉCNICOS CONFIGURABLES -->
+                            <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1" Padding="4">
+                                <ListBox x:Name="lstDoorFieldsConfig" BorderThickness="0" Background="Transparent">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="2,2">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="100"/>
+                                                </Grid.ColumnDefinitions>
+                                                <CheckBox Style="{StaticResource ArcaCheckBox}" IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBlock Text="{Binding HeaderName}" FontWeight="SemiBold" FontSize="10.5" Foreground="#1C1C19" Grid.Column="1" VerticalAlignment="Center"/>
+                                                <TextBox Text="{Binding HeaderName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ArcaTextBox}" FontSize="10" Grid.Column="2" Padding="4,1" ToolTip="Editar título de columna"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Border>
+
+                            <!-- BOTONES DE GESTIÓN DE CAMPOS -->
+                            <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,6,0,8">
+                                <Button Content="Todos" Click="btnSelectAllDoorFields_Click" Style="{StaticResource SecondaryButton}" Padding="8,3" FontSize="10" Margin="0,0,4,0"/>
+                                <Button Content="Ninguno" Click="btnDeselectAllDoorFields_Click" Style="{StaticResource SecondaryButton}" Padding="8,3" FontSize="10" Margin="0,0,4,0"/>
+                                <Button Content="↺ Reset Predeterminados" Click="btnResetDoorFields_Click" Style="{StaticResource SecondaryButton}" Padding="8,3" FontSize="10"/>
+                            </StackPanel>
+
+                            <!-- BOTÓN GENERAR CUADRO DE PUERTAS -->
+                            <Button x:Name="btnGenerateDoorSchedule" Grid.Row="4" Click="btnGenerateDoorSchedule_Click" 
+                                    Style="{StaticResource PrimaryButton}" Height="36" FontSize="11"
+                                    Content="📋 CREAR / ACTUALIZAR CUADRO DE PUERTAS EN REVIT"/>
+                        </Grid>
+                    </GroupBox>
+
+                    <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Center" Background="#C2C7CF" Cursor="SizeWE"/>
+
+                    <!-- COLUMNA DERECHA: ENSAMBLAJES BATCH DE PUERTAS Y GENERADOR DE VISTAS -->
+                    <GroupBox Header="2. Puertas Detectadas, Ensamblajes Batch &amp; Vistas" Style="{StaticResource ArcaGroupBox}" Grid.Column="2">
+                        <Grid Margin="2,4,2,2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- BARRA SUPERIOR DE MODO DE AGRUPACIÓN Y BUSCADOR -->
+                            <Grid Grid.Row="0" Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <RadioButton x:Name="rbDoorGroupType" Style="{StaticResource ArcaRadioButton}" Content="📦 Por Tipo de Puerta" IsChecked="True" Checked="rbDoorGroupMode_Checked" Margin="0,0,8,0" FontSize="10.5" ToolTip="Crea un ensamblaje por cada Tipo de Familia"/>
+                                    <RadioButton x:Name="rbDoorGroupInstance" Style="{StaticResource ArcaRadioButton}" Content="🚪 Por Ejemplar Físico" IsChecked="False" Checked="rbDoorGroupMode_Checked" FontSize="10.5" ToolTip="Crea un ensamblaje para cada puerta del modelo"/>
+                                </StackPanel>
+
+                                <TextBox x:Name="txtSearchDoors" Grid.Column="1" Style="{StaticResource ArcaTextBox}" TextChanged="txtSearchDoors_TextChanged" Margin="8,0,0,0" ToolTip="Filtrar puertas por familia, tipo o marca..."/>
+                                <TextBlock Text="🔍 Filtrar puertas..." Grid.Column="1" IsHitTestVisible="False" Foreground="#72777F" 
+                                           Margin="16,0,0,0" VerticalAlignment="Center" FontSize="11"
+                                           Visibility="{Binding Text.IsEmpty, ElementName=txtSearchDoors, Converter={StaticResource BoolToVis}}"/>
+
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="6,0,0,0">
+                                    <Button Content="Todos" Click="btnSelectAllDoors_Click" Style="{StaticResource SecondaryButton}" Padding="7,3" FontSize="10" Margin="0,0,4,0"/>
+                                    <Button Content="Ninguno" Click="btnDeselectAllDoors_Click" Style="{StaticResource SecondaryButton}" Padding="7,3" FontSize="10" Margin="0,0,4,0"/>
+                                    <Button Content="Sin Ensamblaje" Click="btnSelectDoorsWithoutAssembly_Click" Style="{StaticResource SecondaryButton}" Padding="7,3" FontSize="10"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- RESUMEN DE PUERTAS -->
+                            <TextBlock x:Name="txtDoorSummary" Grid.Row="1" Text="Cargando catálogo de puertas..." FontSize="10.5" Foreground="#72777F" Margin="2,0,0,4"/>
+
+                            <!-- LISTA DE PUERTAS / TIPOS -->
+                            <ListBox x:Name="lstDoorItems" Grid.Row="2" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Padding" Value="0"/>
+                                        <Setter Property="Margin" Value="0,1"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ListBoxItem">
+                                                    <Border x:Name="DoorItemBorder" Background="#FFFFFF" BorderBrush="#C2C7CF" BorderThickness="0,0,0,1" Padding="6,4">
+                                                        <ContentPresenter/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="DoorItemBorder" Property="Background" Value="#F6F3EE"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsSelected" Value="True">
+                                                            <Setter TargetName="DoorItemBorder" Property="Background" Value="#D1E4F9"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <CheckBox Style="{StaticResource ArcaCheckBox}" IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding DisplayTitle}" FontWeight="Bold" FontSize="11" Foreground="#1C1C19"/>
+                                                    <TextBlock Text="{Binding Dimensions, StringFormat=' ({0})'}" Foreground="#0F4369" FontSize="10.5" FontWeight="SemiBold"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                    <TextBlock Text="{Binding InstanceCount, StringFormat='{}Cantidad: {0}'}" FontSize="10" Foreground="#72777F" Margin="0,0,10,0"/>
+                                                    <TextBlock Text="{Binding LevelName, StringFormat='{}Ubicación: {0}'}" FontSize="10" Foreground="#72777F"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <Border Grid.Column="2" Background="{Binding StatusColor}" Padding="6,2" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding StatusBadge}" FontSize="8.5" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                            </Border>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <!-- PANEL DE VISTAS BATCH A CREAR -->
+                            <GroupBox Header="Opciones Batch: Vistas Técnicas de Ensamblaje" Style="{StaticResource ArcaGroupBox}" Grid.Row="3" Margin="0,6,0,6">
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <WrapPanel Grid.Row="0">
+                                        <CheckBox x:Name="chkBatchViewSchedule" Style="{StaticResource ArcaCheckBox}" Content="📊 Tabla Despiece de Ensamblaje" IsChecked="True" Margin="0,0,12,4"/>
+                                        <CheckBox x:Name="chkBatchView3D" Style="{StaticResource ArcaCheckBox}" Content="🧊 3D Isométrica" IsChecked="True" Margin="0,0,12,4"/>
+                                        <CheckBox x:Name="chkBatchViewPlan" Style="{StaticResource ArcaCheckBox}" Content="📐 Planta de Detalle" IsChecked="True" Margin="0,0,12,4"/>
+                                        <CheckBox x:Name="chkBatchViewFront" Style="{StaticResource ArcaCheckBox}" Content="🏛️ Elevación Frontal" IsChecked="True" Margin="0,0,12,4"/>
+                                        <CheckBox x:Name="chkBatchViewBack" Style="{StaticResource ArcaCheckBox}" Content="🔍 Elevación Posterior" IsChecked="False" Margin="0,0,12,4"/>
+                                        <CheckBox x:Name="chkBatchViewSection" Style="{StaticResource ArcaCheckBox}" Content="✂️ Sección Transversal" IsChecked="False" Margin="0,0,12,4"/>
+                                    </WrapPanel>
+                                    <TextBlock Grid.Row="1" Text="💡 Se generarán todas las vistas y despieces simultáneamente para cada ensamblaje de puerta creado." FontSize="9.5" Foreground="#0F4369" Margin="0,2,0,0"/>
+                                </Grid>
+                            </GroupBox>
+
+                            <!-- BOTONERA DE ACCIÓN BATCH -->
+                            <Grid Grid.Row="4" Margin="0,2,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Button x:Name="btnCreateDoorAssembliesOnly" Grid.Column="0" Click="btnCreateDoorAssembliesOnly_Click" 
+                                        Style="{StaticResource PrimaryButton}" Height="38" FontSize="11"
+                                        Content="📦 1. CREAR ENSAMBLAJES BATCH"/>
+
+                                <Button x:Name="btnCreateDoorAssembliesAndViews" Grid.Column="2" Click="btnCreateDoorAssembliesAndViews_Click" 
+                                        Style="{StaticResource SuccessButton}" Height="38" FontSize="11"
+                                        Content="⚡ 2. CREAR ENSAMBLAJES + VISTAS BATCH"/>
+                            </Grid>
+                        </Grid>
+                    </GroupBox>
+                </Grid>
+            </TabItem>
+        </TabControl>
 
         <!-- PANEL INFERIOR: LOG / REGISTRO DE OPERACIONES -->
         <Border Grid.Row="3" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="0,1,0,0" Padding="12,8">
