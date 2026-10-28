@@ -81,6 +81,18 @@ namespace RevitToSupabasePlugin
     }
 
     /// <summary>
+    /// Opciones para la creación en lote de Ensamblajes (Batch Assemblies).
+    /// </summary>
+    public class BatchAssemblyOptions
+    {
+        public bool GroupByInstance { get; set; } = false;
+        public bool SingleInstancePerType { get; set; } = true;
+        public string InitialName { get; set; } = "P-01";
+        public bool AppendTypeName { get; set; } = false;
+        public bool AppendInstanceCount { get; set; } = false;
+    }
+
+    /// <summary>
     /// Servicio de alto rendimiento para creación de Cuadros de Puertas personalizables,
     /// ensamblajes por tipo o ejemplar y generación batch de vistas.
     /// </summary>
@@ -171,10 +183,11 @@ namespace RevitToSupabasePlugin
 
                     var inAssemblyInstances = g.Where(d => d.AssemblyInstanceId != ElementId.InvalidElementId).ToList();
                     bool allInAss = inAssemblyInstances.Count == g.Count();
+                    bool hasAnyInAss = inAssemblyInstances.Count > 0;
                     string assName = "";
                     ElementId assId = ElementId.InvalidElementId;
 
-                    if (inAssemblyInstances.Count > 0)
+                    if (hasAnyInAss)
                     {
                         var firstAss = doc.GetElement(inAssemblyInstances.First().AssemblyInstanceId) as AssemblyInstance;
                         if (firstAss != null)
@@ -194,11 +207,11 @@ namespace RevitToSupabasePlugin
                         LevelName = $"{g.Count()} ejemplar(es)",
                         Dimensions = dims,
                         InstanceCount = g.Count(),
-                        AlreadyInAssembly = allInAss,
+                        AlreadyInAssembly = hasAnyInAss,
                         AssemblyName = assName,
                         AssemblyId = assId,
                         MemberElementIds = g.Select(d => d.Id).ToList(),
-                        IsSelected = !allInAss
+                        IsSelected = !hasAnyInAss
                     });
                 }
             }
@@ -359,13 +372,79 @@ namespace RevitToSupabasePlugin
         }
 
         /// <summary>
-        /// Crea ensamblajes en lote (Batch Assemblies) para las puertas seleccionadas en la interfaz.
+        /// Descompone un nombre inicial (ej: "P-01", "PUERTA-101", "E_1") en su prefijo, número inicial y cantidad de dígitos.
+        /// </summary>
+        public static (string prefix, int startNumber, int digitCount) ParseNamingPattern(string? input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return ("P-", 1, 2);
+
+            input = input.Trim();
+
+            int i = input.Length - 1;
+            while (i >= 0 && char.IsDigit(input[i]))
+            {
+                i--;
+            }
+
+            if (i == input.Length - 1)
+            {
+                return (input, 1, 1);
+            }
+
+            string prefix = input.Substring(0, i + 1);
+            string digitsStr = input.Substring(i + 1);
+
+            if (int.TryParse(digitsStr, out int startNum))
+            {
+                return (prefix, startNum, digitsStr.Length);
+            }
+
+            return (input, 1, 1);
+        }
+
+        /// <summary>
+        /// Da formato correlativo a un prefijo y número secuencial.
+        /// </summary>
+        public static string FormatSequentialName(string prefix, int number, int digitCount)
+        {
+            return $"{prefix}{number.ToString($"D{digitCount}")}";
+        }
+
+        private static string EnsureUniqueAssemblyTypeName(string baseName, HashSet<string> existingNames)
+        {
+            if (!existingNames.Contains(baseName))
+                return baseName;
+
+            int count = 1;
+            while (existingNames.Contains($"{baseName}_{count}"))
+            {
+                count++;
+            }
+            return $"{baseName}_{count}";
+        }
+
+        /// <summary>
+        /// Sobrecarga compatible para crear ensamblajes en lote por defecto.
         /// </summary>
         public static (List<AssemblyInstance> assemblies, List<string> logs) CreateBatchDoorAssemblies(
             Document doc,
             IList<DoorItemViewModel> doorItems,
             bool groupByInstance = false)
         {
+            return CreateBatchDoorAssemblies(doc, doorItems, new BatchAssemblyOptions { GroupByInstance = groupByInstance });
+        }
+
+        /// <summary>
+        /// Crea ensamblajes en lote (Batch Assemblies) para las puertas seleccionadas en la interfaz
+        /// con soporte para conteo secuencial personalizado y control de instancias por tipo.
+        /// </summary>
+        public static (List<AssemblyInstance> assemblies, List<string> logs) CreateBatchDoorAssemblies(
+            Document doc,
+            IList<DoorItemViewModel> doorItems,
+            BatchAssemblyOptions options)
+        {
+            options ??= new BatchAssemblyOptions();
             var created = new List<AssemblyInstance>();
             var logs = new List<string>();
 
@@ -376,6 +455,17 @@ namespace RevitToSupabasePlugin
             }
 
             ElementId namingCatId = new ElementId(BuiltInCategory.OST_Doors);
+
+            // Analizar patrón de nombres y contador
+            var (prefix, startNumber, digitCount) = ParseNamingPattern(options.InitialName);
+            int currentNumber = startNumber;
+
+            // Conjunto de nombres de tipo de ensamblaje existentes para evitar colisiones en Revit
+            var existingAssemblyTypeNames = new FilteredElementCollector(doc)
+                .OfClass(typeof(AssemblyType))
+                .Cast<AssemblyType>()
+                .Select(at => at.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             using (Transaction t = new Transaction(doc, "Creación Batch de Ensamblajes de Puertas"))
             {
@@ -400,7 +490,7 @@ namespace RevitToSupabasePlugin
                         continue;
                     }
 
-                    if (groupByInstance)
+                    if (options.GroupByInstance)
                     {
                         // Un ensamblaje por cada ejemplar individual
                         foreach (var mId in validMemberIds)
@@ -410,12 +500,26 @@ namespace RevitToSupabasePlugin
                                 var ai = AssemblyInstance.Create(doc, new List<ElementId> { mId }, namingCatId);
                                 if (ai != null)
                                 {
-                                    string mark = item.Mark;
-                                    string desiredName = !string.IsNullOrWhiteSpace(mark)
-                                        ? $"Puerta {mark} ({item.TypeName})"
-                                        : $"Puerta - {item.FamilyName} - {item.TypeName}";
+                                    string seqCode = FormatSequentialName(prefix, currentNumber++, digitCount);
+                                    string desiredName = seqCode;
 
-                                    try { ai.AssemblyTypeName = desiredName; } catch { }
+                                    if (options.AppendTypeName)
+                                    {
+                                        desiredName = $"{desiredName} - {item.FamilyName} {item.TypeName}".Trim();
+                                    }
+                                    else if (!string.IsNullOrWhiteSpace(item.Mark))
+                                    {
+                                        desiredName = $"{desiredName} ({item.Mark})";
+                                    }
+
+                                    desiredName = EnsureUniqueAssemblyTypeName(desiredName, existingAssemblyTypeNames);
+
+                                    try
+                                    {
+                                        ai.AssemblyTypeName = desiredName;
+                                        existingAssemblyTypeNames.Add(desiredName);
+                                    }
+                                    catch { }
 
                                     created.Add(ai);
                                     logs.Add($"Ensamblaje creado: '{ai.AssemblyTypeName ?? ai.Name}' (ID {ai.Id}).");
@@ -429,20 +533,49 @@ namespace RevitToSupabasePlugin
                     }
                     else
                     {
-                        // Un ensamblaje agrupando todos los miembros del tipo
+                        // Modo por Tipo de Puerta:
+                        // Si SingleInstancePerType es true -> solo 1 ejemplar de muestra en el ensamblaje.
+                        // Si SingleInstancePerType es false -> todas las instancias disponibles del tipo agrupadas en el ensamblaje.
                         try
                         {
-                            var ai = AssemblyInstance.Create(doc, validMemberIds, namingCatId);
+                            var membersToAssemble = options.SingleInstancePerType
+                                ? new List<ElementId> { validMemberIds.First() }
+                                : validMemberIds;
+
+                            var ai = AssemblyInstance.Create(doc, membersToAssemble, namingCatId);
                             if (ai != null)
                             {
-                                string desiredName = !string.IsNullOrWhiteSpace(item.Mark)
-                                    ? $"Tipo Puerta {item.Mark} - {item.TypeName}"
-                                    : $"{item.FamilyName} - {item.TypeName}";
+                                string seqCode = FormatSequentialName(prefix, currentNumber++, digitCount);
+                                string desiredName = seqCode;
 
-                                try { ai.AssemblyTypeName = desiredName; } catch { }
+                                if (options.AppendTypeName)
+                                {
+                                    desiredName = $"{desiredName} - {item.FamilyName} {item.TypeName}".Trim();
+                                }
+                                else if (!string.IsNullOrWhiteSpace(item.Mark))
+                                {
+                                    desiredName = $"{desiredName} ({item.Mark})";
+                                }
+
+                                if (options.AppendInstanceCount)
+                                {
+                                    desiredName = $"{desiredName} [{item.InstanceCount} uds]";
+                                }
+
+                                desiredName = EnsureUniqueAssemblyTypeName(desiredName, existingAssemblyTypeNames);
+
+                                try
+                                {
+                                    ai.AssemblyTypeName = desiredName;
+                                    existingAssemblyTypeNames.Add(desiredName);
+                                }
+                                catch { }
 
                                 created.Add(ai);
-                                logs.Add($"Ensamblaje de Tipo creado: '{ai.AssemblyTypeName ?? ai.Name}' con {validMemberIds.Count} puerta(s).");
+                                string modeDesc = options.SingleInstancePerType
+                                    ? "1 ejemplar representativo"
+                                    : $"{membersToAssemble.Count} puertas agrupadas";
+                                logs.Add($"Ensamblaje de Tipo creado ({modeDesc}): '{ai.AssemblyTypeName ?? ai.Name}' (Total en proyecto: {item.InstanceCount} uds).");
                             }
                         }
                         catch (Exception ex)

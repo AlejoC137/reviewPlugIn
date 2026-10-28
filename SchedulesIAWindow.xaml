@@ -496,6 +496,7 @@
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <!-- BARRA SUPERIOR DE MODO DE AGRUPACIÓN Y BUSCADOR -->
@@ -579,8 +580,54 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
 
+                            <!-- CONFIGURACIÓN BATCH: NOMENCLATURA Y CONTENIDO -->
+                            <GroupBox Header="Configuración Batch: Nomenclatura &amp; Ejemplares en Ensamblaje" Style="{StaticResource ArcaGroupBox}" Grid.Row="3" Margin="0,5,0,5">
+                                <Grid Margin="4,4,4,4">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- FILA 1: NOMENCLATURA CORRELATIVA -->
+                                    <Grid Grid.Row="0" Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="100"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="Nombre Inicial:" FontSize="10.5" FontWeight="SemiBold" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBox x:Name="txtBatchInitialName" Grid.Column="1" Style="{StaticResource ArcaTextBox}" Text="P-01" FontSize="11" FontWeight="Bold" 
+                                                 TextChanged="txtBatchInitialName_TextChanged" ToolTip="Nombre base y número para iniciar el conteo secuencial (ej: P-01, PUERTA-1, PT-101)"/>
+
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                                            <TextBlock x:Name="txtBatchNamePreview" Text="Secuencia: P-01, P-02, P-03..." FontSize="10" Foreground="#0F4369" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <CheckBox x:Name="chkBatchAppendTypeName" Style="{StaticResource ArcaCheckBox}" Content="Incluir Tipo" IsChecked="False" Click="chkBatchNamingOption_Click" Margin="0,0,8,0" FontSize="10" ToolTip="Añade el nombre del tipo al código (ej: P-01 - Madera 0.90x2.10)"/>
+                                            <CheckBox x:Name="chkBatchAppendCount" Style="{StaticResource ArcaCheckBox}" Content="Añadir Cantidad [xN]" IsChecked="False" Click="chkBatchNamingOption_Click" FontSize="10" ToolTip="Añade el total de unidades al nombre (ej: P-01 [5 uds])"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- FILA 2: CONTENIDO POR TIPO (1 EJEMPLAR VS TODAS LAS INSTANCIAS) -->
+                                    <Border Grid.Row="1" Background="#F6F3EE" BorderBrush="#C2C7CF" BorderThickness="1" Padding="8,5">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock x:Name="lblBatchInstanceContentTitle" Text="Contenido del Ensamblaje:" FontSize="10" FontWeight="SemiBold" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <StackPanel x:Name="pnlInstanceModeSelection" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <RadioButton x:Name="rbBatchSingleInstance" Style="{StaticResource ArcaRadioButton}" Content="⭐ Solo 1 ejemplar representativo" IsChecked="True" FontSize="10" Margin="0,0,14,0"
+                                                             ToolTip="Incluye solo 1 ejemplar de muestra del tipo en el ensamblaje. Recomendado para generar vistas técnicas, alzados, despieces y cotas limpias de carpintería."/>
+                                                <RadioButton x:Name="rbBatchAllInstances" Style="{StaticResource ArcaRadioButton}" Content="📦 Todas las instancias del tipo" IsChecked="False" FontSize="10"
+                                                             ToolTip="Agrupa en un único ensamblaje todos los ejemplares físicos de este tipo existentes en el proyecto."/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+                            </GroupBox>
+
                             <!-- PANEL DE VISTAS BATCH A CREAR -->
-                            <GroupBox Header="Opciones Batch: Vistas Técnicas de Ensamblaje" Style="{StaticResource ArcaGroupBox}" Grid.Row="3" Margin="0,6,0,6">
+                            <GroupBox Header="Opciones Batch: Vistas Técnicas de Ensamblaje" Style="{StaticResource ArcaGroupBox}" Grid.Row="4" Margin="0,5,0,5">
                                 <Grid Margin="0,4,0,0">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
@@ -599,7 +646,7 @@
                             </GroupBox>
 
                             <!-- BOTONERA DE ACCIÓN BATCH -->
-                            <Grid Grid.Row="4" Margin="0,2,0,0">
+                            <Grid Grid.Row="5" Margin="0,2,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="6"/>

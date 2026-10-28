@@ -1015,6 +1015,8 @@ namespace RevitToSupabasePlugin
             {
                 lstDoorFieldsConfig.ItemsSource = _doorFields;
             }
+            UpdateBatchNamePreview();
+            UpdateBatchGroupModeUi();
         }
 
         private void LoadDoors()
@@ -1073,7 +1075,61 @@ namespace RevitToSupabasePlugin
 
         private void rbDoorGroupMode_Checked(object sender, RoutedEventArgs e)
         {
+            UpdateBatchGroupModeUi();
             LoadDoors();
+        }
+
+        private void UpdateBatchGroupModeUi()
+        {
+            bool isByInstance = rbDoorGroupInstance?.IsChecked == true;
+            if (pnlInstanceModeSelection != null)
+            {
+                pnlInstanceModeSelection.IsEnabled = !isByInstance;
+                pnlInstanceModeSelection.Opacity = isByInstance ? 0.45 : 1.0;
+            }
+            if (lblBatchInstanceContentTitle != null)
+            {
+                lblBatchInstanceContentTitle.Text = isByInstance
+                    ? "Contenido del Ensamblaje (Fijo 1 ejemplar individual):"
+                    : "Contenido del Ensamblaje (Por Tipo):";
+            }
+        }
+
+        private void txtBatchInitialName_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            UpdateBatchNamePreview();
+        }
+
+        private void chkBatchNamingOption_Click(object sender, RoutedEventArgs e)
+        {
+            UpdateBatchNamePreview();
+        }
+
+        private void UpdateBatchNamePreview()
+        {
+            if (txtBatchNamePreview == null) return;
+
+            string input = txtBatchInitialName?.Text?.Trim() ?? "P-01";
+            var (prefix, startNum, digitCount) = DoorAssemblyManagerService.ParseNamingPattern(input);
+
+            string ex1 = DoorAssemblyManagerService.FormatSequentialName(prefix, startNum, digitCount);
+            string ex2 = DoorAssemblyManagerService.FormatSequentialName(prefix, startNum + 1, digitCount);
+            string ex3 = DoorAssemblyManagerService.FormatSequentialName(prefix, startNum + 2, digitCount);
+
+            if (chkBatchAppendTypeName?.IsChecked == true)
+            {
+                ex1 += " - Tipo A";
+                ex2 += " - Tipo B";
+                ex3 += " - Tipo C";
+            }
+            if (chkBatchAppendCount?.IsChecked == true)
+            {
+                ex1 += " [x4]";
+                ex2 += " [x8]";
+                ex3 += " [x2]";
+            }
+
+            txtBatchNamePreview.Text = $"Secuencia: {ex1}, {ex2}, {ex3}...";
         }
 
         private void txtSearchDoors_TextChanged(object sender, TextChangedEventArgs e)
@@ -1166,14 +1222,30 @@ namespace RevitToSupabasePlugin
             }
 
             bool groupByInstance = rbDoorGroupInstance?.IsChecked == true;
+            bool singleInstancePerType = rbBatchSingleInstance?.IsChecked == true;
+            string initialName = string.IsNullOrWhiteSpace(txtBatchInitialName?.Text) ? "P-01" : txtBatchInitialName.Text.Trim();
+            bool appendTypeName = chkBatchAppendTypeName?.IsChecked == true;
+            bool appendCount = chkBatchAppendCount?.IsChecked == true;
+
+            var batchOpts = new BatchAssemblyOptions
+            {
+                GroupByInstance = groupByInstance,
+                SingleInstancePerType = singleInstancePerType,
+                InitialName = initialName,
+                AppendTypeName = appendTypeName,
+                AppendInstanceCount = appendCount
+            };
 
             var logSb = new StringBuilder();
             logSb.AppendLine($"=== INICIO: BATCH CREACIÓN DE ENSAMBLAJES DE PUERTAS ===");
-            logSb.AppendLine($"Hora: {DateTime.Now:HH:mm:ss} | Modo: {(groupByInstance ? "Por Ejemplar" : "Por Tipo de Puerta")}");
+            string modeDetail = groupByInstance
+                ? "Por Ejemplar Físico (1 puerta por ensamblaje)"
+                : (singleInstancePerType ? "Por Tipo (1 ejemplar representativo)" : "Por Tipo (Todas las instancias agrupadas)");
+            logSb.AppendLine($"Hora: {DateTime.Now:HH:mm:ss} | Modo: {modeDetail} | Inicio Conteo: '{initialName}'");
             logSb.AppendLine($"Puertas seleccionadas: {selectedDoors.Count}");
 
             // 1. Crear Ensamblajes
-            var (createdAssemblies, assLogs) = DoorAssemblyManagerService.CreateBatchDoorAssemblies(_doc, selectedDoors, groupByInstance);
+            var (createdAssemblies, assLogs) = DoorAssemblyManagerService.CreateBatchDoorAssemblies(_doc, selectedDoors, batchOpts);
 
             foreach (var l in assLogs)
             {
