@@ -48,7 +48,7 @@ namespace RevitToSupabasePlugin
             PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
         }
 
-        private bool _isSelected = true;
+        private bool _isSelected = false;
         public bool IsSelected
         {
             get => _isSelected;
@@ -152,7 +152,7 @@ namespace RevitToSupabasePlugin
                     Dimensions = dims,
                     TechnicalViewsCount = technicalViews.Count,
                     ViewsSummary = vSummary,
-                    IsSelected = true
+                    IsSelected = false
                 });
             }
 

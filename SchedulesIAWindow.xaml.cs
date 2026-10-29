@@ -1249,15 +1249,17 @@ namespace RevitToSupabasePlugin
         {
             if (txtBatchNamePreview == null) return;
 
-            string namingMode = "Sequential";
+            string namingMode = "Parameters";
             if (cmbBatchNamingMode != null)
             {
                 switch (cmbBatchNamingMode.SelectedIndex)
                 {
+                    case 0: namingMode = "Parameters"; break;
                     case 1: namingMode = "Mark"; break;
                     case 2: namingMode = "TypeName"; break;
-                    case 3: namingMode = "CustomPattern"; break;
-                    default: namingMode = "Sequential"; break;
+                    case 3: namingMode = "Sequential"; break;
+                    case 4: namingMode = "CustomPattern"; break;
+                    default: namingMode = "Parameters"; break;
                 }
             }
 
@@ -1274,28 +1276,45 @@ namespace RevitToSupabasePlugin
                 Category = ActiveCategory
             };
 
-            var sampleItem1 = new DoorItemViewModel
+            // Banner preview: usar elementos seleccionados o primeros disponibles si existen
+            var sampleDoors = _allDoors?.Where(d => d.IsSelected).Take(2).ToList();
+            if (sampleDoors == null || sampleDoors.Count == 0)
             {
-                Mark = ActiveCategory == BuiltInCategory.OST_Windows ? "V1" : "P1",
-                FamilyName = ActiveCategory == BuiltInCategory.OST_Windows ? "Ventana Corredera" : "Puerta Batiente",
-                TypeName = ActiveCategory == BuiltInCategory.OST_Windows ? "2 Hojas" : "Madera",
-                Dimensions = ActiveCategory == BuiltInCategory.OST_Windows ? "1.20 x 1.00 m" : "0.90 x 2.10 m",
-                InstanceCount = 4
-            };
+                sampleDoors = _allDoors?.Take(2).ToList();
+            }
 
-            var sampleItem2 = new DoorItemViewModel
+            if (sampleDoors != null && sampleDoors.Count > 0)
             {
-                Mark = ActiveCategory == BuiltInCategory.OST_Windows ? "V2" : "P2",
-                FamilyName = ActiveCategory == BuiltInCategory.OST_Windows ? "Ventana Fija" : "Puerta Vidrio",
-                TypeName = ActiveCategory == BuiltInCategory.OST_Windows ? "Simple" : "Aluminio",
-                Dimensions = ActiveCategory == BuiltInCategory.OST_Windows ? "1.50 x 1.20 m" : "1.00 x 2.10 m",
-                InstanceCount = 8
-            };
+                string p1 = DoorAssemblyManagerService.BuildAssemblyName(sampleDoors[0], startNum, opts);
+                string p2 = sampleDoors.Count > 1 
+                    ? DoorAssemblyManagerService.BuildAssemblyName(sampleDoors[1], startNum + 1, opts)
+                    : "";
+                txtBatchNamePreview.Text = string.IsNullOrEmpty(p2) ? p1 : $"{p1}, {p2}, ...";
+            }
+            else
+            {
+                var sampleItem1 = new DoorItemViewModel
+                {
+                    Mark = ActiveCategory == BuiltInCategory.OST_Windows ? "V01A" : "P04A",
+                    FamilyName = ActiveCategory == BuiltInCategory.OST_Windows ? "V01" : "P04",
+                    TypeName = "A",
+                    Dimensions = "0.90 x 2.10 m",
+                    InstanceCount = 4
+                };
 
-            string ex1 = DoorAssemblyManagerService.BuildAssemblyName(sampleItem1, startNum, opts);
-            string ex2 = DoorAssemblyManagerService.BuildAssemblyName(sampleItem2, startNum + 1, opts);
+                var sampleItem2 = new DoorItemViewModel
+                {
+                    Mark = ActiveCategory == BuiltInCategory.OST_Windows ? "V01B" : "P04B",
+                    FamilyName = ActiveCategory == BuiltInCategory.OST_Windows ? "V01" : "P04",
+                    TypeName = "B",
+                    Dimensions = "1.00 x 2.10 m",
+                    InstanceCount = 8
+                };
 
-            txtBatchNamePreview.Text = $"{ex1}, {ex2}, ...";
+                string ex1 = DoorAssemblyManagerService.BuildAssemblyName(sampleItem1, startNum, opts);
+                string ex2 = DoorAssemblyManagerService.BuildAssemblyName(sampleItem2, startNum + 1, opts);
+                txtBatchNamePreview.Text = $"{ex1}, {ex2}, ...";
+            }
 
             // Actualizar en tiempo real el nombre propuesto en la lista visible
             if (_allDoors != null && _allDoors.Count > 0)
@@ -1305,7 +1324,8 @@ namespace RevitToSupabasePlugin
                 {
                     if (!d.AlreadyInAssembly)
                     {
-                        d.TargetAssemblyName = DoorAssemblyManagerService.BuildAssemblyName(d, seq++, opts);
+                        int itemSeq = d.IsSelected ? seq++ : startNum;
+                        d.TargetAssemblyName = DoorAssemblyManagerService.BuildAssemblyName(d, itemSeq, opts);
                     }
                 }
             }
@@ -1432,15 +1452,17 @@ namespace RevitToSupabasePlugin
             bool appendDims = chkBatchAppendDims?.IsChecked == true;
             bool appendCount = chkBatchAppendCount?.IsChecked == true;
 
-            string namingMode = "Sequential";
+            string namingMode = "Parameters";
             if (cmbBatchNamingMode != null)
             {
                 switch (cmbBatchNamingMode.SelectedIndex)
                 {
+                    case 0: namingMode = "Parameters"; break;
                     case 1: namingMode = "Mark"; break;
                     case 2: namingMode = "TypeName"; break;
-                    case 3: namingMode = "CustomPattern"; break;
-                    default: namingMode = "Sequential"; break;
+                    case 3: namingMode = "Sequential"; break;
+                    case 4: namingMode = "CustomPattern"; break;
+                    default: namingMode = "Parameters"; break;
                 }
             }
 

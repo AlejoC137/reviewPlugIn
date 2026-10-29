@@ -642,9 +642,10 @@
 
                                             <TextBlock Text="Modo de Nombre:" FontSize="10.5" FontWeight="SemiBold" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                             <ComboBox x:Name="cmbBatchNamingMode" Grid.Column="1" SelectionChanged="cmbBatchNamingMode_SelectionChanged" FontSize="10.5" Height="25" SelectedIndex="0">
-                                                <ComboBoxItem Content="🔢 Prefijo + Secuencia (P-01, V-01)"/>
+                                                <ComboBoxItem Content="🏷️ Parámetros Selección (P04 -> P04A, P04B...)"/>
                                                 <ComboBoxItem Content="🏷️ Usar Marca / Type Mark"/>
                                                 <ComboBoxItem Content="🚪 Familia y Tipo"/>
+                                                <ComboBoxItem Content="🔢 Prefijo + Secuencia (P-01, V-01...)"/>
                                                 <ComboBoxItem Content="📝 Plantilla Personalizada"/>
                                             </ComboBox>
 

@@ -30,7 +30,7 @@ namespace RevitToSupabasePlugin
             PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
         }
 
-        private bool _isSelected = true;
+        private bool _isSelected = false;
         public bool IsSelected
         {
             get => _isSelected;
@@ -66,7 +66,14 @@ namespace RevitToSupabasePlugin
         private string _targetAssemblyName = string.Empty;
         public string TargetAssemblyName
         {
-            get => string.IsNullOrWhiteSpace(_targetAssemblyName) ? (AlreadyInAssembly ? AssemblyName : DisplayTitle) : _targetAssemblyName;
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(_targetAssemblyName))
+                    return _targetAssemblyName;
+                if (AlreadyInAssembly && !string.IsNullOrWhiteSpace(AssemblyName))
+                    return AssemblyName;
+                return DoorAssemblyManagerService.GetParameterBasedName(this);
+            }
             set
             {
                 if (_targetAssemblyName != value)
@@ -179,6 +186,19 @@ namespace RevitToSupabasePlugin
                 foreach (var d in elements)
                 {
                     string mark = d.get_Parameter(BuiltInParameter.ALL_MODEL_MARK)?.AsString() ?? "";
+                    if (string.IsNullOrWhiteSpace(mark))
+                    {
+                        mark = d.LookupParameter("Marca")?.AsString() ?? "";
+                    }
+                    if (string.IsNullOrWhiteSpace(mark))
+                    {
+                        mark = d.Symbol?.get_Parameter(BuiltInParameter.ALL_MODEL_TYPE_MARK)?.AsString() ?? "";
+                    }
+                    if (string.IsNullOrWhiteSpace(mark))
+                    {
+                        mark = d.Symbol?.LookupParameter("Marca de tipo")?.AsString() ?? "";
+                    }
+
                     string famName = d.Symbol?.FamilyName ?? defaultFam;
                     string typeName = d.Symbol?.Name ?? "Tipo";
                     string lvlName = doc.GetElement(d.LevelId)?.Name ?? "";
@@ -205,7 +225,7 @@ namespace RevitToSupabasePlugin
                         AssemblyName = assName,
                         AssemblyId = d.AssemblyInstanceId,
                         MemberElementIds = new List<ElementId> { d.Id },
-                        IsSelected = !inAss
+                        IsSelected = false
                     });
                 }
             }
@@ -220,6 +240,22 @@ namespace RevitToSupabasePlugin
                     string famName = first.Symbol?.FamilyName ?? defaultFam;
                     string typeName = first.Symbol?.Name ?? "Tipo";
                     string typeMark = first.Symbol?.get_Parameter(BuiltInParameter.ALL_MODEL_TYPE_MARK)?.AsString() ?? "";
+                    if (string.IsNullOrWhiteSpace(typeMark))
+                    {
+                        typeMark = first.Symbol?.LookupParameter("Marca de tipo")?.AsString() ?? "";
+                    }
+                    if (string.IsNullOrWhiteSpace(typeMark))
+                    {
+                        var marks = g.Select(x => x.get_Parameter(BuiltInParameter.ALL_MODEL_MARK)?.AsString() ?? x.LookupParameter("Marca")?.AsString())
+                                     .Where(m => !string.IsNullOrWhiteSpace(m))
+                                     .Distinct()
+                                     .ToList();
+                        if (marks.Count == 1)
+                        {
+                            typeMark = marks.First()!;
+                        }
+                    }
+
                     string dims = GetDoorDimensionsString(doc, first);
 
                     var inAssemblyInstances = g.Where(d => d.AssemblyInstanceId != ElementId.InvalidElementId).ToList();
@@ -252,7 +288,7 @@ namespace RevitToSupabasePlugin
                         AssemblyName = assName,
                         AssemblyId = assId,
                         MemberElementIds = g.Select(d => d.Id).ToList(),
-                        IsSelected = !hasAnyInAss
+                        IsSelected = false
                     });
                 }
             }
@@ -516,6 +552,65 @@ namespace RevitToSupabasePlugin
         }
 
         /// <summary>
+        /// Obtiene un nombre de ensamblaje inteligente basado exclusivamente en los parámetros
+        /// del elemento o tipo seleccionado (Familia -> Tipos: ej. P04 -> P04A, P04B; P05 -> P05A, P05B).
+        /// </summary>
+        public static string GetParameterBasedName(DoorItemViewModel item)
+        {
+            if (item == null) return "Assembly";
+
+            string mark = item.Mark?.Trim() ?? "";
+            string fam = item.FamilyName?.Trim() ?? "";
+            string typ = item.TypeName?.Trim() ?? "";
+
+            // 1. Si Mark ya tiene un código explícito (ej: "P04A", "P05a", "P05-A", "V01B")
+            if (!string.IsNullOrWhiteSpace(mark))
+            {
+                // Si Mark es solo un sufijo de 1-2 letras/dígitos (ej: "a", "b", "1") y la Familia es un código (ej: "P05")
+                if (mark.Length <= 2 && !string.IsNullOrWhiteSpace(fam))
+                {
+                    if (char.IsDigit(fam[fam.Length - 1]) && char.IsLetter(mark[0]))
+                        return SanitizeRevitName($"{fam}{mark.ToUpperInvariant()}");
+                    return SanitizeRevitName($"{fam}_{mark}");
+                }
+                return SanitizeRevitName(mark);
+            }
+
+            // 2. Analizar Familia y Tipo
+            if (!string.IsNullOrWhiteSpace(fam) && !string.IsNullOrWhiteSpace(typ))
+            {
+                // Si el Tipo ya contiene o empieza con el nombre de la Familia (ej: Fam "P05", Tipo "P05A" o "P05-A")
+                if (typ.StartsWith(fam, StringComparison.OrdinalIgnoreCase))
+                {
+                    return SanitizeRevitName(typ);
+                }
+
+                // Si el Tipo es un sufijo corto (ej: "A", "B", "C", "a", "b", "c", "01", "02")
+                if (typ.Length <= 4 && !typ.Contains(" "))
+                {
+                    // Fam "P04" o "P05" + Tipo "A" => "P04A", "P05A"
+                    if (char.IsDigit(fam[fam.Length - 1]) && char.IsLetter(typ[0]))
+                    {
+                        return SanitizeRevitName($"{fam}{typ.ToUpperInvariant()}");
+                    }
+                    if (fam.EndsWith("-") || fam.EndsWith("_"))
+                    {
+                        return SanitizeRevitName($"{fam}{typ.ToUpperInvariant()}");
+                    }
+                    return SanitizeRevitName($"{fam}_{typ}");
+                }
+
+                // Si el tipo es un nombre descriptivo pero la familia es el código (ej: Fam "P04", Tipo "Madera Batiente")
+                return SanitizeRevitName($"{fam} - {typ}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(typ)) return SanitizeRevitName(typ);
+            if (!string.IsNullOrWhiteSpace(fam)) return SanitizeRevitName(fam);
+
+            return "Assembly";
+        }
+
+        /// <summary>
         /// Construye el nombre deseado para el ensamblaje según las opciones de nomenclatura configuradas.
         /// </summary>
         public static string BuildAssemblyName(
@@ -523,26 +618,21 @@ namespace RevitToSupabasePlugin
             int sequenceNumber,
             BatchAssemblyOptions options)
         {
-            if (!string.IsNullOrWhiteSpace(item.TargetAssemblyName) &&
-                !item.TargetAssemblyName.Equals(item.DisplayTitle, StringComparison.OrdinalIgnoreCase) &&
-                !item.TargetAssemblyName.Equals(item.AssemblyName, StringComparison.OrdinalIgnoreCase))
-            {
-                return SanitizeRevitName(item.TargetAssemblyName);
-            }
-
-            string mode = options.NamingMode ?? "Sequential";
+            string mode = options.NamingMode ?? "Parameters";
             var (prefix, _, digitCount) = ParseNamingPattern(options.InitialName);
             string seqCode = FormatSequentialName(prefix, sequenceNumber, digitCount);
 
             string baseName;
             switch (mode)
             {
+                case "Parameters":
+                    baseName = GetParameterBasedName(item);
+                    break;
+
                 case "Mark":
                     baseName = !string.IsNullOrWhiteSpace(item.Mark)
-                        ? (!string.IsNullOrWhiteSpace(prefix) && !item.Mark.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-                            ? $"{prefix}{item.Mark}"
-                            : item.Mark)
-                        : seqCode;
+                        ? item.Mark.Trim()
+                        : GetParameterBasedName(item);
                     break;
 
                 case "TypeName":
@@ -566,7 +656,7 @@ namespace RevitToSupabasePlugin
                     break;
             }
 
-            if (options.AppendTypeName && mode != "TypeName")
+            if (options.AppendTypeName && mode != "TypeName" && mode != "Parameters")
             {
                 baseName = $"{baseName} - {item.TypeName}".Trim();
             }
@@ -596,59 +686,86 @@ namespace RevitToSupabasePlugin
             List<string>? logs = null)
         {
             string sanitized = SanitizeRevitName(desiredName);
-            string candidate = EnsureUniqueAssemblyTypeName(sanitized, existingTypeNames);
 
-            // Método 1: Renombrar directamente el AssemblyType asociado
-            try
+            // Obtener el tipo de ensamblaje actual del ejemplar
+            ElementId typeId = ai.GetTypeId();
+            AssemblyType? currentType = typeId != ElementId.InvalidElementId ? doc.GetElement(typeId) as AssemblyType : null;
+            string currentTypeName = currentType?.Name ?? ai.AssemblyTypeName ?? "";
+
+            // Si ya tiene el nombre deseado, no hacer nada más
+            if (string.Equals(currentTypeName, sanitized, StringComparison.OrdinalIgnoreCase))
             {
-                ElementId typeId = ai.GetTypeId();
-                if (typeId != ElementId.InvalidElementId && doc.GetElement(typeId) is AssemblyType aType)
+                existingTypeNames.Add(currentTypeName);
+                return (true, currentTypeName);
+            }
+
+            // Buscar si ya existe en el documento un AssemblyType con el nombre deseado
+            var matchingType = new FilteredElementCollector(doc)
+                .OfClass(typeof(AssemblyType))
+                .Cast<AssemblyType>()
+                .FirstOrDefault(at => string.Equals(at.Name, sanitized, StringComparison.OrdinalIgnoreCase));
+
+            if (matchingType != null)
+            {
+                try
                 {
-                    aType.Name = candidate;
-                    existingTypeNames.Add(candidate);
-                    return (true, candidate);
+                    ai.ChangeTypeId(matchingType.Id);
+                    existingTypeNames.Add(sanitized);
+                    return (true, sanitized);
+                }
+                catch (Exception exChange)
+                {
+                    logs?.Add($"  [Nomenclatura] ChangeTypeId a '{sanitized}' no aplicó: {exChange.Message}");
                 }
             }
-            catch (Exception ex1)
+
+            // Intentar renombrar directamente el AssemblyType actual
+            if (currentType != null)
             {
-                logs?.Add($"  [Debug Nomenclatura] aType.Name falló: {ex1.Message}");
+                try
+                {
+                    currentType.Name = sanitized;
+                    existingTypeNames.Add(sanitized);
+                    return (true, sanitized);
+                }
+                catch (Exception ex1)
+                {
+                    logs?.Add($"  [Nomenclatura] Renombrado de AssemblyType a '{sanitized}' falló: {ex1.Message}");
+                }
             }
 
-            // Método 2: Asignar mediante la propiedad ai.AssemblyTypeName
+            // Intentar a través de la propiedad AssemblyTypeName de la instancia
             try
             {
-                ai.AssemblyTypeName = candidate;
-                existingTypeNames.Add(candidate);
-                return (true, candidate);
+                ai.AssemblyTypeName = sanitized;
+                existingTypeNames.Add(sanitized);
+                return (true, sanitized);
             }
             catch (Exception ex2)
             {
-                logs?.Add($"  [Debug Nomenclatura] ai.AssemblyTypeName falló: {ex2.Message}");
+                logs?.Add($"  [Nomenclatura] ai.AssemblyTypeName a '{sanitized}' falló: {ex2.Message}");
             }
 
-            // Método 3: Resolver colisión buscando sufijo numérico libre
-            for (int suffix = 1; suffix <= 99; suffix++)
+            // Resolver con sufijo único para evitar colisión si el nombre ya existe y pertenece a otra geometría
+            string uniqueCandidate = EnsureUniqueAssemblyTypeName(sanitized, existingTypeNames);
+            if (!string.Equals(uniqueCandidate, sanitized, StringComparison.OrdinalIgnoreCase))
             {
-                string altCandidate = $"{candidate}_{suffix}";
-                if (existingTypeNames.Contains(altCandidate)) continue;
-
-                try
+                if (currentType != null)
                 {
-                    ElementId typeId = ai.GetTypeId();
-                    if (typeId != ElementId.InvalidElementId && doc.GetElement(typeId) is AssemblyType aType)
+                    try
                     {
-                        aType.Name = altCandidate;
-                        existingTypeNames.Add(altCandidate);
-                        return (true, altCandidate);
+                        currentType.Name = uniqueCandidate;
+                        existingTypeNames.Add(uniqueCandidate);
+                        return (true, uniqueCandidate);
                     }
+                    catch { }
                 }
-                catch { }
 
                 try
                 {
-                    ai.AssemblyTypeName = altCandidate;
-                    existingTypeNames.Add(altCandidate);
-                    return (true, altCandidate);
+                    ai.AssemblyTypeName = uniqueCandidate;
+                    existingTypeNames.Add(uniqueCandidate);
+                    return (true, uniqueCandidate);
                 }
                 catch { }
             }
@@ -721,7 +838,40 @@ namespace RevitToSupabasePlugin
                 {
                     if (item == null) continue;
 
-                    // Filtrar miembros válidos que aún no pertenezcan a un ensamblaje
+                    string desiredName = BuildAssemblyName(item, currentNumber, options);
+
+                    // 1. Verificar si los miembros ya pertenecen a un ensamblaje en Revit
+                    var existingAssIds = item.MemberElementIds
+                        .Select(id => doc.GetElement(id)?.AssemblyInstanceId ?? ElementId.InvalidElementId)
+                        .Where(id => id != ElementId.InvalidElementId)
+                        .Distinct()
+                        .ToList();
+
+                    if (existingAssIds.Count > 0)
+                    {
+                        bool anyReused = false;
+                        foreach (var assId in existingAssIds)
+                        {
+                            if (doc.GetElement(assId) is AssemblyInstance existingAi)
+                            {
+                                var (renamed, finalName) = SetAssemblyTypeName(doc, existingAi, desiredName, existingAssemblyTypeNames, logs);
+                                if (!created.Any(a => a.Id == existingAi.Id))
+                                {
+                                    created.Add(existingAi);
+                                }
+                                logs.Add($"Ensamblaje existente ID {existingAi.Id} ('{finalName}') sincronizado para generar vistas/cotas.");
+                                anyReused = true;
+                            }
+                        }
+
+                        if (anyReused)
+                        {
+                            currentNumber++;
+                            continue;
+                        }
+                    }
+
+                    // 2. Si no pertenecen a un ensamblaje, filtrar miembros válidos para crearlo
                     var validMemberIds = item.MemberElementIds
                         .Where(id =>
                         {
@@ -732,7 +882,7 @@ namespace RevitToSupabasePlugin
 
                     if (validMemberIds.Count == 0)
                     {
-                        logs.Add($"Puerta '{item.DisplayTitle}': Todos sus elementos ya pertenecen a un ensamblaje.");
+                        logs.Add($"Elemento '{item.DisplayTitle}': No tiene ejemplares libres para ensamblar.");
                         continue;
                     }
 
@@ -746,8 +896,8 @@ namespace RevitToSupabasePlugin
                                 var ai = AssemblyInstance.Create(doc, new List<ElementId> { mId }, namingCatId);
                                 if (ai != null)
                                 {
-                                    string desiredName = BuildAssemblyName(item, currentNumber++, options);
-                                    var (renamed, finalName) = SetAssemblyTypeName(doc, ai, desiredName, existingAssemblyTypeNames, logs);
+                                    string instDesiredName = BuildAssemblyName(item, currentNumber++, options);
+                                    var (renamed, finalName) = SetAssemblyTypeName(doc, ai, instDesiredName, existingAssemblyTypeNames, logs);
 
                                     created.Add(ai);
                                     logs.Add($"Ensamblaje creado con éxito: '{finalName}' (ID {ai.Id}).");
@@ -773,7 +923,6 @@ namespace RevitToSupabasePlugin
                             var ai = AssemblyInstance.Create(doc, membersToAssemble, namingCatId);
                             if (ai != null)
                             {
-                                string desiredName = BuildAssemblyName(item, currentNumber++, options);
                                 var (renamed, finalName) = SetAssemblyTypeName(doc, ai, desiredName, existingAssemblyTypeNames, logs);
 
                                 created.Add(ai);
@@ -781,6 +930,7 @@ namespace RevitToSupabasePlugin
                                     ? "1 ejemplar representativo"
                                     : $"{membersToAssemble.Count} elementos agrupados";
                                 logs.Add($"Ensamblaje de Tipo creado ({modeDesc}): '{finalName}' (Total en proyecto: {item.InstanceCount} uds).");
+                                currentNumber++;
                             }
                         }
                         catch (Exception ex)
@@ -828,15 +978,30 @@ namespace RevitToSupabasePlugin
             {
                 t.Start();
 
-                foreach (var ai in assemblies)
+                foreach (var inputAi in assemblies)
                 {
-                    if (ai == null || !ai.IsValidObject) continue;
+                    if (inputAi == null || !inputAi.IsValidObject) continue;
 
+                    var ai = inputAi;
                     string aName = ai.AssemblyTypeName ?? ai.Name;
 
                     if (!ai.AllowsAssemblyViewCreation())
                     {
-                        logs.Add($"El ensamblaje '{aName}' ya tiene vistas o no permite la creación de nuevas vistas.");
+                        var primaryInstance = new FilteredElementCollector(doc)
+                            .OfClass(typeof(AssemblyInstance))
+                            .Cast<AssemblyInstance>()
+                            .FirstOrDefault(other => other.GetTypeId() == ai.GetTypeId() && other.AllowsAssemblyViewCreation());
+
+                        if (primaryInstance != null)
+                        {
+                            ai = primaryInstance;
+                            aName = ai.AssemblyTypeName ?? ai.Name;
+                        }
+                    }
+
+                    if (!ai.AllowsAssemblyViewCreation())
+                    {
+                        logs.Add($"El ensamblaje '{aName}' ya tiene vistas generadas o su tipo no permite vistas adicionales.");
                         continue;
                     }
 

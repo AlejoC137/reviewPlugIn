@@ -29,7 +29,7 @@ namespace RevitToSupabasePlugin
         public bool AllowsViewCreation { get; set; }
         public bool HasExistingSchedule { get; set; }
         public string ExistingScheduleInfo { get; set; } = string.Empty;
-        public bool IsSelected { get; set; } = true;
+        public bool IsSelected { get; set; } = false;
 
         public bool IsValid => Assembly != null && Assembly.IsValidObject;
         public string StatusBadge => HasExistingSchedule ? "✅ Con Tabla" : (AllowsViewCreation ? "⚡ Listo" : "⚪ Tipo ya creado");
@@ -319,7 +319,7 @@ namespace RevitToSupabasePlugin
                     AllowsViewCreation = a.AllowsAssemblyViewCreation(),
                     HasExistingSchedule = hasSched,
                     ExistingScheduleInfo = schedInfo,
-                    IsSelected = a.AllowsAssemblyViewCreation() || hasSched
+                    IsSelected = false
                 });
             }
 
