@@ -1240,31 +1240,75 @@ namespace RevitToSupabasePlugin
             UpdateBatchNamePreview();
         }
 
+        private void cmbBatchNamingMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateBatchNamePreview();
+        }
+
         private void UpdateBatchNamePreview()
         {
             if (txtBatchNamePreview == null) return;
 
-            string input = txtBatchInitialName?.Text?.Trim() ?? "P-01";
+            string namingMode = "Sequential";
+            if (cmbBatchNamingMode != null)
+            {
+                switch (cmbBatchNamingMode.SelectedIndex)
+                {
+                    case 1: namingMode = "Mark"; break;
+                    case 2: namingMode = "TypeName"; break;
+                    case 3: namingMode = "CustomPattern"; break;
+                    default: namingMode = "Sequential"; break;
+                }
+            }
+
+            string input = txtBatchInitialName?.Text?.Trim() ?? (ActiveCategory == BuiltInCategory.OST_Windows ? "V-01" : "P-01");
             var (prefix, startNum, digitCount) = DoorAssemblyManagerService.ParseNamingPattern(input);
 
-            string ex1 = DoorAssemblyManagerService.FormatSequentialName(prefix, startNum, digitCount);
-            string ex2 = DoorAssemblyManagerService.FormatSequentialName(prefix, startNum + 1, digitCount);
-            string ex3 = DoorAssemblyManagerService.FormatSequentialName(prefix, startNum + 2, digitCount);
-
-            if (chkBatchAppendTypeName?.IsChecked == true)
+            var opts = new BatchAssemblyOptions
             {
-                ex1 += " - Tipo A";
-                ex2 += " - Tipo B";
-                ex3 += " - Tipo C";
-            }
-            if (chkBatchAppendCount?.IsChecked == true)
-            {
-                ex1 += " [x4]";
-                ex2 += " [x8]";
-                ex3 += " [x2]";
-            }
+                InitialName = input,
+                NamingMode = namingMode,
+                AppendTypeName = chkBatchAppendTypeName?.IsChecked == true,
+                AppendDimensions = chkBatchAppendDims?.IsChecked == true,
+                AppendInstanceCount = chkBatchAppendCount?.IsChecked == true,
+                Category = ActiveCategory
+            };
 
-            txtBatchNamePreview.Text = $"Secuencia: {ex1}, {ex2}, {ex3}...";
+            var sampleItem1 = new DoorItemViewModel
+            {
+                Mark = ActiveCategory == BuiltInCategory.OST_Windows ? "V1" : "P1",
+                FamilyName = ActiveCategory == BuiltInCategory.OST_Windows ? "Ventana Corredera" : "Puerta Batiente",
+                TypeName = ActiveCategory == BuiltInCategory.OST_Windows ? "2 Hojas" : "Madera",
+                Dimensions = ActiveCategory == BuiltInCategory.OST_Windows ? "1.20 x 1.00 m" : "0.90 x 2.10 m",
+                InstanceCount = 4
+            };
+
+            var sampleItem2 = new DoorItemViewModel
+            {
+                Mark = ActiveCategory == BuiltInCategory.OST_Windows ? "V2" : "P2",
+                FamilyName = ActiveCategory == BuiltInCategory.OST_Windows ? "Ventana Fija" : "Puerta Vidrio",
+                TypeName = ActiveCategory == BuiltInCategory.OST_Windows ? "Simple" : "Aluminio",
+                Dimensions = ActiveCategory == BuiltInCategory.OST_Windows ? "1.50 x 1.20 m" : "1.00 x 2.10 m",
+                InstanceCount = 8
+            };
+
+            string ex1 = DoorAssemblyManagerService.BuildAssemblyName(sampleItem1, startNum, opts);
+            string ex2 = DoorAssemblyManagerService.BuildAssemblyName(sampleItem2, startNum + 1, opts);
+
+            txtBatchNamePreview.Text = $"{ex1}, {ex2}, ...";
+
+            // Actualizar en tiempo real el nombre propuesto en la lista visible
+            if (_allDoors != null && _allDoors.Count > 0)
+            {
+                int seq = startNum;
+                foreach (var d in _allDoors)
+                {
+                    if (!d.AlreadyInAssembly)
+                    {
+                        d.TargetAssemblyName = DoorAssemblyManagerService.BuildAssemblyName(d, seq++, opts);
+                    }
+                }
+            }
         }
 
         private void txtSearchDoors_TextChanged(object sender, TextChangedEventArgs e)
@@ -1385,14 +1429,43 @@ namespace RevitToSupabasePlugin
             bool singleInstancePerType = _singleInstancePerType;
             string initialName = string.IsNullOrWhiteSpace(txtBatchInitialName?.Text) ? defaultPrefix : txtBatchInitialName.Text.Trim();
             bool appendTypeName = chkBatchAppendTypeName?.IsChecked == true;
+            bool appendDims = chkBatchAppendDims?.IsChecked == true;
             bool appendCount = chkBatchAppendCount?.IsChecked == true;
+
+            string namingMode = "Sequential";
+            if (cmbBatchNamingMode != null)
+            {
+                switch (cmbBatchNamingMode.SelectedIndex)
+                {
+                    case 1: namingMode = "Mark"; break;
+                    case 2: namingMode = "TypeName"; break;
+                    case 3: namingMode = "CustomPattern"; break;
+                    default: namingMode = "Sequential"; break;
+                }
+            }
+
+            int viewScale = 20;
+            if (cmbBatchViewScale != null)
+            {
+                switch (cmbBatchViewScale.SelectedIndex)
+                {
+                    case 0: viewScale = 10; break;
+                    case 1: viewScale = 20; break;
+                    case 2: viewScale = 25; break;
+                    case 3: viewScale = 50; break;
+                    case 4: viewScale = 100; break;
+                    default: viewScale = 20; break;
+                }
+            }
 
             var batchOpts = new BatchAssemblyOptions
             {
                 GroupByInstance = groupByInstance,
                 SingleInstancePerType = singleInstancePerType,
                 InitialName = initialName,
+                NamingMode = namingMode,
                 AppendTypeName = appendTypeName,
+                AppendDimensions = appendDims,
                 AppendInstanceCount = appendCount,
                 Category = ActiveCategory
             };
@@ -1429,6 +1502,8 @@ namespace RevitToSupabasePlugin
                     CreateBackElevation = chkBatchViewBack?.IsChecked ?? false,
                     Create3DOrthographic = chkBatchView3D?.IsChecked ?? true,
                     CreateSection = chkBatchViewSection?.IsChecked ?? false,
+                    ViewScale = viewScale,
+                    AutoDimensionViews = true,
                     CategoryId = new ElementId(ActiveCategory)
                 };
 

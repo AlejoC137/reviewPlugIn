@@ -62,6 +62,20 @@ namespace RevitToSupabasePlugin
         public string DisplayTitle => string.IsNullOrWhiteSpace(Mark)
             ? $"{FamilyName} - {TypeName}"
             : $"[{Mark}] {FamilyName} - {TypeName}";
+
+        private string _targetAssemblyName = string.Empty;
+        public string TargetAssemblyName
+        {
+            get => string.IsNullOrWhiteSpace(_targetAssemblyName) ? (AlreadyInAssembly ? AssemblyName : DisplayTitle) : _targetAssemblyName;
+            set
+            {
+                if (_targetAssemblyName != value)
+                {
+                    _targetAssemblyName = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -77,6 +91,7 @@ namespace RevitToSupabasePlugin
         public bool Create3DOrthographic { get; set; } = true;
         public bool CreateSection { get; set; } = false;
         public bool AutoDimensionViews { get; set; } = true;
+        public int ViewScale { get; set; } = 20; // 1:20 por defecto (estándar carpintería)
         public ElementId? ViewTemplateId { get; set; }
         public ElementId? CategoryId { get; set; }
     }
@@ -90,7 +105,10 @@ namespace RevitToSupabasePlugin
         public bool SingleInstancePerType { get; set; } = true;
         public string InitialName { get; set; } = "P-01";
         public bool AppendTypeName { get; set; } = false;
+        public bool AppendDimensions { get; set; } = false;
         public bool AppendInstanceCount { get; set; } = false;
+        public string NamingMode { get; set; } = "Sequential"; // "Sequential", "Mark", "TypeName", "CustomPattern"
+        public string CustomPattern { get; set; } = "{Prefix}{Seq}";
         public BuiltInCategory Category { get; set; } = BuiltInCategory.OST_Doors;
     }
 
@@ -468,6 +486,176 @@ namespace RevitToSupabasePlugin
             return $"{prefix}{number.ToString($"D{digitCount}")}";
         }
 
+        /// <summary>
+        /// Sanitiza un nombre eliminando o transformando caracteres no permitidos en Revit para nombres de tipo y familias.
+        /// Caracteres prohibidos en Revit: \ : { } [ ] | ; < > ? * "
+        /// </summary>
+        public static string SanitizeRevitName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return "Assembly";
+
+            string s = name.Replace('[', '(')
+                           .Replace(']', ')')
+                           .Replace('{', '(')
+                           .Replace('}', ')')
+                           .Replace('/', '-')
+                           .Replace('\\', '-')
+                           .Replace(':', '-')
+                           .Replace(';', '-')
+                           .Replace('|', '-')
+                           .Replace('<', '(')
+                           .Replace('>', ')')
+                           .Replace('?', ' ')
+                           .Replace('*', 'x')
+                           .Replace('"', '\'');
+
+            s = string.Concat(s.Where(c => !char.IsControl(c))).Trim();
+            while (s.Contains("  ")) s = s.Replace("  ", " ");
+
+            return string.IsNullOrWhiteSpace(s) ? "Assembly" : s;
+        }
+
+        /// <summary>
+        /// Construye el nombre deseado para el ensamblaje según las opciones de nomenclatura configuradas.
+        /// </summary>
+        public static string BuildAssemblyName(
+            DoorItemViewModel item,
+            int sequenceNumber,
+            BatchAssemblyOptions options)
+        {
+            if (!string.IsNullOrWhiteSpace(item.TargetAssemblyName) &&
+                !item.TargetAssemblyName.Equals(item.DisplayTitle, StringComparison.OrdinalIgnoreCase) &&
+                !item.TargetAssemblyName.Equals(item.AssemblyName, StringComparison.OrdinalIgnoreCase))
+            {
+                return SanitizeRevitName(item.TargetAssemblyName);
+            }
+
+            string mode = options.NamingMode ?? "Sequential";
+            var (prefix, _, digitCount) = ParseNamingPattern(options.InitialName);
+            string seqCode = FormatSequentialName(prefix, sequenceNumber, digitCount);
+
+            string baseName;
+            switch (mode)
+            {
+                case "Mark":
+                    baseName = !string.IsNullOrWhiteSpace(item.Mark)
+                        ? (!string.IsNullOrWhiteSpace(prefix) && !item.Mark.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                            ? $"{prefix}{item.Mark}"
+                            : item.Mark)
+                        : seqCode;
+                    break;
+
+                case "TypeName":
+                    baseName = $"{item.FamilyName} - {item.TypeName}".Trim();
+                    break;
+
+                case "CustomPattern":
+                    string pattern = string.IsNullOrWhiteSpace(options.CustomPattern) ? "{Prefix}{Seq}" : options.CustomPattern;
+                    baseName = pattern
+                        .Replace("{Prefix}", prefix)
+                        .Replace("{Seq}", sequenceNumber.ToString($"D{digitCount}"))
+                        .Replace("{Mark}", item.Mark)
+                        .Replace("{Family}", item.FamilyName)
+                        .Replace("{Type}", item.TypeName)
+                        .Replace("{Dims}", item.Dimensions);
+                    break;
+
+                case "Sequential":
+                default:
+                    baseName = seqCode;
+                    break;
+            }
+
+            if (options.AppendTypeName && mode != "TypeName")
+            {
+                baseName = $"{baseName} - {item.TypeName}".Trim();
+            }
+
+            if (options.AppendDimensions && !string.IsNullOrWhiteSpace(item.Dimensions) && item.Dimensions != "-")
+            {
+                baseName = $"{baseName} ({item.Dimensions})";
+            }
+
+            if (options.AppendInstanceCount && item.InstanceCount > 1)
+            {
+                baseName = $"{baseName} ({item.InstanceCount} uds)";
+            }
+
+            return SanitizeRevitName(baseName);
+        }
+
+        /// <summary>
+        /// Renombra de forma segura y robusta un AssemblyInstance y su AssemblyType en Revit,
+        /// evitando colisiones y garantizando que nunca quede con el nombre por defecto (ej: "Window 1", "Door 1").
+        /// </summary>
+        public static (bool success, string finalName) SetAssemblyTypeName(
+            Document doc,
+            AssemblyInstance ai,
+            string desiredName,
+            HashSet<string> existingTypeNames,
+            List<string>? logs = null)
+        {
+            string sanitized = SanitizeRevitName(desiredName);
+            string candidate = EnsureUniqueAssemblyTypeName(sanitized, existingTypeNames);
+
+            // Método 1: Renombrar directamente el AssemblyType asociado
+            try
+            {
+                ElementId typeId = ai.GetTypeId();
+                if (typeId != ElementId.InvalidElementId && doc.GetElement(typeId) is AssemblyType aType)
+                {
+                    aType.Name = candidate;
+                    existingTypeNames.Add(candidate);
+                    return (true, candidate);
+                }
+            }
+            catch (Exception ex1)
+            {
+                logs?.Add($"  [Debug Nomenclatura] aType.Name falló: {ex1.Message}");
+            }
+
+            // Método 2: Asignar mediante la propiedad ai.AssemblyTypeName
+            try
+            {
+                ai.AssemblyTypeName = candidate;
+                existingTypeNames.Add(candidate);
+                return (true, candidate);
+            }
+            catch (Exception ex2)
+            {
+                logs?.Add($"  [Debug Nomenclatura] ai.AssemblyTypeName falló: {ex2.Message}");
+            }
+
+            // Método 3: Resolver colisión buscando sufijo numérico libre
+            for (int suffix = 1; suffix <= 99; suffix++)
+            {
+                string altCandidate = $"{candidate}_{suffix}";
+                if (existingTypeNames.Contains(altCandidate)) continue;
+
+                try
+                {
+                    ElementId typeId = ai.GetTypeId();
+                    if (typeId != ElementId.InvalidElementId && doc.GetElement(typeId) is AssemblyType aType)
+                    {
+                        aType.Name = altCandidate;
+                        existingTypeNames.Add(altCandidate);
+                        return (true, altCandidate);
+                    }
+                }
+                catch { }
+
+                try
+                {
+                    ai.AssemblyTypeName = altCandidate;
+                    existingTypeNames.Add(altCandidate);
+                    return (true, altCandidate);
+                }
+                catch { }
+            }
+
+            return (false, ai.AssemblyTypeName ?? ai.Name);
+        }
+
         private static string EnsureUniqueAssemblyTypeName(string baseName, HashSet<string> existingNames)
         {
             if (!existingNames.Contains(baseName))
@@ -558,29 +746,11 @@ namespace RevitToSupabasePlugin
                                 var ai = AssemblyInstance.Create(doc, new List<ElementId> { mId }, namingCatId);
                                 if (ai != null)
                                 {
-                                    string seqCode = FormatSequentialName(prefix, currentNumber++, digitCount);
-                                    string desiredName = seqCode;
-
-                                    if (options.AppendTypeName)
-                                    {
-                                        desiredName = $"{desiredName} - {item.FamilyName} {item.TypeName}".Trim();
-                                    }
-                                    else if (!string.IsNullOrWhiteSpace(item.Mark))
-                                    {
-                                        desiredName = $"{desiredName} ({item.Mark})";
-                                    }
-
-                                    desiredName = EnsureUniqueAssemblyTypeName(desiredName, existingAssemblyTypeNames);
-
-                                    try
-                                    {
-                                        ai.AssemblyTypeName = desiredName;
-                                        existingAssemblyTypeNames.Add(desiredName);
-                                    }
-                                    catch { }
+                                    string desiredName = BuildAssemblyName(item, currentNumber++, options);
+                                    var (renamed, finalName) = SetAssemblyTypeName(doc, ai, desiredName, existingAssemblyTypeNames, logs);
 
                                     created.Add(ai);
-                                    logs.Add($"Ensamblaje creado: '{ai.AssemblyTypeName ?? ai.Name}' (ID {ai.Id}).");
+                                    logs.Add($"Ensamblaje creado con éxito: '{finalName}' (ID {ai.Id}).");
                                 }
                             }
                             catch (Exception ex)
@@ -603,37 +773,14 @@ namespace RevitToSupabasePlugin
                             var ai = AssemblyInstance.Create(doc, membersToAssemble, namingCatId);
                             if (ai != null)
                             {
-                                string seqCode = FormatSequentialName(prefix, currentNumber++, digitCount);
-                                string desiredName = seqCode;
-
-                                if (options.AppendTypeName)
-                                {
-                                    desiredName = $"{desiredName} - {item.FamilyName} {item.TypeName}".Trim();
-                                }
-                                else if (!string.IsNullOrWhiteSpace(item.Mark))
-                                {
-                                    desiredName = $"{desiredName} ({item.Mark})";
-                                }
-
-                                if (options.AppendInstanceCount)
-                                {
-                                    desiredName = $"{desiredName} [{item.InstanceCount} uds]";
-                                }
-
-                                desiredName = EnsureUniqueAssemblyTypeName(desiredName, existingAssemblyTypeNames);
-
-                                try
-                                {
-                                    ai.AssemblyTypeName = desiredName;
-                                    existingAssemblyTypeNames.Add(desiredName);
-                                }
-                                catch { }
+                                string desiredName = BuildAssemblyName(item, currentNumber++, options);
+                                var (renamed, finalName) = SetAssemblyTypeName(doc, ai, desiredName, existingAssemblyTypeNames, logs);
 
                                 created.Add(ai);
                                 string modeDesc = options.SingleInstancePerType
                                     ? "1 ejemplar representativo"
-                                    : $"{membersToAssemble.Count} puertas agrupadas";
-                                logs.Add($"Ensamblaje de Tipo creado ({modeDesc}): '{ai.AssemblyTypeName ?? ai.Name}' (Total en proyecto: {item.InstanceCount} uds).");
+                                    : $"{membersToAssemble.Count} elementos agrupados";
+                                logs.Add($"Ensamblaje de Tipo creado ({modeDesc}): '{finalName}' (Total en proyecto: {item.InstanceCount} uds).");
                             }
                         }
                         catch (Exception ex)
@@ -741,6 +888,8 @@ namespace RevitToSupabasePlugin
                         }
                     }
 
+                    int viewScale = options.ViewScale > 0 ? options.ViewScale : 20;
+
                     // 2. Vista 3D Isométrica
                     if (options.Create3DOrthographic)
                     {
@@ -750,12 +899,13 @@ namespace RevitToSupabasePlugin
                             if (v3d != null)
                             {
                                 v3d.Name = AssemblyScheduleService.GetUniqueScheduleName(doc, $"{aName} - Vista 3D");
+                                try { v3d.Scale = viewScale; } catch { }
                                 if (options.ViewTemplateId != null && options.ViewTemplateId != ElementId.InvalidElementId)
                                 {
                                     try { v3d.ViewTemplateId = options.ViewTemplateId; } catch { }
                                 }
                                 createdCount++;
-                                logs.Add($"  [VISTA] 3D Isométrica creada: '{v3d.Name}'");
+                                logs.Add($"  [VISTA] 3D Isométrica creada (1:{v3d.Scale}): '{v3d.Name}'");
                             }
                         }
                         catch { }
@@ -770,8 +920,13 @@ namespace RevitToSupabasePlugin
                             if (vPlan != null)
                             {
                                 vPlan.Name = AssemblyScheduleService.GetUniqueScheduleName(doc, $"{aName} - Planta de Detalle");
+                                try { vPlan.Scale = viewScale; } catch { }
+                                if (options.ViewTemplateId != null && options.ViewTemplateId != ElementId.InvalidElementId)
+                                {
+                                    try { vPlan.ViewTemplateId = options.ViewTemplateId; } catch { }
+                                }
                                 createdCount++;
-                                logs.Add($"  [VISTA] Planta de Detalle creada: '{vPlan.Name}'");
+                                logs.Add($"  [VISTA] Planta de Detalle creada (1:{vPlan.Scale}): '{vPlan.Name}'");
                             }
                         }
                         catch { }
@@ -786,8 +941,13 @@ namespace RevitToSupabasePlugin
                             if (vFront != null)
                             {
                                 vFront.Name = AssemblyScheduleService.GetUniqueScheduleName(doc, $"{aName} - Elevación Frontal");
+                                try { vFront.Scale = viewScale; } catch { }
+                                if (options.ViewTemplateId != null && options.ViewTemplateId != ElementId.InvalidElementId)
+                                {
+                                    try { vFront.ViewTemplateId = options.ViewTemplateId; } catch { }
+                                }
                                 createdCount++;
-                                logs.Add($"  [VISTA] Elevación Frontal creada: '{vFront.Name}'");
+                                logs.Add($"  [VISTA] Elevación Frontal creada (1:{vFront.Scale}): '{vFront.Name}'");
                             }
                         }
                         catch { }
@@ -802,8 +962,13 @@ namespace RevitToSupabasePlugin
                             if (vBack != null)
                             {
                                 vBack.Name = AssemblyScheduleService.GetUniqueScheduleName(doc, $"{aName} - Elevación Posterior");
+                                try { vBack.Scale = viewScale; } catch { }
+                                if (options.ViewTemplateId != null && options.ViewTemplateId != ElementId.InvalidElementId)
+                                {
+                                    try { vBack.ViewTemplateId = options.ViewTemplateId; } catch { }
+                                }
                                 createdCount++;
-                                logs.Add($"  [VISTA] Elevación Posterior creada: '{vBack.Name}'");
+                                logs.Add($"  [VISTA] Elevación Posterior creada (1:{vBack.Scale}): '{vBack.Name}'");
                             }
                         }
                         catch { }
@@ -818,8 +983,13 @@ namespace RevitToSupabasePlugin
                             if (vSec != null)
                             {
                                 vSec.Name = AssemblyScheduleService.GetUniqueScheduleName(doc, $"{aName} - Sección Lateral");
+                                try { vSec.Scale = viewScale; } catch { }
+                                if (options.ViewTemplateId != null && options.ViewTemplateId != ElementId.InvalidElementId)
+                                {
+                                    try { vSec.ViewTemplateId = options.ViewTemplateId; } catch { }
+                                }
                                 createdCount++;
-                                logs.Add($"  [VISTA] Sección creada: '{vSec.Name}'");
+                                logs.Add($"  [VISTA] Sección creada (1:{vSec.Scale}): '{vSec.Name}'");
                             }
                         }
                         catch { }
