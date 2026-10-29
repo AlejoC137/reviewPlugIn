@@ -405,6 +405,8 @@
                                             <CheckBox x:Name="chkReplicateTotals" Style="{StaticResource ArcaCheckBox}" Content="Totales y subtotales generales" IsChecked="True" Margin="0,0,12,4"/>
                                             <CheckBox x:Name="chkReplicateFilters" Style="{StaticResource ArcaCheckBox}" Content="Filtros originales (⚠️ Desmarcado para evitar tablas vacías)" IsChecked="False" Margin="0,0,12,4" 
                                                       ToolTip="Los filtros de tablas maestras suelen filtrar por ejemplar o tipo específico. Dejar desmarcado para que el ensamble muestre todas sus piezas."/>
+                                            <CheckBox x:Name="chkInjectBridgeParam" Style="{StaticResource ArcaCheckBox}" Content="Inyectar Parámetro Puente (Total en Obra)" IsChecked="True" Margin="0,0,12,4" 
+                                                      ToolTip="Agrega automáticamente la columna de conteo global de obra calculada por el plugin"/>
                                         </WrapPanel>
                                     </StackPanel>
                                 </StackPanel>
@@ -419,17 +421,44 @@
                 </Grid>
             </TabItem>
 
-            <!-- PESTAÑA 2: CUADRO DE PUERTAS & BATCH ASSEMBLIES / VISTAS -->
-            <TabItem Header="🚪 Cuadro de Puertas &amp; Ensamblajes Batch">
-                <Grid Margin="0,8,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="420" MinWidth="340"/>
-                        <ColumnDefinition Width="8"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
+            <!-- PESTAÑA 2: CUADRO DE CARPINTERÍAS & BATCH ASSEMBLIES / VISTAS -->
+            <TabItem Header="🚪/🪟 Carpinterías (Puertas &amp; Ventanas) &amp; Ensamblajes Batch">
+                <Grid Margin="0,6,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
-                    <!-- COLUMNA IZQUIERDA: CONFIGURADOR DEL CUADRO DE PUERTAS -->
-                    <GroupBox Header="1. Configurar &amp; Crear Cuadro Maestro de Puertas" Style="{StaticResource ArcaGroupBox}" Grid.Column="0">
+                    <!-- BARRA SUPERIOR: SELECTOR DE CATEGORÍA (PUERTAS VS VENTANAS) -->
+                    <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1" Padding="10,6" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Text="Categoría BIM Activa:" FontSize="11" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <RadioButton x:Name="rbCategoryDoors" Style="{StaticResource ArcaRadioButton}" Content="🚪 Puertas (Doors)" IsChecked="True" Checked="rbCategory_Checked" Margin="0,0,14,0" FontSize="11" FontWeight="SemiBold"/>
+                                <RadioButton x:Name="rbCategoryWindows" Style="{StaticResource ArcaRadioButton}" Content="🪟 Ventanas (Windows)" IsChecked="False" Checked="rbCategory_Checked" FontSize="11" FontWeight="SemiBold"/>
+                            </StackPanel>
+
+                            <TextBlock x:Name="txtCategoryHelp" Grid.Column="2" Text="💡 Genera cuadros técnicos, ensamblajes individuales o por tipo y despieces automáticos para la categoría seleccionada."
+                                       FontSize="10" Foreground="#72777F" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- PANEL DE 2 COLUMNAS (CUADRO Y ENSAMBLAJES BATCH) -->
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="420" MinWidth="340"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- COLUMNA IZQUIERDA: CONFIGURADOR DEL CUADRO DE PUERTAS / VENTANAS -->
+                        <GroupBox x:Name="grpConfigSchedule" Header="1. Configurar &amp; Crear Cuadro Maestro" Style="{StaticResource ArcaGroupBox}" Grid.Column="0">
                         <Grid Margin="2,4,2,2">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -510,6 +539,9 @@
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <RadioButton x:Name="rbDoorGroupType" Style="{StaticResource ArcaRadioButton}" Content="📦 Por Tipo de Puerta" IsChecked="True" Checked="rbDoorGroupMode_Checked" Margin="0,0,8,0" FontSize="10.5" ToolTip="Crea un ensamblaje por cada Tipo de Familia"/>
                                     <RadioButton x:Name="rbDoorGroupInstance" Style="{StaticResource ArcaRadioButton}" Content="🚪 Por Ejemplar Físico" IsChecked="False" Checked="rbDoorGroupMode_Checked" FontSize="10.5" ToolTip="Crea un ensamblaje para cada puerta del modelo"/>
+                                    <Button x:Name="btnQuickToggleSingleInstance" Click="btnToggleSingleInstancePerType_Click" Style="{StaticResource SecondaryButton}" 
+                                            Content="⭐ Solo tomar 1 instancia por tipo para el assembly" Padding="8,3" FontSize="10" Margin="10,0,0,0" 
+                                            ToolTip="Alterna entre tomar solo 1 ejemplar de muestra por tipo o todas las instancias existentes"/>
                                 </StackPanel>
 
                                 <TextBox x:Name="txtSearchDoors" Grid.Column="1" Style="{StaticResource ArcaTextBox}" TextChanged="txtSearchDoors_TextChanged" Margin="8,0,0,0" ToolTip="Filtrar puertas por familia, tipo o marca..."/>
@@ -520,7 +552,8 @@
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="6,0,0,0">
                                     <Button Content="Todos" Click="btnSelectAllDoors_Click" Style="{StaticResource SecondaryButton}" Padding="7,3" FontSize="10" Margin="0,0,4,0"/>
                                     <Button Content="Ninguno" Click="btnDeselectAllDoors_Click" Style="{StaticResource SecondaryButton}" Padding="7,3" FontSize="10" Margin="0,0,4,0"/>
-                                    <Button Content="Sin Ensamblaje" Click="btnSelectDoorsWithoutAssembly_Click" Style="{StaticResource SecondaryButton}" Padding="7,3" FontSize="10"/>
+                                    <Button Content="Sin Ensamblaje" Click="btnSelectDoorsWithoutAssembly_Click" Style="{StaticResource SecondaryButton}" Padding="7,3" FontSize="10" Margin="0,0,4,0"/>
+                                    <Button x:Name="btnSelectOnePerType" Content="1 por Tipo" Click="btnSelectOnePerType_Click" Style="{StaticResource SecondaryButton}" Padding="7,3" FontSize="10" ToolTip="Selecciona solo 1 ejemplar de cada tipo"/>
                                 </StackPanel>
                             </Grid>
 
@@ -586,6 +619,7 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
 
                                     <!-- FILA 1: NOMENCLATURA CORRELATIVA -->
@@ -612,15 +646,35 @@
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock x:Name="lblBatchInstanceContentTitle" Text="Contenido del Ensamblaje:" FontSize="10" FontWeight="SemiBold" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <TextBlock x:Name="lblBatchInstanceContentTitle" Text="Contenido del Ensamblaje:" FontSize="10" FontWeight="SemiBold" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                             <StackPanel x:Name="pnlInstanceModeSelection" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                                <RadioButton x:Name="rbBatchSingleInstance" Style="{StaticResource ArcaRadioButton}" Content="⭐ Solo 1 ejemplar representativo" IsChecked="True" FontSize="10" Margin="0,0,14,0"
-                                                             ToolTip="Incluye solo 1 ejemplar de muestra del tipo en el ensamblaje. Recomendado para generar vistas técnicas, alzados, despieces y cotas limpias de carpintería."/>
-                                                <RadioButton x:Name="rbBatchAllInstances" Style="{StaticResource ArcaRadioButton}" Content="📦 Todas las instancias del tipo" IsChecked="False" FontSize="10"
-                                                             ToolTip="Agrupa en un único ensamblaje todos los ejemplares físicos de este tipo existentes en el proyecto."/>
+                                                <Button x:Name="btnToggleSingleInstancePerType" Click="btnToggleSingleInstancePerType_Click" Style="{StaticResource SecondaryButton}"
+                                                        Content="⭐ Solo tomar 1 instancia por tipo para el assembly" Padding="10,4" FontSize="10.5"
+                                                        ToolTip="Alterna entre tomar solo 1 ejemplar de muestra por tipo o todas las instancias existentes"/>
                                             </StackPanel>
+                                            <TextBlock x:Name="txtSingleInstanceHelp" Grid.Column="2" Text="💡 Se creará 1 ensamblaje por tipo tomando solo 1 ejemplar de muestra (vistas y cotas limpias)." 
+                                                       FontSize="9.5" Foreground="#0F4369" VerticalAlignment="Center" Margin="12,0,0,0" TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- FILA 3: PARÁMETRO PUENTE (TOTAL GLOBAL EN OBRA) -->
+                                    <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#0F4369" BorderThickness="1" Padding="8,4" Margin="0,5,0,0">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="🌉 Parámetro Puente (Global):" FontWeight="Bold" FontSize="10.5" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <TextBlock Text="Estampa el total de obra en el elemento para que la tabla del ensamblaje lo lea." FontSize="9.5" Foreground="#72777F" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <Button x:Name="btnSyncBridgeData" Grid.Column="1" Click="btnSyncBridgeData_Click" Style="{StaticResource SecondaryButton}" 
+                                                    Padding="8,3" FontSize="10" FontWeight="SemiBold"
+                                                    Content="⚡ Sincronizar Cantidad Global" 
+                                                    ToolTip="Estampa la cantidad total de obra y resumen de pisos en el parámetro puente de las puertas/ventanas de los ensamblajes"/>
                                         </Grid>
                                     </Border>
                                 </Grid>
@@ -664,7 +718,8 @@
                         </Grid>
                     </GroupBox>
                 </Grid>
-            </TabItem>
+            </Grid>
+        </TabItem>
         </TabControl>
 
         <!-- PANEL INFERIOR: LOG / REGISTRO DE OPERACIONES -->

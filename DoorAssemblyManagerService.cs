@@ -78,6 +78,7 @@ namespace RevitToSupabasePlugin
         public bool CreateSection { get; set; } = false;
         public bool AutoDimensionViews { get; set; } = true;
         public ElementId? ViewTemplateId { get; set; }
+        public ElementId? CategoryId { get; set; }
     }
 
     /// <summary>
@@ -90,10 +91,11 @@ namespace RevitToSupabasePlugin
         public string InitialName { get; set; } = "P-01";
         public bool AppendTypeName { get; set; } = false;
         public bool AppendInstanceCount { get; set; } = false;
+        public BuiltInCategory Category { get; set; } = BuiltInCategory.OST_Doors;
     }
 
     /// <summary>
-    /// Servicio de alto rendimiento para creación de Cuadros de Puertas personalizables,
+    /// Servicio de alto rendimiento para creación de Cuadros de Puertas/Ventanas personalizables,
     /// ensamblajes por tipo o ejemplar y generación batch de vistas.
     /// </summary>
     public static class DoorAssemblyManagerService
@@ -103,18 +105,29 @@ namespace RevitToSupabasePlugin
         /// </summary>
         public static List<DoorScheduleFieldConfig> GetDefaultDoorFields()
         {
+            return GetDefaultFields(BuiltInCategory.OST_Doors);
+        }
+
+        /// <summary>
+        /// Obtiene la lista de campos predeterminados recomendados según la categoría (Puertas o Ventanas).
+        /// </summary>
+        public static List<DoorScheduleFieldConfig> GetDefaultFields(BuiltInCategory category = BuiltInCategory.OST_Doors)
+        {
+            bool isWindow = category == BuiltInCategory.OST_Windows;
             return new List<DoorScheduleFieldConfig>
             {
                 new DoorScheduleFieldConfig { Key = "TypeMark", HeaderName = "Código / Tipo", BuiltInParam = BuiltInParameter.ALL_MODEL_TYPE_MARK, IsSelected = true, IsSortKey = true, SortAscending = true },
                 new DoorScheduleFieldConfig { Key = "Mark", HeaderName = "Marca", BuiltInParam = BuiltInParameter.ALL_MODEL_MARK, IsSelected = true },
                 new DoorScheduleFieldConfig { Key = "FamilyAndType", HeaderName = "Familia y Tipo", BuiltInParam = BuiltInParameter.ELEM_FAMILY_AND_TYPE_PARAM, IsSelected = true },
-                new DoorScheduleFieldConfig { Key = "Width", HeaderName = "Anchura (m)", BuiltInParam = BuiltInParameter.DOOR_WIDTH, IsSelected = true },
-                new DoorScheduleFieldConfig { Key = "Height", HeaderName = "Altura (m)", BuiltInParam = BuiltInParameter.DOOR_HEIGHT, IsSelected = true },
-                new DoorScheduleFieldConfig { Key = "Count", HeaderName = "Cantidad", IsCount = true, IsSelected = true },
+                new DoorScheduleFieldConfig { Key = "Width", HeaderName = "Anchura (m)", BuiltInParam = isWindow ? BuiltInParameter.WINDOW_WIDTH : BuiltInParameter.DOOR_WIDTH, IsSelected = true },
+                new DoorScheduleFieldConfig { Key = "Height", HeaderName = "Altura (m)", BuiltInParam = isWindow ? BuiltInParameter.WINDOW_HEIGHT : BuiltInParameter.DOOR_HEIGHT, IsSelected = true },
+                new DoorScheduleFieldConfig { Key = "Count", HeaderName = "Cantidad (Local)", IsCount = true, IsSelected = true },
+                new DoorScheduleFieldConfig { Key = "GlobalCount", HeaderName = "Total en Obra (Global)", BuiltInParam = null, IsSelected = true },
                 new DoorScheduleFieldConfig { Key = "Level", HeaderName = "Nivel / Ubicación", BuiltInParam = BuiltInParameter.FAMILY_LEVEL_PARAM, IsSelected = true },
+                new DoorScheduleFieldConfig { Key = "Locations", HeaderName = "Resumen Ubicaciones", BuiltInParam = null, IsSelected = false },
                 new DoorScheduleFieldConfig { Key = "Comments", HeaderName = "Observaciones", BuiltInParam = BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS, IsSelected = true },
-                new DoorScheduleFieldConfig { Key = "FrameMaterial", HeaderName = "Material Marco", BuiltInParam = BuiltInParameter.DOOR_FRAME_MATERIAL, IsSelected = false },
-                new DoorScheduleFieldConfig { Key = "PanelMaterial", HeaderName = "Material Hoja", BuiltInParam = null, IsSelected = false }
+                new DoorScheduleFieldConfig { Key = "FrameMaterial", HeaderName = "Material Marco", BuiltInParam = isWindow ? null : BuiltInParameter.DOOR_FRAME_MATERIAL, IsSelected = false },
+                new DoorScheduleFieldConfig { Key = "PanelMaterial", HeaderName = isWindow ? "Material Vidrio" : "Material Hoja", BuiltInParam = null, IsSelected = false }
             };
         }
 
@@ -123,22 +136,32 @@ namespace RevitToSupabasePlugin
         /// </summary>
         public static List<DoorItemViewModel> GetDoorItems(Document doc, bool groupByInstance = false)
         {
+            return GetDoorItems(doc, groupByInstance, BuiltInCategory.OST_Doors);
+        }
+
+        /// <summary>
+        /// Obtiene todas las puertas o ventanas del modelo agrupadas por Tipo o por Ejemplar para la UI.
+        /// </summary>
+        public static List<DoorItemViewModel> GetDoorItems(Document doc, bool groupByInstance, BuiltInCategory category)
+        {
             var result = new List<DoorItemViewModel>();
 
-            var doors = new FilteredElementCollector(doc)
-                .OfCategory(BuiltInCategory.OST_Doors)
+            var elements = new FilteredElementCollector(doc)
+                .OfCategory(category)
                 .WhereElementIsNotElementType()
                 .Cast<FamilyInstance>()
                 .ToList();
 
-            if (doors.Count == 0) return result;
+            if (elements.Count == 0) return result;
+
+            string defaultFam = category == BuiltInCategory.OST_Windows ? "Ventana" : "Puerta";
 
             if (groupByInstance)
             {
-                foreach (var d in doors)
+                foreach (var d in elements)
                 {
                     string mark = d.get_Parameter(BuiltInParameter.ALL_MODEL_MARK)?.AsString() ?? "";
-                    string famName = d.Symbol?.FamilyName ?? "Puerta";
+                    string famName = d.Symbol?.FamilyName ?? defaultFam;
                     string typeName = d.Symbol?.Name ?? "Tipo";
                     string lvlName = doc.GetElement(d.LevelId)?.Name ?? "";
                     string dims = GetDoorDimensionsString(doc, d);
@@ -171,12 +194,12 @@ namespace RevitToSupabasePlugin
             else
             {
                 // Agrupado por Tipo de Familia
-                var groups = doors.GroupBy(d => d.GetTypeId()).ToList();
+                var groups = elements.GroupBy(d => d.GetTypeId()).ToList();
 
                 foreach (var g in groups)
                 {
                     var first = g.First();
-                    string famName = first.Symbol?.FamilyName ?? "Puerta";
+                    string famName = first.Symbol?.FamilyName ?? defaultFam;
                     string typeName = first.Symbol?.Name ?? "Tipo";
                     string typeMark = first.Symbol?.get_Parameter(BuiltInParameter.ALL_MODEL_TYPE_MARK)?.AsString() ?? "";
                     string dims = GetDoorDimensionsString(doc, first);
@@ -223,8 +246,23 @@ namespace RevitToSupabasePlugin
         {
             try
             {
-                var pW = d.Symbol?.get_Parameter(BuiltInParameter.DOOR_WIDTH) ?? d.get_Parameter(BuiltInParameter.DOOR_WIDTH);
-                var pH = d.Symbol?.get_Parameter(BuiltInParameter.DOOR_HEIGHT) ?? d.get_Parameter(BuiltInParameter.DOOR_HEIGHT);
+                var pW = d.Symbol?.get_Parameter(BuiltInParameter.DOOR_WIDTH) 
+                    ?? d.get_Parameter(BuiltInParameter.DOOR_WIDTH)
+                    ?? d.Symbol?.get_Parameter(BuiltInParameter.WINDOW_WIDTH)
+                    ?? d.get_Parameter(BuiltInParameter.WINDOW_WIDTH)
+                    ?? d.Symbol?.get_Parameter(BuiltInParameter.GENERIC_WIDTH)
+                    ?? d.get_Parameter(BuiltInParameter.GENERIC_WIDTH)
+                    ?? d.LookupParameter("Width") ?? d.LookupParameter("Anchura") ?? d.LookupParameter("Ancho")
+                    ?? d.Symbol?.LookupParameter("Width") ?? d.Symbol?.LookupParameter("Anchura") ?? d.Symbol?.LookupParameter("Ancho");
+
+                var pH = d.Symbol?.get_Parameter(BuiltInParameter.DOOR_HEIGHT) 
+                    ?? d.get_Parameter(BuiltInParameter.DOOR_HEIGHT)
+                    ?? d.Symbol?.get_Parameter(BuiltInParameter.WINDOW_HEIGHT)
+                    ?? d.get_Parameter(BuiltInParameter.WINDOW_HEIGHT)
+                    ?? d.Symbol?.get_Parameter(BuiltInParameter.GENERIC_HEIGHT)
+                    ?? d.get_Parameter(BuiltInParameter.GENERIC_HEIGHT)
+                    ?? d.LookupParameter("Height") ?? d.LookupParameter("Altura") ?? d.LookupParameter("Alto")
+                    ?? d.Symbol?.LookupParameter("Height") ?? d.Symbol?.LookupParameter("Altura") ?? d.Symbol?.LookupParameter("Alto");
 
                 if (pW != null && pH != null)
                 {
@@ -238,20 +276,22 @@ namespace RevitToSupabasePlugin
         }
 
         /// <summary>
-        /// Crea o actualiza en Revit el Cuadro Maestro de Puertas (Schedule) personalizado.
+        /// Crea o actualiza en Revit el Cuadro Maestro de Puertas o Ventanas (Schedule) personalizado.
         /// </summary>
         public static (ViewSchedule? schedule, string message) CreateOrUpdateDoorSchedule(
             Document doc,
             string scheduleName,
             List<DoorScheduleFieldConfig> fields,
-            bool itemizeInstances = false)
+            bool itemizeInstances = false,
+            BuiltInCategory category = BuiltInCategory.OST_Doors)
         {
+            string catLabel = category == BuiltInCategory.OST_Windows ? "Ventanas" : "Puertas";
             if (string.IsNullOrWhiteSpace(scheduleName))
-                scheduleName = "CUADRO GENERAL DE PUERTAS";
+                scheduleName = $"CUADRO GENERAL DE {catLabel.ToUpperInvariant()}";
 
-            ElementId doorCatId = new ElementId(BuiltInCategory.OST_Doors);
+            ElementId catId = new ElementId(category);
 
-            using (Transaction t = new Transaction(doc, "Crear/Configurar Cuadro de Puertas"))
+            using (Transaction t = new Transaction(doc, $"Crear/Configurar Cuadro de {catLabel}"))
             {
                 t.Start();
                 try
@@ -271,7 +311,7 @@ namespace RevitToSupabasePlugin
                     }
                     else
                     {
-                        vs = ViewSchedule.CreateSchedule(doc, doorCatId);
+                        vs = ViewSchedule.CreateSchedule(doc, catId);
                         vs.Name = AssemblyScheduleService.GetUniqueScheduleName(doc, scheduleName.Trim());
                         wasCreated = true;
                     }
@@ -279,6 +319,9 @@ namespace RevitToSupabasePlugin
                     ScheduleDefinition def = vs.Definition;
                     def.ClearSortGroupFields();
                     def.ClearFilters();
+
+                    // Asegurar parámetros puente para que estén disponibles en los campos planificables
+                    AssemblyBridgeService.EnsureBridgeParameters(doc, category);
 
                     // Limpiar campos existentes
                     var oldFields = def.GetFieldOrder().ToList();
@@ -298,6 +341,20 @@ namespace RevitToSupabasePlugin
                         if (cfg.IsCount)
                         {
                             match = schedulable.FirstOrDefault(f => f.FieldType == ScheduleFieldType.Count);
+                        }
+                        else if (cfg.Key == "GlobalCount")
+                        {
+                            match = schedulable.FirstOrDefault(f =>
+                                f.GetName(doc).Equals(AssemblyBridgeService.ParamTotalObra, StringComparison.OrdinalIgnoreCase) ||
+                                f.GetName(doc).Contains("TotalTipo_Obra") ||
+                                f.GetName(doc).Contains("Total en Obra"));
+                        }
+                        else if (cfg.Key == "Locations")
+                        {
+                            match = schedulable.FirstOrDefault(f =>
+                                f.GetName(doc).Equals(AssemblyBridgeService.ParamUbicacionesObra, StringComparison.OrdinalIgnoreCase) ||
+                                f.GetName(doc).Contains("Ubicaciones_Obra") ||
+                                f.GetName(doc).Contains("Ubicaciones"));
                         }
                         else if (cfg.BuiltInParam.HasValue)
                         {
@@ -454,7 +511,8 @@ namespace RevitToSupabasePlugin
                 return (created, logs);
             }
 
-            ElementId namingCatId = new ElementId(BuiltInCategory.OST_Doors);
+            ElementId namingCatId = new ElementId(options.Category);
+            string catLabel = options.Category == BuiltInCategory.OST_Windows ? "Ventanas" : "Puertas";
 
             // Analizar patrón de nombres y contador
             var (prefix, startNumber, digitCount) = ParseNamingPattern(options.InitialName);
@@ -467,7 +525,7 @@ namespace RevitToSupabasePlugin
                 .Select(at => at.Name)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            using (Transaction t = new Transaction(doc, "Creación Batch de Ensamblajes de Puertas"))
+            using (Transaction t = new Transaction(doc, $"Creación Batch de Ensamblajes de {catLabel}"))
             {
                 t.Start();
 
@@ -588,6 +646,13 @@ namespace RevitToSupabasePlugin
                 t.Commit();
             }
 
+            // Sincronizar automáticamente los datos globales en los elementos de los ensamblajes creados
+            if (created.Count > 0)
+            {
+                var (syncedCount, syncLogs) = AssemblyBridgeService.SyncBridgeData(doc, options.Category);
+                logs.AddRange(syncLogs);
+            }
+
             return (created, logs);
         }
 
@@ -610,7 +675,7 @@ namespace RevitToSupabasePlugin
                 return (0, logs);
             }
 
-            ElementId doorCatId = new ElementId(BuiltInCategory.OST_Doors);
+            ElementId targetCatId = options.CategoryId ?? new ElementId(BuiltInCategory.OST_Doors);
 
             using (Transaction t = new Transaction(doc, "Generación Batch de Vistas de Ensamblaje"))
             {
@@ -636,7 +701,7 @@ namespace RevitToSupabasePlugin
                             ViewSchedule? sched = null;
                             try
                             {
-                                sched = AssemblyViewUtils.CreateSingleCategorySchedule(doc, ai.Id, doorCatId);
+                                sched = AssemblyViewUtils.CreateSingleCategorySchedule(doc, ai.Id, targetCatId);
                             }
                             catch
                             {
@@ -662,6 +727,9 @@ namespace RevitToSupabasePlugin
                                         replicateFilters: false, // Sin filtros para no ocultar las piezas
                                         replicateTemplate: true);
                                 }
+
+                                // Asegurar que la tabla del ensamblaje incluya el parámetro puente con el conteo global
+                                AssemblyBridgeService.InjectBridgeFieldToSchedule(doc, sched);
 
                                 createdCount++;
                                 logs.Add($"  [VISTA] Tabla creada: '{sched.Name}'");

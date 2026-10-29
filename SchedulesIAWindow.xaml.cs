@@ -872,6 +872,12 @@ namespace RevitToSupabasePlugin
                         {
                             successCount++;
                             totalFields += res.FieldsReplicatedCount;
+
+                            if (res.Schedule != null && chkInjectBridgeParam?.IsChecked == true)
+                            {
+                                AssemblyBridgeService.InjectBridgeFieldToSchedule(_doc, res.Schedule);
+                            }
+
                             logSb.AppendLine($"✅ {res.AssemblyName}: {res.Message}");
                         }
                         else
@@ -882,6 +888,13 @@ namespace RevitToSupabasePlugin
                     }
 
                     tx.Commit();
+                }
+
+                // Sincronizar automáticamente datos puente globales a todos los ensamblajes
+                if (chkInjectBridgeParam?.IsChecked == true && successCount > 0)
+                {
+                    AssemblyBridgeService.SyncBridgeData(_doc, BuiltInCategory.OST_Doors);
+                    AssemblyBridgeService.SyncBridgeData(_doc, BuiltInCategory.OST_Windows);
                 }
 
                 logSb.AppendLine("--------------------------------------------------");
@@ -1008,14 +1021,51 @@ namespace RevitToSupabasePlugin
 
         #region 5. Módulo: Cuadro de Puertas & Batch Assemblies / Vistas
 
+        private BuiltInCategory ActiveCategory => rbCategoryWindows?.IsChecked == true
+            ? BuiltInCategory.OST_Windows
+            : BuiltInCategory.OST_Doors;
+
+        private void rbCategory_Checked(object sender, RoutedEventArgs e)
+        {
+            bool isWindow = rbCategoryWindows?.IsChecked == true;
+
+            // Cambiar nombre sugerido de cuadro si coincide con el predeterminado
+            if (txtDoorScheduleName != null)
+            {
+                if (isWindow && (txtDoorScheduleName.Text == "CUADRO GENERAL DE PUERTAS" || string.IsNullOrWhiteSpace(txtDoorScheduleName.Text)))
+                    txtDoorScheduleName.Text = "CUADRO GENERAL DE VENTANAS";
+                else if (!isWindow && (txtDoorScheduleName.Text == "CUADRO GENERAL DE VENTANAS" || string.IsNullOrWhiteSpace(txtDoorScheduleName.Text)))
+                    txtDoorScheduleName.Text = "CUADRO GENERAL DE PUERTAS";
+            }
+
+            // Cambiar prefijo inicial de ensamblaje si coincide con el predeterminado
+            if (txtBatchInitialName != null)
+            {
+                if (isWindow && (txtBatchInitialName.Text == "P-01" || string.IsNullOrWhiteSpace(txtBatchInitialName.Text)))
+                    txtBatchInitialName.Text = "V-01";
+                else if (!isWindow && (txtBatchInitialName.Text == "V-01" || string.IsNullOrWhiteSpace(txtBatchInitialName.Text)))
+                    txtBatchInitialName.Text = "P-01";
+            }
+
+            _doorFields = DoorAssemblyManagerService.GetDefaultFields(ActiveCategory);
+            if (lstDoorFieldsConfig != null)
+            {
+                lstDoorFieldsConfig.ItemsSource = _doorFields;
+            }
+
+            UpdateBatchNamePreview();
+            LoadDoors();
+        }
+
         private void InitDoorModule()
         {
-            _doorFields = DoorAssemblyManagerService.GetDefaultDoorFields();
+            _doorFields = DoorAssemblyManagerService.GetDefaultFields(ActiveCategory);
             if (lstDoorFieldsConfig != null)
             {
                 lstDoorFieldsConfig.ItemsSource = _doorFields;
             }
             UpdateBatchNamePreview();
+            UpdateSingleInstanceButtonUi();
             UpdateBatchGroupModeUi();
         }
 
@@ -1024,14 +1074,15 @@ namespace RevitToSupabasePlugin
             try
             {
                 bool groupByInstance = rbDoorGroupInstance?.IsChecked == true;
-                _allDoors = DoorAssemblyManagerService.GetDoorItems(_doc, groupByInstance);
+                _allDoors = DoorAssemblyManagerService.GetDoorItems(_doc, groupByInstance, ActiveCategory);
                 ApplyDoorFilter();
             }
             catch (Exception ex)
             {
                 if (txtDoorSummary != null)
                 {
-                    txtDoorSummary.Text = $"Error cargando puertas: {ex.Message}";
+                    string catLabel = ActiveCategory == BuiltInCategory.OST_Windows ? "ventanas" : "puertas";
+                    txtDoorSummary.Text = $"Error cargando {catLabel}: {ex.Message}";
                 }
             }
         }
@@ -1069,8 +1120,53 @@ namespace RevitToSupabasePlugin
 
             bool isByType = rbDoorGroupType?.IsChecked == true;
             string unit = isByType ? "tipos" : "ejemplares";
+            string catLabel = ActiveCategory == BuiltInCategory.OST_Windows ? "ventanas" : "puertas";
 
-            txtDoorSummary.Text = $"Catálogo: {total} {unit} ({totalInstances} puertas en total en el modelo) | ☑️ {selected} seleccionadas | 📦 {inAss} ya en ensamblaje";
+            txtDoorSummary.Text = $"Catálogo de {catLabel}: {total} {unit} ({totalInstances} unidades en el modelo) | ☑️ {selected} seleccionadas | 📦 {inAss} ya en ensamblaje";
+        }
+
+        private bool _singleInstancePerType = true;
+
+        private void btnToggleSingleInstancePerType_Click(object sender, RoutedEventArgs e)
+        {
+            _singleInstancePerType = !_singleInstancePerType;
+            UpdateSingleInstanceButtonUi();
+        }
+
+        private void UpdateSingleInstanceButtonUi()
+        {
+            var activeBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(209, 228, 249)); // #D1E4F9
+            var activeTextBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(15, 67, 105)); // #0F4369
+            var inactiveBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(246, 243, 238)); // #F6F3EE
+            var inactiveTextBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(114, 119, 127)); // #72777F
+
+            if (btnToggleSingleInstancePerType != null)
+            {
+                btnToggleSingleInstancePerType.Content = _singleInstancePerType
+                    ? "⭐ Solo tomar 1 instancia por tipo para el assembly"
+                    : "📦 Tomar todas las instancias del tipo para el assembly";
+                btnToggleSingleInstancePerType.Background = _singleInstancePerType ? activeBrush : inactiveBrush;
+                btnToggleSingleInstancePerType.Foreground = _singleInstancePerType ? activeTextBrush : inactiveTextBrush;
+                btnToggleSingleInstancePerType.FontWeight = _singleInstancePerType ? FontWeights.Bold : FontWeights.Normal;
+            }
+
+            if (btnQuickToggleSingleInstance != null)
+            {
+                btnQuickToggleSingleInstance.Content = _singleInstancePerType
+                    ? "⭐ Solo tomar 1 instancia por tipo para el assembly"
+                    : "📦 Tomar todas las instancias del tipo para el assembly";
+                btnQuickToggleSingleInstance.Background = _singleInstancePerType ? activeBrush : inactiveBrush;
+                btnQuickToggleSingleInstance.Foreground = _singleInstancePerType ? activeTextBrush : inactiveTextBrush;
+                btnQuickToggleSingleInstance.FontWeight = _singleInstancePerType ? FontWeights.Bold : FontWeights.Normal;
+            }
+
+            if (txtSingleInstanceHelp != null)
+            {
+                txtSingleInstanceHelp.Text = _singleInstancePerType
+                    ? "💡 Se creará 1 ensamblaje por tipo tomando solo 1 ejemplar de muestra (vistas y cotas limpias)."
+                    : "📦 Se agruparán todos los ejemplares existentes de este tipo en el mismo ensamblaje.";
+                txtSingleInstanceHelp.Foreground = _singleInstancePerType ? activeTextBrush : inactiveTextBrush;
+            }
         }
 
         private void rbDoorGroupMode_Checked(object sender, RoutedEventArgs e)
@@ -1082,16 +1178,55 @@ namespace RevitToSupabasePlugin
         private void UpdateBatchGroupModeUi()
         {
             bool isByInstance = rbDoorGroupInstance?.IsChecked == true;
+            string elemName = ActiveCategory == BuiltInCategory.OST_Windows ? "ventana" : "puerta";
+
+            if (btnQuickToggleSingleInstance != null)
+            {
+                btnQuickToggleSingleInstance.Visibility = isByInstance ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
+            }
+
             if (pnlInstanceModeSelection != null)
             {
-                pnlInstanceModeSelection.IsEnabled = !isByInstance;
-                pnlInstanceModeSelection.Opacity = isByInstance ? 0.45 : 1.0;
+                pnlInstanceModeSelection.Visibility = isByInstance ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
             }
+
+            if (txtSingleInstanceHelp != null)
+            {
+                txtSingleInstanceHelp.Visibility = isByInstance ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
+            }
+
             if (lblBatchInstanceContentTitle != null)
             {
                 lblBatchInstanceContentTitle.Text = isByInstance
-                    ? "Contenido del Ensamblaje (Fijo 1 ejemplar individual):"
-                    : "Contenido del Ensamblaje (Por Tipo):";
+                    ? $"Modo Ejemplar Físico: Cada {elemName} seleccionada será un ensamblaje individual."
+                    : "Contenido del Ensamblaje:";
+            }
+
+            if (btnSelectOnePerType != null)
+            {
+                btnSelectOnePerType.Visibility = isByInstance ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+            }
+        }
+
+        private void btnSelectOnePerType_Click(object sender, RoutedEventArgs e)
+        {
+            if (lstDoorItems?.ItemsSource is IEnumerable<DoorItemViewModel> items)
+            {
+                var list = items.ToList();
+                var typesSeen = new HashSet<ElementId>();
+                foreach (var d in list)
+                {
+                    if (!typesSeen.Contains(d.TypeId) && !d.AlreadyInAssembly)
+                    {
+                        d.IsSelected = true;
+                        typesSeen.Add(d.TypeId);
+                    }
+                    else
+                    {
+                        d.IsSelected = false;
+                    }
+                }
+                UpdateDoorSummaryText();
             }
         }
 
@@ -1178,27 +1313,49 @@ namespace RevitToSupabasePlugin
 
         private void btnResetDoorFields_Click(object sender, RoutedEventArgs e)
         {
-            _doorFields = DoorAssemblyManagerService.GetDefaultDoorFields();
+            _doorFields = DoorAssemblyManagerService.GetDefaultFields(ActiveCategory);
             lstDoorFieldsConfig.ItemsSource = _doorFields;
         }
 
         private void btnGenerateDoorSchedule_Click(object sender, RoutedEventArgs e)
         {
-            string schedName = txtDoorScheduleName?.Text?.Trim() ?? "CUADRO GENERAL DE PUERTAS";
+            string defaultName = ActiveCategory == BuiltInCategory.OST_Windows ? "CUADRO GENERAL DE VENTANAS" : "CUADRO GENERAL DE PUERTAS";
+            string schedName = txtDoorScheduleName?.Text?.Trim() ?? defaultName;
             bool itemize = chkDoorItemize?.IsChecked ?? false;
 
-            var (sched, msg) = DoorAssemblyManagerService.CreateOrUpdateDoorSchedule(_doc, schedName, _doorFields, itemize);
+            var (sched, msg) = DoorAssemblyManagerService.CreateOrUpdateDoorSchedule(_doc, schedName, _doorFields, itemize, ActiveCategory);
 
             txtAssemblyLog.Text = $"📋 {msg}\n{txtAssemblyLog.Text}";
 
             if (sched != null)
             {
                 LoadSchedules();
-                MessageBox.Show(msg, "Cuadro de Puertas Generado", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(msg, "Cuadro Generado en Revit", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             else
             {
                 MessageBox.Show(msg, "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void btnSyncBridgeData_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var (syncedCount, logs) = AssemblyBridgeService.SyncBridgeData(_doc, ActiveCategory);
+                var sb = new StringBuilder();
+                sb.AppendLine($"=== SINCRONIZACIÓN DE PARÁMETROS PUENTE ===");
+                sb.AppendLine($"Categoría: {(ActiveCategory == BuiltInCategory.OST_Windows ? "Ventanas" : "Puertas")} | Hora: {DateTime.Now:HH:mm:ss}");
+                foreach (var l in logs) sb.AppendLine(l);
+                txtAssemblyLog.Text = sb.ToString() + "\n" + txtAssemblyLog.Text;
+
+                string catName = ActiveCategory == BuiltInCategory.OST_Windows ? "ventanas" : "puertas";
+                MessageBox.Show($"¡Sincronización completada!\n\nSe estamparon los totales globales del modelo y ubicaciones en {syncedCount} {catName}.\nLas tablas de ensamblaje ahora reflejan la cantidad total en obra.", 
+                    "Parámetro Puente Sincronizado", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al sincronizar datos puente: {ex.Message}", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
@@ -1215,15 +1372,18 @@ namespace RevitToSupabasePlugin
         private void ExecuteBatchDoorCreation(bool createViews)
         {
             var selectedDoors = _allDoors.Where(d => d.IsSelected).ToList();
+            string catName = ActiveCategory == BuiltInCategory.OST_Windows ? "Ventanas" : "Puertas";
+            string defaultPrefix = ActiveCategory == BuiltInCategory.OST_Windows ? "V-01" : "P-01";
+
             if (selectedDoors.Count == 0)
             {
-                MessageBox.Show("Por favor selecciona al menos una puerta o tipo en la lista.", "Selección Requerida", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show($"Por favor selecciona al menos una {catName.ToLowerInvariant()} o tipo en la lista.", "Selección Requerida", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             bool groupByInstance = rbDoorGroupInstance?.IsChecked == true;
-            bool singleInstancePerType = rbBatchSingleInstance?.IsChecked == true;
-            string initialName = string.IsNullOrWhiteSpace(txtBatchInitialName?.Text) ? "P-01" : txtBatchInitialName.Text.Trim();
+            bool singleInstancePerType = _singleInstancePerType;
+            string initialName = string.IsNullOrWhiteSpace(txtBatchInitialName?.Text) ? defaultPrefix : txtBatchInitialName.Text.Trim();
             bool appendTypeName = chkBatchAppendTypeName?.IsChecked == true;
             bool appendCount = chkBatchAppendCount?.IsChecked == true;
 
@@ -1233,16 +1393,17 @@ namespace RevitToSupabasePlugin
                 SingleInstancePerType = singleInstancePerType,
                 InitialName = initialName,
                 AppendTypeName = appendTypeName,
-                AppendInstanceCount = appendCount
+                AppendInstanceCount = appendCount,
+                Category = ActiveCategory
             };
 
             var logSb = new StringBuilder();
-            logSb.AppendLine($"=== INICIO: BATCH CREACIÓN DE ENSAMBLAJES DE PUERTAS ===");
+            logSb.AppendLine($"=== INICIO: BATCH CREACIÓN DE ENSAMBLAJES DE {catName.ToUpperInvariant()} ===");
             string modeDetail = groupByInstance
-                ? "Por Ejemplar Físico (1 puerta por ensamblaje)"
-                : (singleInstancePerType ? "Por Tipo (1 ejemplar representativo)" : "Por Tipo (Todas las instancias agrupadas)");
+                ? $"Por Ejemplar Físico (1 {catName.ToLowerInvariant()} por ensamblaje)"
+                : (singleInstancePerType ? "Por Tipo (Solo 1 instancia por tipo para el assembly)" : "Por Tipo (Todas las instancias del tipo agrupadas)");
             logSb.AppendLine($"Hora: {DateTime.Now:HH:mm:ss} | Modo: {modeDetail} | Inicio Conteo: '{initialName}'");
-            logSb.AppendLine($"Puertas seleccionadas: {selectedDoors.Count}");
+            logSb.AppendLine($"Elementos seleccionados: {selectedDoors.Count}");
 
             // 1. Crear Ensamblajes
             var (createdAssemblies, assLogs) = DoorAssemblyManagerService.CreateBatchDoorAssemblies(_doc, selectedDoors, batchOpts);
@@ -1267,18 +1428,18 @@ namespace RevitToSupabasePlugin
                     CreateFrontElevation = chkBatchViewFront?.IsChecked ?? true,
                     CreateBackElevation = chkBatchViewBack?.IsChecked ?? false,
                     Create3DOrthographic = chkBatchView3D?.IsChecked ?? true,
-                    CreateSection = chkBatchViewSection?.IsChecked ?? false
+                    CreateSection = chkBatchViewSection?.IsChecked ?? false,
+                    CategoryId = new ElementId(ActiveCategory)
                 };
 
-                // Si hay una tabla de puertas o plantilla activa, usarla como molde
+                // Si hay una tabla o plantilla activa para la categoría, usarla como molde
                 ViewSchedule? masterTemplate = _selectedTemplate?.Schedule;
                 if (masterTemplate == null)
                 {
-                    // Buscar si existe el cuadro de puertas
                     masterTemplate = new FilteredElementCollector(_doc)
                         .OfClass(typeof(ViewSchedule))
                         .Cast<ViewSchedule>()
-                        .FirstOrDefault(s => !s.IsTemplate && s.Definition.CategoryId == new ElementId(BuiltInCategory.OST_Doors));
+                        .FirstOrDefault(s => !s.IsTemplate && s.Definition.CategoryId == new ElementId(ActiveCategory));
                 }
 
                 var (viewsCount, viewLogs) = DoorAssemblyManagerService.CreateBatchAssemblyViews(_doc, createdAssemblies, viewOpts, masterTemplate);

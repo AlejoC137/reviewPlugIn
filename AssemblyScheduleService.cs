@@ -15,6 +15,7 @@ namespace RevitToSupabasePlugin
         public string Message { get; set; } = string.Empty;
         public bool WasCreated { get; set; }
         public int FieldsReplicatedCount { get; set; }
+        public ViewSchedule? Schedule { get; set; }
     }
 
     public class AssemblyItemViewModel
@@ -592,6 +593,7 @@ namespace RevitToSupabasePlugin
 
             result.WasCreated = wasCreated;
             result.ScheduleName = targetSchedule.Name;
+            result.Schedule = targetSchedule;
 
             // 4. Modificar la definición de targetSchedule de forma segura
             try
@@ -608,6 +610,7 @@ namespace RevitToSupabasePlugin
                     replicateTemplate);
 
                 result.FieldsReplicatedCount = replicatedCount;
+                result.Schedule = targetSchedule;
                 result.Success = true;
                 result.Message = wasCreated
                     ? $"Tabla creada y {replicatedCount} campos replicados con formato exacto."
@@ -862,6 +865,7 @@ namespace RevitToSupabasePlugin
 
             result.WasCreated = wasCreated;
             result.ScheduleName = targetSchedule.Name;
+            result.Schedule = targetSchedule;
 
             try
             {
