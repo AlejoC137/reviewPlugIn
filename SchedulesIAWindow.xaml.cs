@@ -1185,21 +1185,14 @@ namespace RevitToSupabasePlugin
                 btnQuickToggleSingleInstance.Visibility = isByInstance ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
             }
 
-            if (pnlInstanceModeSelection != null)
+            if (btnToggleSingleInstancePerType != null)
             {
-                pnlInstanceModeSelection.Visibility = isByInstance ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
+                btnToggleSingleInstancePerType.Visibility = isByInstance ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
             }
 
             if (txtSingleInstanceHelp != null)
             {
                 txtSingleInstanceHelp.Visibility = isByInstance ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
-            }
-
-            if (lblBatchInstanceContentTitle != null)
-            {
-                lblBatchInstanceContentTitle.Text = isByInstance
-                    ? $"Modo Ejemplar Físico: Cada {elemName} seleccionada será un ensamblaje individual."
-                    : "Contenido del Ensamblaje:";
             }
 
             if (btnSelectOnePerType != null)
@@ -1235,97 +1228,36 @@ namespace RevitToSupabasePlugin
             UpdateBatchNamePreview();
         }
 
-        private void chkBatchNamingOption_Click(object sender, RoutedEventArgs e)
-        {
-            UpdateBatchNamePreview();
-        }
-
-        private void cmbBatchNamingMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            UpdateBatchNamePreview();
-        }
-
         private void UpdateBatchNamePreview()
         {
             if (txtBatchNamePreview == null) return;
 
-            string namingMode = "Parameters";
-            if (cmbBatchNamingMode != null)
-            {
-                switch (cmbBatchNamingMode.SelectedIndex)
-                {
-                    case 0: namingMode = "Parameters"; break;
-                    case 1: namingMode = "Mark"; break;
-                    case 2: namingMode = "TypeName"; break;
-                    case 3: namingMode = "Sequential"; break;
-                    case 4: namingMode = "CustomPattern"; break;
-                    default: namingMode = "Parameters"; break;
-                }
-            }
+            string input = !string.IsNullOrWhiteSpace(txtBatchInitialName?.Text)
+                ? txtBatchInitialName.Text.Trim()
+                : (ActiveCategory == BuiltInCategory.OST_Windows ? "V-01" : "P-01");
 
-            string input = txtBatchInitialName?.Text?.Trim() ?? (ActiveCategory == BuiltInCategory.OST_Windows ? "V-01" : "P-01");
-            var (prefix, startNum, digitCount) = DoorAssemblyManagerService.ParseNamingPattern(input);
+            string next1 = DoorAssemblyManagerService.GetNextRevitName(input);
+            string next2 = DoorAssemblyManagerService.GetNextRevitName(next1);
 
-            var opts = new BatchAssemblyOptions
-            {
-                InitialName = input,
-                NamingMode = namingMode,
-                AppendTypeName = chkBatchAppendTypeName?.IsChecked == true,
-                AppendDimensions = chkBatchAppendDims?.IsChecked == true,
-                AppendInstanceCount = chkBatchAppendCount?.IsChecked == true,
-                Category = ActiveCategory
-            };
-
-            // Banner preview: usar elementos seleccionados o primeros disponibles si existen
-            var sampleDoors = _allDoors?.Where(d => d.IsSelected).Take(2).ToList();
-            if (sampleDoors == null || sampleDoors.Count == 0)
-            {
-                sampleDoors = _allDoors?.Take(2).ToList();
-            }
-
-            if (sampleDoors != null && sampleDoors.Count > 0)
-            {
-                string p1 = DoorAssemblyManagerService.BuildAssemblyName(sampleDoors[0], startNum, opts);
-                string p2 = sampleDoors.Count > 1 
-                    ? DoorAssemblyManagerService.BuildAssemblyName(sampleDoors[1], startNum + 1, opts)
-                    : "";
-                txtBatchNamePreview.Text = string.IsNullOrEmpty(p2) ? p1 : $"{p1}, {p2}, ...";
-            }
-            else
-            {
-                var sampleItem1 = new DoorItemViewModel
-                {
-                    Mark = ActiveCategory == BuiltInCategory.OST_Windows ? "V01A" : "P04A",
-                    FamilyName = ActiveCategory == BuiltInCategory.OST_Windows ? "V01" : "P04",
-                    TypeName = "A",
-                    Dimensions = "0.90 x 2.10 m",
-                    InstanceCount = 4
-                };
-
-                var sampleItem2 = new DoorItemViewModel
-                {
-                    Mark = ActiveCategory == BuiltInCategory.OST_Windows ? "V01B" : "P04B",
-                    FamilyName = ActiveCategory == BuiltInCategory.OST_Windows ? "V01" : "P04",
-                    TypeName = "B",
-                    Dimensions = "1.00 x 2.10 m",
-                    InstanceCount = 8
-                };
-
-                string ex1 = DoorAssemblyManagerService.BuildAssemblyName(sampleItem1, startNum, opts);
-                string ex2 = DoorAssemblyManagerService.BuildAssemblyName(sampleItem2, startNum + 1, opts);
-                txtBatchNamePreview.Text = $"{ex1}, {ex2}, ...";
-            }
+            txtBatchNamePreview.Text = $"Secuencia: {input} ➜ {next1} ➜ {next2}...";
 
             // Actualizar en tiempo real el nombre propuesto en la lista visible
             if (_allDoors != null && _allDoors.Count > 0)
             {
-                int seq = startNum;
+                string runningName = input;
                 foreach (var d in _allDoors)
                 {
                     if (!d.AlreadyInAssembly)
                     {
-                        int itemSeq = d.IsSelected ? seq++ : startNum;
-                        d.TargetAssemblyName = DoorAssemblyManagerService.BuildAssemblyName(d, itemSeq, opts);
+                        if (d.IsSelected)
+                        {
+                            d.TargetAssemblyName = runningName;
+                            runningName = DoorAssemblyManagerService.GetNextRevitName(runningName);
+                        }
+                        else
+                        {
+                            d.TargetAssemblyName = input;
+                        }
                     }
                 }
             }
@@ -1359,6 +1291,15 @@ namespace RevitToSupabasePlugin
             if (lstDoorItems?.ItemsSource is IEnumerable<DoorItemViewModel> items)
             {
                 foreach (var d in items) d.IsSelected = !d.AlreadyInAssembly;
+                UpdateDoorSummaryText();
+            }
+        }
+
+        private void btnSelectDoorsWithAssembly_Click(object sender, RoutedEventArgs e)
+        {
+            if (lstDoorItems?.ItemsSource is IEnumerable<DoorItemViewModel> items)
+            {
+                foreach (var d in items) d.IsSelected = d.AlreadyInAssembly;
                 UpdateDoorSummaryText();
             }
         }
@@ -1433,6 +1374,75 @@ namespace RevitToSupabasePlugin
             ExecuteBatchDoorCreation(createViews: true);
         }
 
+        private void btnGenerateAssemblyViewsOnly_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedDoors = _allDoors.Where(d => d.IsSelected).ToList();
+            string catName = ActiveCategory == BuiltInCategory.OST_Windows ? "Ventanas" : "Puertas";
+
+            if (selectedDoors.Count == 0)
+            {
+                MessageBox.Show($"Por favor selecciona en la lista los elementos a los que deseas generarles o agregarles vistas.", "Selección Requerida", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            int viewScale = 20;
+            if (cmbBatchViewScale != null)
+            {
+                switch (cmbBatchViewScale.SelectedIndex)
+                {
+                    case 0: viewScale = 10; break;
+                    case 1: viewScale = 20; break;
+                    case 2: viewScale = 25; break;
+                    case 3: viewScale = 50; break;
+                    case 4: viewScale = 100; break;
+                    default: viewScale = 20; break;
+                }
+            }
+
+            var viewOpts = new AssemblyBatchViewOptions
+            {
+                CreateSchedule = chkBatchViewSchedule?.IsChecked ?? true,
+                ScheduleNameTemplate = "Despiece y Medidas",
+                CreatePlan = chkBatchViewPlan?.IsChecked ?? true,
+                CreateFrontElevation = chkBatchViewFront?.IsChecked ?? true,
+                CreateBackElevation = chkBatchViewBack?.IsChecked ?? false,
+                Create3DOrthographic = chkBatchView3D?.IsChecked ?? true,
+                CreateSection = chkBatchViewSection?.IsChecked ?? false,
+                ViewScale = viewScale,
+                AutoDimensionViews = true,
+                CategoryId = new ElementId(ActiveCategory)
+            };
+
+            ViewSchedule? masterTemplate = _selectedTemplate?.Schedule;
+            if (masterTemplate == null)
+            {
+                masterTemplate = new FilteredElementCollector(_doc)
+                    .OfClass(typeof(ViewSchedule))
+                    .Cast<ViewSchedule>()
+                    .FirstOrDefault(s => !s.IsTemplate && s.Definition.CategoryId == new ElementId(ActiveCategory));
+            }
+
+            var logSb = new StringBuilder();
+            logSb.AppendLine($"=== INICIO: GENERACIÓN INDEPENDIENTE DE VISTAS DE ENSAMBLAJE ({catName.ToUpperInvariant()}) ===");
+            logSb.AppendLine($"Hora: {DateTime.Now:HH:mm:ss} | Elementos seleccionados: {selectedDoors.Count}");
+
+            var (createdViewsCount, viewLogs) = DoorAssemblyManagerService.GenerateViewsForDoorItems(_doc, selectedDoors, viewOpts, masterTemplate);
+
+            foreach (var l in viewLogs)
+            {
+                logSb.AppendLine($"• {l}");
+            }
+
+            logSb.AppendLine($"\n=== FIN GENERACIÓN DE VISTAS: {createdViewsCount} vistas técnicas creadas ===");
+            logSb.AppendLine($"Hora de término: {DateTime.Now:HH:mm:ss}");
+
+            txtAssemblyLog.Text = logSb.ToString() + "\n" + txtAssemblyLog.Text;
+
+            RefreshAll();
+
+            MessageBox.Show($"Proceso de vistas finalizado.\n\n• Vistas técnicas creadas/agregadas: {createdViewsCount}", "Vistas de Ensamblaje", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         private void ExecuteBatchDoorCreation(bool createViews)
         {
             var selectedDoors = _allDoors.Where(d => d.IsSelected).ToList();
@@ -1448,23 +1458,6 @@ namespace RevitToSupabasePlugin
             bool groupByInstance = rbDoorGroupInstance?.IsChecked == true;
             bool singleInstancePerType = _singleInstancePerType;
             string initialName = string.IsNullOrWhiteSpace(txtBatchInitialName?.Text) ? defaultPrefix : txtBatchInitialName.Text.Trim();
-            bool appendTypeName = chkBatchAppendTypeName?.IsChecked == true;
-            bool appendDims = chkBatchAppendDims?.IsChecked == true;
-            bool appendCount = chkBatchAppendCount?.IsChecked == true;
-
-            string namingMode = "Parameters";
-            if (cmbBatchNamingMode != null)
-            {
-                switch (cmbBatchNamingMode.SelectedIndex)
-                {
-                    case 0: namingMode = "Parameters"; break;
-                    case 1: namingMode = "Mark"; break;
-                    case 2: namingMode = "TypeName"; break;
-                    case 3: namingMode = "Sequential"; break;
-                    case 4: namingMode = "CustomPattern"; break;
-                    default: namingMode = "Parameters"; break;
-                }
-            }
 
             int viewScale = 20;
             if (cmbBatchViewScale != null)
@@ -1485,10 +1478,6 @@ namespace RevitToSupabasePlugin
                 GroupByInstance = groupByInstance,
                 SingleInstancePerType = singleInstancePerType,
                 InitialName = initialName,
-                NamingMode = namingMode,
-                AppendTypeName = appendTypeName,
-                AppendDimensions = appendDims,
-                AppendInstanceCount = appendCount,
                 Category = ActiveCategory
             };
 
@@ -1497,7 +1486,7 @@ namespace RevitToSupabasePlugin
             string modeDetail = groupByInstance
                 ? $"Por Ejemplar Físico (1 {catName.ToLowerInvariant()} por ensamblaje)"
                 : (singleInstancePerType ? "Por Tipo (Solo 1 instancia por tipo para el assembly)" : "Por Tipo (Todas las instancias del tipo agrupadas)");
-            logSb.AppendLine($"Hora: {DateTime.Now:HH:mm:ss} | Modo: {modeDetail} | Inicio Conteo: '{initialName}'");
+            logSb.AppendLine($"Hora: {DateTime.Now:HH:mm:ss} | Modo: {modeDetail} | Nombre Inicial: '{initialName}'");
             logSb.AppendLine($"Elementos seleccionados: {selectedDoors.Count}");
 
             // 1. Crear Ensamblajes

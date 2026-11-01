@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Autodesk.Revit.DB;
@@ -57,7 +57,7 @@ namespace RevitToSupabasePlugin
         public ElementId AssemblyId { get; set; } = ElementId.InvalidElementId;
         public List<ElementId> MemberElementIds { get; set; } = new List<ElementId>();
 
-        public string StatusBadge => AlreadyInAssembly ? $"📦 {AssemblyName}" : "⚡ Listo";
+        public string StatusBadge => AlreadyInAssembly ? $"ðŸ“¦ {AssemblyName}" : "âš¡ Listo";
         public string StatusColor => AlreadyInAssembly ? "#059669" : "#0F4369";
         public string DisplayTitle => string.IsNullOrWhiteSpace(Mark)
             ? $"{FamilyName} - {TypeName}"
@@ -86,7 +86,7 @@ namespace RevitToSupabasePlugin
     }
 
     /// <summary>
-    /// Opciones para la generación de vistas y tablas de ensamblajes en lote.
+    /// Opciones para la generaciÃ³n de vistas y tablas de ensamblajes en lote.
     /// </summary>
     public class AssemblyBatchViewOptions
     {
@@ -98,13 +98,13 @@ namespace RevitToSupabasePlugin
         public bool Create3DOrthographic { get; set; } = true;
         public bool CreateSection { get; set; } = false;
         public bool AutoDimensionViews { get; set; } = true;
-        public int ViewScale { get; set; } = 20; // 1:20 por defecto (estándar carpintería)
+        public int ViewScale { get; set; } = 20; // 1:20 por defecto (estÃ¡ndar carpinterÃ­a)
         public ElementId? ViewTemplateId { get; set; }
         public ElementId? CategoryId { get; set; }
     }
 
     /// <summary>
-    /// Opciones para la creación en lote de Ensamblajes (Batch Assemblies).
+    /// Opciones para la creaciÃ³n en lote de Ensamblajes (Batch Assemblies).
     /// </summary>
     public class BatchAssemblyOptions
     {
@@ -120,13 +120,13 @@ namespace RevitToSupabasePlugin
     }
 
     /// <summary>
-    /// Servicio de alto rendimiento para creación de Cuadros de Puertas/Ventanas personalizables,
-    /// ensamblajes por tipo o ejemplar y generación batch de vistas.
+    /// Servicio de alto rendimiento para creaciÃ³n de Cuadros de Puertas/Ventanas personalizables,
+    /// ensamblajes por tipo o ejemplar y generaciÃ³n batch de vistas.
     /// </summary>
     public static class DoorAssemblyManagerService
     {
         /// <summary>
-        /// Obtiene la lista de campos predeterminados recomendados para un Cuadro Técnico de Puertas.
+        /// Obtiene la lista de campos predeterminados recomendados para un Cuadro TÃ©cnico de Puertas.
         /// </summary>
         public static List<DoorScheduleFieldConfig> GetDefaultDoorFields()
         {
@@ -134,21 +134,21 @@ namespace RevitToSupabasePlugin
         }
 
         /// <summary>
-        /// Obtiene la lista de campos predeterminados recomendados según la categoría (Puertas o Ventanas).
+        /// Obtiene la lista de campos predeterminados recomendados segÃºn la categorÃ­a (Puertas o Ventanas).
         /// </summary>
         public static List<DoorScheduleFieldConfig> GetDefaultFields(BuiltInCategory category = BuiltInCategory.OST_Doors)
         {
             bool isWindow = category == BuiltInCategory.OST_Windows;
             return new List<DoorScheduleFieldConfig>
             {
-                new DoorScheduleFieldConfig { Key = "TypeMark", HeaderName = "Código / Tipo", BuiltInParam = BuiltInParameter.ALL_MODEL_TYPE_MARK, IsSelected = true, IsSortKey = true, SortAscending = true },
+                new DoorScheduleFieldConfig { Key = "TypeMark", HeaderName = "CÃ³digo / Tipo", BuiltInParam = BuiltInParameter.ALL_MODEL_TYPE_MARK, IsSelected = true, IsSortKey = true, SortAscending = true },
                 new DoorScheduleFieldConfig { Key = "Mark", HeaderName = "Marca", BuiltInParam = BuiltInParameter.ALL_MODEL_MARK, IsSelected = true },
                 new DoorScheduleFieldConfig { Key = "FamilyAndType", HeaderName = "Familia y Tipo", BuiltInParam = BuiltInParameter.ELEM_FAMILY_AND_TYPE_PARAM, IsSelected = true },
                 new DoorScheduleFieldConfig { Key = "Width", HeaderName = "Anchura (m)", BuiltInParam = isWindow ? BuiltInParameter.WINDOW_WIDTH : BuiltInParameter.DOOR_WIDTH, IsSelected = true },
                 new DoorScheduleFieldConfig { Key = "Height", HeaderName = "Altura (m)", BuiltInParam = isWindow ? BuiltInParameter.WINDOW_HEIGHT : BuiltInParameter.DOOR_HEIGHT, IsSelected = true },
                 new DoorScheduleFieldConfig { Key = "Count", HeaderName = "Cantidad (Local)", IsCount = true, IsSelected = true },
                 new DoorScheduleFieldConfig { Key = "GlobalCount", HeaderName = "Total en Obra (Global)", BuiltInParam = null, IsSelected = true },
-                new DoorScheduleFieldConfig { Key = "Level", HeaderName = "Nivel / Ubicación", BuiltInParam = BuiltInParameter.FAMILY_LEVEL_PARAM, IsSelected = true },
+                new DoorScheduleFieldConfig { Key = "Level", HeaderName = "Nivel / UbicaciÃ³n", BuiltInParam = BuiltInParameter.FAMILY_LEVEL_PARAM, IsSelected = true },
                 new DoorScheduleFieldConfig { Key = "Locations", HeaderName = "Resumen Ubicaciones", BuiltInParam = null, IsSelected = false },
                 new DoorScheduleFieldConfig { Key = "Comments", HeaderName = "Observaciones", BuiltInParam = BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS, IsSelected = true },
                 new DoorScheduleFieldConfig { Key = "FrameMaterial", HeaderName = "Material Marco", BuiltInParam = isWindow ? null : BuiltInParameter.DOOR_FRAME_MATERIAL, IsSelected = false },
@@ -374,7 +374,7 @@ namespace RevitToSupabasePlugin
                     def.ClearSortGroupFields();
                     def.ClearFilters();
 
-                    // Asegurar parámetros puente para que estén disponibles en los campos planificables
+                    // Asegurar parÃ¡metros puente para que estÃ©n disponibles en los campos planificables
                     AssemblyBridgeService.EnsureBridgeParameters(doc, category);
 
                     // Limpiar campos existentes
@@ -483,8 +483,112 @@ namespace RevitToSupabasePlugin
         }
 
         /// <summary>
-        /// Descompone un nombre inicial (ej: "P-01", "PUERTA-101", "E_1") en su prefijo, número inicial y cantidad de dígitos.
+        /// Descompone un nombre inicial (ej: "P-01", "PUERTA-101", "E_1") en su prefijo, nÃºmero inicial y cantidad de dÃ­gitos.
         /// </summary>
+        /// <summary>
+        /// Genera el siguiente nombre correlativo tal como lo hace Revit para marcas, vistas y ensamblajes:
+        /// - Si termina en nÃºmero, incrementa el nÃºmero manteniendo ceros a la izquierda (P-01 -> P-02, V100 -> V101).
+        /// - Si termina en letra (sola, tras separador o tras dÃ­gito), incrementa la letra alfabÃ©ticamente (P-A -> P-B, P-Z -> P-AA, P04A -> P04B).
+        /// - Si termina en una palabra completa sin Ã­ndice numÃ©rico/alfabÃ©tico, aÃ±ade " 1" (Puerta -> Puerta 1 -> Puerta 2).
+        /// </summary>
+        public static string GetNextRevitName(string currentName)
+        {
+            if (string.IsNullOrWhiteSpace(currentName)) return "1";
+            currentName = currentName.Trim();
+
+            // 1. Revisar si termina en dÃ­gitos
+            int i = currentName.Length - 1;
+            while (i >= 0 && char.IsDigit(currentName[i]))
+            {
+                i--;
+            }
+
+            if (i < currentName.Length - 1)
+            {
+                string prefix = currentName.Substring(0, i + 1);
+                string numStr = currentName.Substring(i + 1);
+                if (long.TryParse(numStr, out long val))
+                {
+                    long nextVal = val + 1;
+                    string nextNumStr = nextVal.ToString().PadLeft(numStr.Length, '0');
+                    return prefix + nextNumStr;
+                }
+            }
+
+            // 2. Revisar si termina en letra(s) corta(s) (1 o 2 letras tras separador o dÃ­gito, o todo el texto es 1-3 letras)
+            int j = currentName.Length - 1;
+            while (j >= 0 && char.IsLetter(currentName[j]))
+            {
+                j--;
+            }
+
+            int letterCount = (currentName.Length - 1) - j;
+            if (letterCount > 0)
+            {
+                bool isEntireString = (j < 0);
+                bool hasSeparator = j >= 0 && (currentName[j] == '-' || currentName[j] == '_' || currentName[j] == ' ' || currentName[j] == '.' || currentName[j] == '/' || char.IsDigit(currentName[j]));
+
+                if ((letterCount <= 2 && hasSeparator) || (isEntireString && letterCount <= 3))
+                {
+                    string prefix = currentName.Substring(0, j + 1);
+                    string letters = currentName.Substring(j + 1);
+                    string nextLetters = IncrementLetterSequence(letters);
+                    return prefix + nextLetters;
+                }
+            }
+
+            // 3. Palabra sin nÃºmero ni letra Ã­ndice -> "Puerta" -> "Puerta 1"
+            return $"{currentName} 1";
+        }
+
+        private static string IncrementLetterSequence(string letters)
+        {
+            char[] chars = letters.ToCharArray();
+            bool carry = true;
+            for (int k = chars.Length - 1; k >= 0 && carry; k--)
+            {
+                char c = chars[k];
+                if (c >= 'A' && c <= 'Z')
+                {
+                    if (c == 'Z')
+                    {
+                        chars[k] = 'A';
+                        carry = true;
+                    }
+                    else
+                    {
+                        chars[k] = (char)(c + 1);
+                        carry = false;
+                    }
+                }
+                else if (c >= 'a' && c <= 'z')
+                {
+                    if (c == 'z')
+                    {
+                        chars[k] = 'a';
+                        carry = true;
+                    }
+                    else
+                    {
+                        chars[k] = (char)(c + 1);
+                        carry = false;
+                    }
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            string res = new string(chars);
+            if (carry)
+            {
+                char firstChar = char.IsUpper(chars[0]) ? 'A' : 'a';
+                res = firstChar + res;
+            }
+            return res;
+        }
+
         public static (string prefix, int startNumber, int digitCount) ParseNamingPattern(string? input)
         {
             if (string.IsNullOrWhiteSpace(input))
@@ -515,7 +619,7 @@ namespace RevitToSupabasePlugin
         }
 
         /// <summary>
-        /// Da formato correlativo a un prefijo y número secuencial.
+        /// Da formato correlativo a un prefijo y nÃºmero secuencial.
         /// </summary>
         public static string FormatSequentialName(string prefix, int number, int digitCount)
         {
@@ -552,7 +656,7 @@ namespace RevitToSupabasePlugin
         }
 
         /// <summary>
-        /// Obtiene un nombre de ensamblaje inteligente basado exclusivamente en los parámetros
+        /// Obtiene un nombre de ensamblaje inteligente basado exclusivamente en los parÃ¡metros
         /// del elemento o tipo seleccionado (Familia -> Tipos: ej. P04 -> P04A, P04B; P05 -> P05A, P05B).
         /// </summary>
         public static string GetParameterBasedName(DoorItemViewModel item)
@@ -563,10 +667,10 @@ namespace RevitToSupabasePlugin
             string fam = item.FamilyName?.Trim() ?? "";
             string typ = item.TypeName?.Trim() ?? "";
 
-            // 1. Si Mark ya tiene un código explícito (ej: "P04A", "P05a", "P05-A", "V01B")
+            // 1. Si Mark ya tiene un cÃ³digo explÃ­cito (ej: "P04A", "P05a", "P05-A", "V01B")
             if (!string.IsNullOrWhiteSpace(mark))
             {
-                // Si Mark es solo un sufijo de 1-2 letras/dígitos (ej: "a", "b", "1") y la Familia es un código (ej: "P05")
+                // Si Mark es solo un sufijo de 1-2 letras/dÃ­gitos (ej: "a", "b", "1") y la Familia es un cÃ³digo (ej: "P05")
                 if (mark.Length <= 2 && !string.IsNullOrWhiteSpace(fam))
                 {
                     if (char.IsDigit(fam[fam.Length - 1]) && char.IsLetter(mark[0]))
@@ -600,7 +704,7 @@ namespace RevitToSupabasePlugin
                     return SanitizeRevitName($"{fam}_{typ}");
                 }
 
-                // Si el tipo es un nombre descriptivo pero la familia es el código (ej: Fam "P04", Tipo "Madera Batiente")
+                // Si el tipo es un nombre descriptivo pero la familia es el cÃ³digo (ej: Fam "P04", Tipo "Madera Batiente")
                 return SanitizeRevitName($"{fam} - {typ}");
             }
 
@@ -611,7 +715,7 @@ namespace RevitToSupabasePlugin
         }
 
         /// <summary>
-        /// Construye el nombre deseado para el ensamblaje según las opciones de nomenclatura configuradas.
+        /// Construye el nombre deseado para el ensamblaje segÃºn las opciones de nomenclatura configuradas.
         /// </summary>
         public static string BuildAssemblyName(
             DoorItemViewModel item,
@@ -692,7 +796,7 @@ namespace RevitToSupabasePlugin
             AssemblyType? currentType = typeId != ElementId.InvalidElementId ? doc.GetElement(typeId) as AssemblyType : null;
             string currentTypeName = currentType?.Name ?? ai.AssemblyTypeName ?? "";
 
-            // Si ya tiene el nombre deseado, no hacer nada más
+            // Si ya tiene el nombre deseado, no hacer nada mÃ¡s
             if (string.Equals(currentTypeName, sanitized, StringComparison.OrdinalIgnoreCase))
             {
                 existingTypeNames.Add(currentTypeName);
@@ -715,7 +819,7 @@ namespace RevitToSupabasePlugin
                 }
                 catch (Exception exChange)
                 {
-                    logs?.Add($"  [Nomenclatura] ChangeTypeId a '{sanitized}' no aplicó: {exChange.Message}");
+                    logs?.Add($"  [Nomenclatura] ChangeTypeId a '{sanitized}' no aplicÃ³: {exChange.Message}");
                 }
             }
 
@@ -730,11 +834,11 @@ namespace RevitToSupabasePlugin
                 }
                 catch (Exception ex1)
                 {
-                    logs?.Add($"  [Nomenclatura] Renombrado de AssemblyType a '{sanitized}' falló: {ex1.Message}");
+                    logs?.Add($"  [Nomenclatura] Renombrado de AssemblyType a '{sanitized}' fallÃ³: {ex1.Message}");
                 }
             }
 
-            // Intentar a través de la propiedad AssemblyTypeName de la instancia
+            // Intentar a travÃ©s de la propiedad AssemblyTypeName de la instancia
             try
             {
                 ai.AssemblyTypeName = sanitized;
@@ -743,10 +847,10 @@ namespace RevitToSupabasePlugin
             }
             catch (Exception ex2)
             {
-                logs?.Add($"  [Nomenclatura] ai.AssemblyTypeName a '{sanitized}' falló: {ex2.Message}");
+                logs?.Add($"  [Nomenclatura] ai.AssemblyTypeName a '{sanitized}' fallÃ³: {ex2.Message}");
             }
 
-            // Resolver con sufijo único para evitar colisión si el nombre ya existe y pertenece a otra geometría
+            // Resolver con sufijo Ãºnico para evitar colisiÃ³n si el nombre ya existe y pertenece a otra geometrÃ­a
             string uniqueCandidate = EnsureUniqueAssemblyTypeName(sanitized, existingTypeNames);
             if (!string.Equals(uniqueCandidate, sanitized, StringComparison.OrdinalIgnoreCase))
             {
@@ -798,8 +902,8 @@ namespace RevitToSupabasePlugin
         }
 
         /// <summary>
-        /// Crea ensamblajes en lote (Batch Assemblies) para las puertas seleccionadas en la interfaz
-        /// con soporte para conteo secuencial personalizado y control de instancias por tipo.
+        /// Crea ensamblajes en lote (Batch Assemblies) para las puertas/ventanas seleccionadas en la interfaz.
+        /// Asigna el nombre inicial completo configurado y avanza correlativamente con la lógica de Revit (números o letras).
         /// </summary>
         public static (List<AssemblyInstance> assemblies, List<string> logs) CreateBatchDoorAssemblies(
             Document doc,
@@ -812,16 +916,17 @@ namespace RevitToSupabasePlugin
 
             if (doorItems == null || doorItems.Count == 0)
             {
-                logs.Add("No hay puertas seleccionadas para ensamblar.");
+                logs.Add("No hay elementos seleccionados para ensamblar.");
                 return (created, logs);
             }
 
             ElementId namingCatId = new ElementId(options.Category);
             string catLabel = options.Category == BuiltInCategory.OST_Windows ? "Ventanas" : "Puertas";
 
-            // Analizar patrón de nombres y contador
-            var (prefix, startNumber, digitCount) = ParseNamingPattern(options.InitialName);
-            int currentNumber = startNumber;
+            // Nombre inicial limpio y completo (sin composición artificial)
+            string currentName = !string.IsNullOrWhiteSpace(options.InitialName)
+                ? SanitizeRevitName(options.InitialName.Trim())
+                : (options.Category == BuiltInCategory.OST_Windows ? "V-01" : "P-01");
 
             // Conjunto de nombres de tipo de ensamblaje existentes para evitar colisiones en Revit
             var existingAssemblyTypeNames = new FilteredElementCollector(doc)
@@ -838,40 +943,22 @@ namespace RevitToSupabasePlugin
                 {
                     if (item == null) continue;
 
-                    string desiredName = BuildAssemblyName(item, currentNumber, options);
-
-                    // 1. Verificar si los miembros ya pertenecen a un ensamblaje en Revit
+                    // 1. Si todos sus miembros ya pertenecen a un ensamblaje, ignorar creación de duplicado
                     var existingAssIds = item.MemberElementIds
                         .Select(id => doc.GetElement(id)?.AssemblyInstanceId ?? ElementId.InvalidElementId)
                         .Where(id => id != ElementId.InvalidElementId)
                         .Distinct()
                         .ToList();
 
-                    if (existingAssIds.Count > 0)
+                    if (existingAssIds.Count > 0 && existingAssIds.Count == item.MemberElementIds.Count)
                     {
-                        bool anyReused = false;
-                        foreach (var assId in existingAssIds)
-                        {
-                            if (doc.GetElement(assId) is AssemblyInstance existingAi)
-                            {
-                                var (renamed, finalName) = SetAssemblyTypeName(doc, existingAi, desiredName, existingAssemblyTypeNames, logs);
-                                if (!created.Any(a => a.Id == existingAi.Id))
-                                {
-                                    created.Add(existingAi);
-                                }
-                                logs.Add($"Ensamblaje existente ID {existingAi.Id} ('{finalName}') sincronizado para generar vistas/cotas.");
-                                anyReused = true;
-                            }
-                        }
-
-                        if (anyReused)
-                        {
-                            currentNumber++;
-                            continue;
-                        }
+                        var firstAss = doc.GetElement(existingAssIds.First()) as AssemblyInstance;
+                        string existingName = firstAss?.AssemblyTypeName ?? firstAss?.Name ?? $"ID {existingAssIds.First()}";
+                        logs.Add($"Elemento '{item.DisplayTitle}': Ya pertenece al ensamblaje '{existingName}'.");
+                        continue;
                     }
 
-                    // 2. Si no pertenecen a un ensamblaje, filtrar miembros válidos para crearlo
+                    // 2. Filtrar miembros válidos que aún no pertenecen a ningún ensamblaje
                     var validMemberIds = item.MemberElementIds
                         .Where(id =>
                         {
@@ -896,11 +983,14 @@ namespace RevitToSupabasePlugin
                                 var ai = AssemblyInstance.Create(doc, new List<ElementId> { mId }, namingCatId);
                                 if (ai != null)
                                 {
-                                    string instDesiredName = BuildAssemblyName(item, currentNumber++, options);
-                                    var (renamed, finalName) = SetAssemblyTypeName(doc, ai, instDesiredName, existingAssemblyTypeNames, logs);
+                                    string assignedName = currentName;
+                                    var (renamed, finalName) = SetAssemblyTypeName(doc, ai, assignedName, existingAssemblyTypeNames, logs);
 
                                     created.Add(ai);
                                     logs.Add($"Ensamblaje creado con éxito: '{finalName}' (ID {ai.Id}).");
+
+                                    // Avanzar correlativo como Revit
+                                    currentName = GetNextRevitName(currentName);
                                 }
                             }
                             catch (Exception ex)
@@ -911,9 +1001,9 @@ namespace RevitToSupabasePlugin
                     }
                     else
                     {
-                        // Modo por Tipo de Puerta:
+                        // Modo por Tipo:
                         // Si SingleInstancePerType es true -> solo 1 ejemplar de muestra en el ensamblaje.
-                        // Si SingleInstancePerType es false -> todas las instancias disponibles del tipo agrupadas en el ensamblaje.
+                        // Si SingleInstancePerType es false -> todas las instancias disponibles del tipo en el ensamblaje.
                         try
                         {
                             var membersToAssemble = options.SingleInstancePerType
@@ -923,14 +1013,17 @@ namespace RevitToSupabasePlugin
                             var ai = AssemblyInstance.Create(doc, membersToAssemble, namingCatId);
                             if (ai != null)
                             {
-                                var (renamed, finalName) = SetAssemblyTypeName(doc, ai, desiredName, existingAssemblyTypeNames, logs);
+                                string assignedName = currentName;
+                                var (renamed, finalName) = SetAssemblyTypeName(doc, ai, assignedName, existingAssemblyTypeNames, logs);
 
                                 created.Add(ai);
                                 string modeDesc = options.SingleInstancePerType
-                                    ? "1 ejemplar representativo"
-                                    : $"{membersToAssemble.Count} elementos agrupados";
+                                    ? "1 ejemplar de muestra"
+                                    : $"{membersToAssemble.Count} ejemplares agrupados";
                                 logs.Add($"Ensamblaje de Tipo creado ({modeDesc}): '{finalName}' (Total en proyecto: {item.InstanceCount} uds).");
-                                currentNumber++;
+
+                                // Avanzar correlativo como Revit
+                                currentName = GetNextRevitName(currentName);
                             }
                         }
                         catch (Exception ex)
@@ -943,19 +1036,53 @@ namespace RevitToSupabasePlugin
                 t.Commit();
             }
 
-            // Sincronizar automáticamente los datos globales en los elementos de los ensamblajes creados
-            if (created.Count > 0)
-            {
-                var (syncedCount, syncLogs) = AssemblyBridgeService.SyncBridgeData(doc, options.Category);
-                logs.AddRange(syncLogs);
-            }
-
             return (created, logs);
         }
 
         /// <summary>
+        /// Genera o agrega vistas técnicas a los ensamblajes correspondientes a los elementos seleccionados en la UI.
+        /// Permite operar tanto sobre ensamblajes recién creados como sobre ensamblajes ya existentes en el modelo.
+        /// </summary>
+        public static (int createdViewsCount, List<string> logs) GenerateViewsForDoorItems(
+            Document doc,
+            IList<DoorItemViewModel> doorItems,
+            AssemblyBatchViewOptions options,
+            ViewSchedule? sourceTemplateSchedule = null)
+        {
+            var logs = new List<string>();
+            if (doorItems == null || doorItems.Count == 0)
+            {
+                logs.Add("No hay elementos seleccionados para generar vistas.");
+                return (0, logs);
+            }
+
+            var targetAssemblies = new List<AssemblyInstance>();
+            var seenIds = new HashSet<ElementId>();
+
+            foreach (var item in doorItems)
+            {
+                if (item.AssemblyId != ElementId.InvalidElementId && !seenIds.Contains(item.AssemblyId))
+                {
+                    if (doc.GetElement(item.AssemblyId) is AssemblyInstance ai && ai.IsValidObject)
+                    {
+                        targetAssemblies.Add(ai);
+                        seenIds.Add(item.AssemblyId);
+                    }
+                }
+            }
+
+            if (targetAssemblies.Count == 0)
+            {
+                logs.Add("Ninguno de los elementos seleccionados tiene un ensamblaje creado todavía. Primero crea los ensamblajes con '1. Crear Ensamblajes'.");
+                return (0, logs);
+            }
+
+            return CreateBatchAssemblyViews(doc, targetAssemblies, options, sourceTemplateSchedule);
+        }
+
+        /// <summary>
         /// Genera vistas en lote (Batch Assembly Views) para los ensamblajes seleccionados.
-        /// Crea Planta, Elevaciones, Isométrica 3D y Tabla de Despiece para cada ensamblaje.
+        /// Crea Planta, Elevaciones, IsomÃ©trica 3D y Tabla de Despiece para cada ensamblaje.
         /// </summary>
         public static (int createdViewsCount, List<string> logs) CreateBatchAssemblyViews(
             Document doc,
@@ -974,7 +1101,7 @@ namespace RevitToSupabasePlugin
 
             ElementId targetCatId = options.CategoryId ?? new ElementId(BuiltInCategory.OST_Doors);
 
-            using (Transaction t = new Transaction(doc, "Generación Batch de Vistas de Ensamblaje"))
+            using (Transaction t = new Transaction(doc, "GeneraciÃ³n Batch de Vistas de Ensamblaje"))
             {
                 t.Start();
 
@@ -1040,7 +1167,7 @@ namespace RevitToSupabasePlugin
                                         replicateTemplate: true);
                                 }
 
-                                // Asegurar que la tabla del ensamblaje incluya el parámetro puente con el conteo global
+                                // Asegurar que la tabla del ensamblaje incluya el parÃ¡metro puente con el conteo global
                                 AssemblyBridgeService.InjectBridgeFieldToSchedule(doc, sched);
 
                                 createdCount++;
@@ -1055,7 +1182,7 @@ namespace RevitToSupabasePlugin
 
                     int viewScale = options.ViewScale > 0 ? options.ViewScale : 20;
 
-                    // 2. Vista 3D Isométrica
+                    // 2. Vista 3D IsomÃ©trica
                     if (options.Create3DOrthographic)
                     {
                         try
@@ -1070,7 +1197,7 @@ namespace RevitToSupabasePlugin
                                     try { v3d.ViewTemplateId = options.ViewTemplateId; } catch { }
                                 }
                                 createdCount++;
-                                logs.Add($"  [VISTA] 3D Isométrica creada (1:{v3d.Scale}): '{v3d.Name}'");
+                                logs.Add($"  [VISTA] 3D IsomÃ©trica creada (1:{v3d.Scale}): '{v3d.Name}'");
                             }
                         }
                         catch { }
@@ -1097,7 +1224,7 @@ namespace RevitToSupabasePlugin
                         catch { }
                     }
 
-                    // 4. Elevación Frontal
+                    // 4. ElevaciÃ³n Frontal
                     if (options.CreateFrontElevation)
                     {
                         try
@@ -1105,20 +1232,20 @@ namespace RevitToSupabasePlugin
                             var vFront = AssemblyViewUtils.CreateDetailSection(doc, ai.Id, AssemblyDetailViewOrientation.ElevationFront);
                             if (vFront != null)
                             {
-                                vFront.Name = AssemblyScheduleService.GetUniqueScheduleName(doc, $"{aName} - Elevación Frontal");
+                                vFront.Name = AssemblyScheduleService.GetUniqueScheduleName(doc, $"{aName} - ElevaciÃ³n Frontal");
                                 try { vFront.Scale = viewScale; } catch { }
                                 if (options.ViewTemplateId != null && options.ViewTemplateId != ElementId.InvalidElementId)
                                 {
                                     try { vFront.ViewTemplateId = options.ViewTemplateId; } catch { }
                                 }
                                 createdCount++;
-                                logs.Add($"  [VISTA] Elevación Frontal creada (1:{vFront.Scale}): '{vFront.Name}'");
+                                logs.Add($"  [VISTA] ElevaciÃ³n Frontal creada (1:{vFront.Scale}): '{vFront.Name}'");
                             }
                         }
                         catch { }
                     }
 
-                    // 5. Elevación Posterior
+                    // 5. ElevaciÃ³n Posterior
                     if (options.CreateBackElevation)
                     {
                         try
@@ -1126,20 +1253,20 @@ namespace RevitToSupabasePlugin
                             var vBack = AssemblyViewUtils.CreateDetailSection(doc, ai.Id, AssemblyDetailViewOrientation.ElevationBack);
                             if (vBack != null)
                             {
-                                vBack.Name = AssemblyScheduleService.GetUniqueScheduleName(doc, $"{aName} - Elevación Posterior");
+                                vBack.Name = AssemblyScheduleService.GetUniqueScheduleName(doc, $"{aName} - ElevaciÃ³n Posterior");
                                 try { vBack.Scale = viewScale; } catch { }
                                 if (options.ViewTemplateId != null && options.ViewTemplateId != ElementId.InvalidElementId)
                                 {
                                     try { vBack.ViewTemplateId = options.ViewTemplateId; } catch { }
                                 }
                                 createdCount++;
-                                logs.Add($"  [VISTA] Elevación Posterior creada (1:{vBack.Scale}): '{vBack.Name}'");
+                                logs.Add($"  [VISTA] ElevaciÃ³n Posterior creada (1:{vBack.Scale}): '{vBack.Name}'");
                             }
                         }
                         catch { }
                     }
 
-                    // 6. Sección Transversal
+                    // 6. SecciÃ³n Transversal
                     if (options.CreateSection)
                     {
                         try
@@ -1147,14 +1274,14 @@ namespace RevitToSupabasePlugin
                             var vSec = AssemblyViewUtils.CreateDetailSection(doc, ai.Id, AssemblyDetailViewOrientation.ElevationLeft);
                             if (vSec != null)
                             {
-                                vSec.Name = AssemblyScheduleService.GetUniqueScheduleName(doc, $"{aName} - Sección Lateral");
+                                vSec.Name = AssemblyScheduleService.GetUniqueScheduleName(doc, $"{aName} - SecciÃ³n Lateral");
                                 try { vSec.Scale = viewScale; } catch { }
                                 if (options.ViewTemplateId != null && options.ViewTemplateId != ElementId.InvalidElementId)
                                 {
                                     try { vSec.ViewTemplateId = options.ViewTemplateId; } catch { }
                                 }
                                 createdCount++;
-                                logs.Add($"  [VISTA] Sección creada (1:{vSec.Scale}): '{vSec.Name}'");
+                                logs.Add($"  [VISTA] SecciÃ³n creada (1:{vSec.Scale}): '{vSec.Name}'");
                             }
                         }
                         catch { }
@@ -1167,7 +1294,7 @@ namespace RevitToSupabasePlugin
             // Auto-acotado inteligente con el Ambientador de Puertas
             if (options.AutoDimensionViews && assemblies.Count > 0)
             {
-                logs.Add("\n--- ACOTADO AUTOMÁTICO DE VISTAS TÉCNICAS (AMBIENTADOR) ---");
+                logs.Add("\n--- ACOTADO AUTOMÃTICO DE VISTAS TÃ‰CNICAS (AMBIENTADOR) ---");
                 foreach (var ai in assemblies)
                 {
                     if (ai == null || !ai.IsValidObject) continue;
@@ -1176,7 +1303,7 @@ namespace RevitToSupabasePlugin
                         var (dims, dimLogs) = DoorAssemblyDimensionService.DimensionAssembly(doc, ai);
                         if (dims > 0)
                         {
-                            logs.Add($"  [COTAS] {dims} cotas añadidas al ensamblaje '{ai.AssemblyTypeName ?? ai.Name}'.");
+                            logs.Add($"  [COTAS] {dims} cotas aÃ±adidas al ensamblaje '{ai.AssemblyTypeName ?? ai.Name}'.");
                         }
                     }
                     catch { }

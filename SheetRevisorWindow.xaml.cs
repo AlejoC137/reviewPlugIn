@@ -269,6 +269,13 @@ namespace RevitToSupabasePlugin
             txtNameReplace.Text = string.Empty;
             cmbNameCase.SelectedIndex = 0;
 
+            if (cmbShiftLimitType != null) cmbShiftLimitType.SelectedIndex = 0;
+            if (txtShiftLimitValue != null)
+            {
+                txtShiftLimitValue.Text = string.Empty;
+                txtShiftLimitValue.IsEnabled = false;
+            }
+
             foreach (var s in _allSheets)
             {
                 s.NewSheetNumber = s.OriginalSheetNumber;
@@ -493,20 +500,154 @@ namespace RevitToSupabasePlugin
             return tb?.Symbol?.Id ?? ElementId.InvalidElementId;
         }
 
+                private void CmbShiftLimitType_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized || txtShiftLimitValue == null) return;
+
+            int idx = cmbShiftLimitType.SelectedIndex;
+            if (idx == 0) // Sin límite
+            {
+                txtShiftLimitValue.IsEnabled = false;
+                txtShiftLimitValue.Text = string.Empty;
+                txtShiftLimitValue.ToolTip = "Sin límite activo: se desplazará toda la serie de láminas.";
+            }
+            else if (idx == 1) // Hasta lámina nº...
+            {
+                txtShiftLimitValue.IsEnabled = true;
+                txtShiftLimitValue.ToolTip = "Ingresa el número de la última lámina a afectar (ej: A-110 o 110)";
+                txtShiftLimitValue.Focus();
+            }
+            else if (idx == 2) // Máx. láminas a mover
+            {
+                txtShiftLimitValue.IsEnabled = true;
+                txtShiftLimitValue.ToolTip = "Ingresa la cantidad máxima de láminas a desplazar (ej: 5)";
+                if (string.IsNullOrWhiteSpace(txtShiftLimitValue.Text))
+                {
+                    txtShiftLimitValue.Text = "5";
+                }
+                txtShiftLimitValue.Focus();
+                txtShiftLimitValue.SelectAll();
+            }
+        }
+
+        private void BtnSetLimitFromSelected_Click(object sender, RoutedEventArgs e)
+        {
+            if (dgSheets.SelectedItem is SheetRevisorItem item)
+            {
+                cmbShiftLimitType.SelectedIndex = 1; // Hasta lámina nº...
+                txtShiftLimitValue.IsEnabled = true;
+                txtShiftLimitValue.Text = item.OriginalSheetNumber;
+                txtShiftLimitValue.Focus();
+            }
+            else
+            {
+                TaskDialog.Show("ProSheets", "Selecciona una fila en la tabla de láminas para usar su número como límite.");
+            }
+        }
+
+        private enum ShiftLimitMode
+        {
+            None,
+            UpToSheet,
+            MaxCount
+        }
+
+        private (ShiftLimitMode Mode, string Value) GetShiftLimitConfig()
+        {
+            int idx = cmbShiftLimitType?.SelectedIndex ?? 0;
+            string val = txtShiftLimitValue?.Text?.Trim() ?? string.Empty;
+            return idx switch
+            {
+                1 => (ShiftLimitMode.UpToSheet, val),
+                2 => (ShiftLimitMode.MaxCount, val),
+                _ => (ShiftLimitMode.None, string.Empty)
+            };
+        }
+
         /// <summary>
         /// Calcula los nuevos números para las láminas de la misma serie con número &gt;= fromNumber, desplazadas en 'delta'.
         /// Devuelve null y un mensaje de error si el resultado produce colisiones o números negativos.
         /// </summary>
         private List<(SheetRevisorItem Item, string NewNumber)>? BuildShiftPlan(
-            ParsedSheetNumber series, long fromNumber, int delta, bool stopAtGap, out string error)
+            ParsedSheetNumber series, long fromNumber, int delta, bool stopAtGap, out string error, out string? limitDescription)
         {
             error = string.Empty;
+            limitDescription = null;
 
             var candidates = _allSheets
                 .Select(s => (Item: s, Parsed: ParseSheetNumber(s.OriginalSheetNumber)))
                 .Where(x => x.Parsed != null && x.Parsed.SameSeries(series) && x.Parsed.Number >= fromNumber)
                 .OrderBy(x => x.Parsed!.Number)
                 .ToList();
+
+            // Aplicar Límite de Afectación configurable
+            var (limitMode, limitVal) = GetShiftLimitConfig();
+            if (limitMode == ShiftLimitMode.UpToSheet)
+            {
+                if (string.IsNullOrWhiteSpace(limitVal))
+                {
+                    error = "Has seleccionado el modo 'Hasta lámina nº' pero el campo de límite está vacío. Ingresa el número de lámina tope (ej: A-110 o 110).";
+                    return null;
+                }
+
+                long? targetLimitNum = null;
+
+                // 1. Buscar coincidencia exacta con lámina existente en el proyecto
+                var matching = _allSheets.FirstOrDefault(s => string.Equals(s.OriginalSheetNumber.Trim(), limitVal, StringComparison.OrdinalIgnoreCase));
+                if (matching != null)
+                {
+                    var p = ParseSheetNumber(matching.OriginalSheetNumber);
+                    if (p != null)
+                    {
+                        if (!p.SameSeries(series))
+                        {
+                            error = $"La lámina límite '{limitVal}' pertenece a otra serie ('{p.Prefix}...{p.Suffix}') y no a '{series.Prefix}...{series.Suffix}'.";
+                            return null;
+                        }
+                        targetLimitNum = p.Number;
+                    }
+                }
+
+                // 2. Si no coincide con el nombre exacto de una lámina existente, parsearlo
+                if (targetLimitNum == null)
+                {
+                    var p = ParseSheetNumber(limitVal);
+                    if (p != null && (p.SameSeries(series) || string.IsNullOrEmpty(p.Prefix)))
+                    {
+                        targetLimitNum = p.Number;
+                    }
+                    else if (long.TryParse(limitVal, NumberStyles.None, CultureInfo.InvariantCulture, out long pureNum))
+                    {
+                        targetLimitNum = pureNum;
+                    }
+                }
+
+                if (targetLimitNum == null)
+                {
+                    error = $"No se pudo reconocer un número válido en el límite '{limitVal}'. Ingresa un formato como '{series.Format(fromNumber + 5)}' o '{fromNumber + 5}'.";
+                    return null;
+                }
+
+                if (targetLimitNum.Value < fromNumber)
+                {
+                    error = $"La lámina límite ({limitVal} -> Nº {targetLimitNum.Value}) es anterior a la lámina de partida ({fromNumber}).";
+                    return null;
+                }
+
+                candidates = candidates.Where(c => c.Parsed!.Number <= targetLimitNum.Value).ToList();
+                limitDescription = $"Hasta lámina {series.Format(targetLimitNum.Value)} (Nº {targetLimitNum.Value})";
+            }
+            else if (limitMode == ShiftLimitMode.MaxCount)
+            {
+                if (string.IsNullOrWhiteSpace(limitVal) || !int.TryParse(limitVal, out int maxCount) || maxCount <= 0)
+                {
+                    error = "Ingresa una cantidad máxima válida de láminas a mover (número entero mayor a 0).";
+                    return null;
+                }
+
+                candidates = candidates.Take(maxCount).ToList();
+                limitDescription = $"Máximo {maxCount} lámina(s)";
+            }
 
             var plan = new List<(SheetRevisorItem Item, string NewNumber)>();
 
@@ -545,19 +686,28 @@ namespace RevitToSupabasePlugin
             var collisions = plan.Where(p => fixedNumbers.Contains(p.NewNumber)).Select(p => p.NewNumber).ToList();
             if (collisions.Count > 0)
             {
+                string limitNotice = limitMode != ShiftLimitMode.None
+                    ? "\n\n(Debido al límite de afectación configurado, las láminas posteriores permanecen fijas y provocan colisión. Debe existir un hueco libre al final del rango o ampliarse el límite)."
+                    : "";
+
                 error = "El desplazamiento choca con láminas existentes que no se mueven:\n\n" + string.Join(", ", collisions.Take(8)) +
-                        (collisions.Count > 8 ? " ..." : "");
+                        (collisions.Count > 8 ? " ..." : "") + limitNotice;
                 return null;
             }
 
             return plan;
         }
 
-        private static string DescribePlan(List<(SheetRevisorItem Item, string NewNumber)> plan)
+        private static string DescribePlan(List<(SheetRevisorItem Item, string NewNumber)> plan, string? limitInfo = null)
         {
             if (plan.Count == 0) return "No se desplazará ninguna lámina.";
 
-            var lines = new List<string> { $"Se renumerarán {plan.Count} lámina(s):" };
+            var lines = new List<string>();
+            if (!string.IsNullOrEmpty(limitInfo))
+            {
+                lines.Add($"🛑 Límite de afectación activo: {limitInfo}");
+            }
+            lines.Add($"Se renumerarán {plan.Count} lámina(s):");
             const int head = 4;
             if (plan.Count <= head * 2)
             {
@@ -625,7 +775,7 @@ namespace RevitToSupabasePlugin
             string newNumber = parsed.Format(newNumberValue);
             string newName = string.IsNullOrWhiteSpace(txtInsertName.Text) ? "NUEVA LÁMINA" : txtInsertName.Text.Trim();
 
-            var plan = BuildShiftPlan(parsed, newNumberValue, 1, chkStopAtGap.IsChecked == true, out string error);
+            var plan = BuildShiftPlan(parsed, newNumberValue, 1, chkStopAtGap.IsChecked == true, out string error, out string? limitDesc);
             if (plan == null)
             {
                 TaskDialog.Show("ProSheets - No se puede insertar", error);
@@ -642,7 +792,7 @@ namespace RevitToSupabasePlugin
 
             ElementId titleBlockId = ResolveTitleBlockFor(reference);
 
-            string msg = $"Se creará la lámina:\n   {newNumber} - {newName}\n\n{DescribePlan(plan)}";
+            string msg = $"Se creará la lámina:\n   {newNumber} - {newName}\n\n{DescribePlan(plan, limitDesc)}";
             if (HasPendingPreviewChanges())
                 msg += "\n\n⚠️ Los cambios de preview no aplicados en la tabla se descartarán.";
 
@@ -840,7 +990,7 @@ namespace RevitToSupabasePlugin
             }
 
             int delta = amount * direction;
-            var plan = BuildShiftPlan(parsed, parsed.Number, delta, chkStopAtGap.IsChecked == true, out string error);
+            var plan = BuildShiftPlan(parsed, parsed.Number, delta, chkStopAtGap.IsChecked == true, out string error, out string? limitDesc);
             if (plan == null)
             {
                 TaskDialog.Show("ProSheets - No se puede desplazar", error);
@@ -848,11 +998,11 @@ namespace RevitToSupabasePlugin
             }
             if (plan.Count == 0)
             {
-                TaskDialog.Show("ProSheets", "No hay láminas para desplazar.");
+                TaskDialog.Show("ProSheets", "No hay láminas para desplazar dentro del rango/límite indicado.");
                 return;
             }
 
-            string msg = DescribePlan(plan);
+            string msg = DescribePlan(plan, limitDesc);
             if (HasPendingPreviewChanges())
                 msg += "\n\n⚠️ Los cambios de preview no aplicados en la tabla se descartarán.";
 

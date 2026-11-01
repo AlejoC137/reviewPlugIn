@@ -54,12 +54,22 @@
   <ItemGroup>
     <Compile Remove="tools\**" />
     <None Remove="tools\**" />
+    <Page Remove="tools\**" />
+    <Resource Remove="tools\**" />
+    <ApplicationDefinition Remove="tools\**" />
+    <Compile Remove="dist\**" />
+    <None Remove="dist\**" />
+    <Page Remove="dist\**" />
+    <Resource Remove="dist\**" />
     <Compile Remove="scratch\**" />
     <None Remove="scratch\**" />
+    <Page Remove="scratch\**" />
     <Compile Remove="_backup*/**" />
     <None Remove="_backup*/**" />
+    <Page Remove="_backup*/**" />
     <Compile Remove="**/*backup*/**" />
     <None Remove="**/*backup*/**" />
+    <Page Remove="**/*backup*/**" />
   </ItemGroup>
 
   <!-- Evento Post-Build para desplegar en la carpeta de Addins correspondiente a cada version de Revit -->

@@ -22,6 +22,11 @@ bld/
 [Oo]bj/
 [Ll]og/
 *.pdb
+dist/
+tools/Installer/Resources/payload.zip
+tools/Installer/staging/
+tools/Installer/bin/
+tools/Installer/obj/
 
 # Visual Studio 2015/2017/2019/2022 cache/options directory
 .vs/

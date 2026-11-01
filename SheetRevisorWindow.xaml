@@ -295,8 +295,28 @@
                                     ToolTip="Suma N a la lámina seleccionada y a todas las siguientes de la misma serie (reserva huecos)"/>
                             <Button Content="➖ Desplazar -N" Style="{StaticResource SecondaryButtonStyle}" Click="BtnShiftDown_Click" Margin="0,0,12,4" VerticalAlignment="Bottom"
                                     ToolTip="Resta N a la lámina seleccionada y a todas las siguientes de la misma serie (cierra huecos)"/>
-                            <CheckBox x:Name="chkStopAtGap" Content="Detener en el primer hueco" FontSize="11" VerticalAlignment="Bottom" Margin="0,0,0,8"
+                            <CheckBox x:Name="chkStopAtGap" Content="Detener en primer hueco" FontSize="11" VerticalAlignment="Bottom" Margin="0,0,12,8"
                                       ToolTip="Al insertar o desplazar +N, solo mueve las láminas necesarias hasta encontrar un número libre"/>
+
+                            <Border Width="1" Background="#FED7AA" Margin="0,0,12,4"/>
+
+                            <!-- LÍMITE DE AFECTACIÓN -->
+                            <StackPanel Margin="0,0,8,4" VerticalAlignment="Bottom">
+                                <TextBlock Text="🛑 Límite de afectación:" FontSize="10" FontWeight="Bold" Foreground="#C2410C" Margin="0,0,0,2"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <ComboBox x:Name="cmbShiftLimitType" Width="145" SelectionChanged="CmbShiftLimitType_SelectionChanged"
+                                              ToolTip="Límite hasta dónde afectará la renumeración en cascada">
+                                        <ComboBoxItem Content="Sin límite (toda la serie)" IsSelected="True"/>
+                                        <ComboBoxItem Content="Hasta lámina nº..."/>
+                                        <ComboBoxItem Content="Máx. láminas a mover"/>
+                                    </ComboBox>
+                                    <TextBox x:Name="txtShiftLimitValue" Width="75" Margin="4,0,0,0" IsEnabled="False"
+                                             ToolTip="Lámina tope (ej: A-110 o 110) o cantidad máxima de láminas a mover"/>
+                                    <Button Content="📌" Style="{StaticResource SecondaryButtonStyle}" Padding="6,2" Margin="3,0,0,0"
+                                            Click="BtnSetLimitFromSelected_Click"
+                                            ToolTip="Fijar como lámina límite la fila actualmente seleccionada en la tabla"/>
+                                </StackPanel>
+                            </StackPanel>
                         </WrapPanel>
                     </StackPanel>
                 </Border>

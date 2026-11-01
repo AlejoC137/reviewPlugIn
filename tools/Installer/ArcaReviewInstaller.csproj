@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Platforms>x64</Platforms>
+    <AssemblyTitle>ARCA REVIEW Installer</AssemblyTitle>
+    <Product>ARCA REVIEW Plugin Installer</Product>
+    <Company>ARCA REVIEW</Company>
+    <Authors>ALEJANDRO</Authors>
+    <Copyright>Copyright © 2026 ARCA REVIEW</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\payload.zip" Condition="Exists('Resources\payload.zip')" />
+  </ItemGroup>
+</Project>
