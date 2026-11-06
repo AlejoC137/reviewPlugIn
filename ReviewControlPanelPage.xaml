@@ -800,60 +800,75 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- TAB 5: ☁️ REVIEW CLOUD & IA (Dentro del panel de control) -->
-            <TabItem x:Name="tabBiMcp" Header="☁️ Review IA" ToolTip="Conectividad Review Cloud (HTTPS) y Gestor de Cambios">
+            <!-- TAB 5: 🤖 ANTIGRAVITY & CLAUDE MCP -->
+            <TabItem x:Name="tabBiMcp" Header="🤖 Antigravity MCP" ToolTip="Control del Servidor MCP Local para Antigravity y Claude Desktop">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="6,8,6,8">
 
-                        <!-- Cloud Live Status -->
+                        <!-- Antigravity MCP Live Status -->
                         <Border Style="{StaticResource CardBorder}">
                             <StackPanel>
                                 <Grid Margin="0,0,0,6">
-                                    <TextBlock Text="ARCA REVIEW CLOUD (HTTPS)" FontSize="10" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
+                                    <TextBlock Text="SERVIDOR MCP LOCAL REVIT" FontSize="10" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
                                     <Border x:Name="boxMcpRunning" Background="#D1FAE5" BorderBrush="#059669" BorderThickness="1" Padding="6,2" HorizontalAlignment="Right">
-                                        <TextBlock x:Name="txtMcpRunningState" Text="🟢 EN LÍNEA (TLS/HTTPS)" FontSize="9" FontWeight="Bold" Foreground="#065F46"/>
+                                        <TextBlock x:Name="txtMcpRunningState" Text="🟢 EN LÍNEA (MCP STDIO)" FontSize="9" FontWeight="Bold" Foreground="#065F46"/>
                                     </Border>
                                 </Grid>
 
                                 <Grid Margin="0,2">
                                     <TextBlock Text="Protocolo IA:" FontSize="10" Foreground="#72777F"/>
-                                    <TextBlock x:Name="txtMcpPort" Text="HTTPS Seguro / Supabase REST" HorizontalAlignment="Right" FontWeight="Bold" FontSize="10" Foreground="#1C1C19"/>
+                                    <TextBlock x:Name="txtMcpPort" Text="MCP Stdio Bridge (Node.js)" HorizontalAlignment="Right" FontWeight="Bold" FontSize="10" Foreground="#1C1C19"/>
                                 </Grid>
 
                                 <Grid Margin="0,2">
-                                    <TextBlock Text="Web App Review:" FontSize="10" Foreground="#72777F"/>
-                                    <TextBlock Text="https://arca-review.vercel.app" HorizontalAlignment="Right" FontFamily="Consolas" FontSize="9" Foreground="#0F4369"/>
+                                    <TextBlock Text="Puerto Loopback Interno:" FontSize="10" Foreground="#72777F"/>
+                                    <TextBlock x:Name="txtMcpInternalPort" Text="127.0.0.1:8080" HorizontalAlignment="Right" FontFamily="Consolas" FontSize="10" Foreground="#0F4369"/>
                                 </Grid>
 
                                 <Grid Margin="0,2">
-                                    <TextBlock Text="MCP Cloud Endpoint:" FontSize="10" Foreground="#72777F"/>
-                                    <TextBlock Text="https://arca-review.vercel.app/mcp" HorizontalAlignment="Right" FontFamily="Consolas" FontSize="9" Foreground="#0F4369"/>
+                                    <TextBlock Text="Herramientas Disponibles:" FontSize="10" Foreground="#72777F"/>
+                                    <TextBlock Text="16 Tools (Ensambles, Sheets, Vistas...)" HorizontalAlignment="Right" FontWeight="Bold" FontSize="9.5" Foreground="#10B981"/>
                                 </Grid>
 
                                 <Grid Margin="0,2">
-                                    <TextBlock Text="Usuario Vinculado:" FontSize="10" Foreground="#72777F"/>
-                                    <TextBlock x:Name="txtMcpActiveUser" Text="usuario@review.com" HorizontalAlignment="Right" FontWeight="Bold" FontSize="9.5" Foreground="#1C1C19"/>
+                                    <TextBlock Text="Cliente Activo:" FontSize="10" Foreground="#72777F"/>
+                                    <TextBlock x:Name="txtMcpActiveUser" Text="Google Antigravity / Claude" HorizontalAlignment="Right" FontWeight="Bold" FontSize="9.5" Foreground="#1C1C19"/>
                                 </Grid>
 
-                                <Button x:Name="btnPingMcp" Style="{StaticResource SecondaryButton}" Content="🔄 Probar Conexión Cloud (HTTPS)" Margin="0,8,0,6" Click="BtnPingMcp_Click"/>
-                                <Button x:Name="btnOpenReceptorEsquemas" Style="{StaticResource PrimaryButton}" Content="⚡ Abrir Receptor de Esquemas &amp; Acciones Revit" Click="BtnOpenReceptorEsquemas_Click"/>
+                                <Button x:Name="btnOpenMcpFullWindow" Style="{StaticResource PrimaryButton}" Content="🖥️ Abrir Centro de Control Bi-MCP Completo" Margin="0,8,0,4" Click="BtnOpenMcpFullWindow_Click"/>
+
+                                <UniformGrid Columns="2" Margin="0,4,0,4">
+                                    <Button x:Name="btnRestartMcp" Style="{StaticResource SecondaryButton}" Content="🔄 Reiniciar MCP" Margin="0,0,3,0" Click="BtnRestartMcp_Click"/>
+                                    <Button x:Name="btnOpenMcpFolder" Style="{StaticResource SecondaryButton}" Content="📂 Carpeta MCP" Margin="3,0,0,0" Click="BtnOpenMcpFolder_Click"/>
+                                </UniformGrid>
                             </StackPanel>
                         </Border>
 
-                        <!-- Gemini & Gestor de Cambios Info -->
+                        <!-- Configuración Rápida MCP -->
                         <Border Style="{StaticResource CardBorder}">
                             <StackPanel>
                                 <Grid Margin="0,0,0,6">
-                                    <TextBlock Text="CONFIGURACIÓN REVIEW CLOUD (HTTPS)" FontSize="10" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
+                                    <TextBlock Text="CONFIGURACIÓN PARA ANTIGRAVITY &amp; CLAUDE" FontSize="10" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
                                     <Button x:Name="btnCopyMcpConfig" Style="{StaticResource SecondaryButton}" Content="📋 Copiar JSON" Padding="6,2" FontSize="9" HorizontalAlignment="Right" Click="BtnCopyMcpConfig_Click"/>
                                 </Grid>
 
-                                <TextBlock Text="El servidor HTTP local 8080 ha sido desmontado para evitar restricciones de seguridad de Gemini Desktop. La interacción segura ahora opera mediante la web app de Review / Supabase o mediante la ventana 'Acciones Directas IA'."
+                                <TextBlock Text="Copia y pega este bloque en mcp_config.json de Antigravity o en claude_desktop_config.json:"
                                            FontSize="9" Foreground="#5A5D62" TextWrapping="Wrap" Margin="0,0,0,6"/>
 
                                 <Border Background="#1C1C19" BorderBrush="#0F4369" BorderThickness="1" Padding="6">
-                                    <TextBox x:Name="txtMcpConfigJson" Background="Transparent" Foreground="#E5E2DD" BorderThickness="0" FontFamily="Consolas, monospace" FontSize="9.5" IsReadOnly="True" TextWrapping="Wrap"/>
+                                    <TextBox x:Name="txtMcpConfigJson" Background="Transparent" Foreground="#E5E2DD" BorderThickness="0" FontFamily="Consolas, monospace" FontSize="9" IsReadOnly="True" TextWrapping="Wrap"/>
                                 </Border>
+
+                                <Button x:Name="btnRunInstaller" Style="{StaticResource SecondaryButton}" Content="⚡ Ejecutar Autoinstalador (1 Clic)" Margin="0,8,0,0" Click="BtnRunInstaller_Click"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Supabase Cloud Opcional -->
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="ECOSISTEMA REVIEW CLOUD (OPCIONAL)" FontSize="10" FontWeight="Bold" Foreground="#72777F" Margin="0,0,0,4"/>
+                                <Button x:Name="btnOpenReceptorEsquemas" Style="{StaticResource SecondaryButton}" Content="⚡ Acciones Directas IA (Receptor)" Margin="0,2" Click="BtnOpenReceptorEsquemas_Click"/>
+                                <Button x:Name="btnPingMcp" Style="{StaticResource SecondaryButton}" Content="🌐 Probar Review Web App" Margin="0,2" Click="BtnPingMcp_Click"/>
                             </StackPanel>
                         </Border>
 

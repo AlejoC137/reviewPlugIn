@@ -1440,7 +1440,17 @@ namespace RevitToSupabasePlugin
 
             RefreshAll();
 
-            MessageBox.Show($"Proceso de vistas finalizado.\n\n• Vistas técnicas creadas/agregadas: {createdViewsCount}", "Vistas de Ensamblaje", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (createdViewsCount == 0)
+            {
+                if (txtLogQuickStatus != null) txtLogQuickStatus.Text = "Aviso: Sin vistas creadas (requiere ensamblaje previo)";
+                MessageBox.Show($"No se pudieron generar vistas técnicas porque los elementos seleccionados aún no tienen un ensamblaje creado en Revit.\n\n👉 Primero pulsa '1. CREAR ENSAMBLAJES BATCH' o utiliza el filtro 'Con Ensamblaje'.", "Sin Ensamblajes Detectados", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            else
+            {
+                if (expLogPanel != null) expLogPanel.IsExpanded = true;
+                if (txtLogQuickStatus != null) txtLogQuickStatus.Text = $"✅ {createdViewsCount} vistas técnicas generadas";
+                MessageBox.Show($"¡Proceso de Vistas Completado!\n\n• Vistas técnicas creadas: {createdViewsCount}\n\nLos planos, cotas y tablas de despiece ya están disponibles en el Navegador de Proyectos de Revit.", "Vistas de Ensamblaje", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
         }
 
         private void ExecuteBatchDoorCreation(bool createViews)
@@ -1547,6 +1557,14 @@ namespace RevitToSupabasePlugin
 
             // Refrescar todos los listados de la interfaz
             RefreshAll();
+
+            if (expLogPanel != null) expLogPanel.IsExpanded = true;
+            if (txtLogQuickStatus != null)
+            {
+                txtLogQuickStatus.Text = createViews
+                    ? $"✅ {createdAssemblies.Count} ensamblajes y {createdViewsCount} vistas creadas"
+                    : $"✅ {createdAssemblies.Count} ensamblajes creados";
+            }
 
             string completionMsg = createViews
                 ? $"¡Proceso Batch Completado con Éxito!\n\n• Ensamblajes creados: {createdAssemblies.Count}\n• Vistas y despieces técnicos generados: {createdViewsCount}\n\nLos ensamblajes y sus vistas correspondientes ya están disponibles en el Navegador de Proyectos de Revit."

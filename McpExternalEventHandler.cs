@@ -1116,6 +1116,71 @@ namespace RevitToSupabasePlugin
                     break;
                 }
 
+                case "revit_create_door_assemblies":
+                {
+                    bool groupByInstance = args["group_by_instance"]?.Value<bool>() ?? false;
+                    bool singleInstancePerType = args["single_instance_per_type"]?.Value<bool>() ?? true;
+                    string initialName = args["initial_name"]?.ToString() ?? "P-01";
+                    bool createViews = args["create_views"]?.Value<bool>() ?? false;
+                    string categoryStr = args["category"]?.ToString() ?? "Doors";
+
+                    BuiltInCategory targetCategory = categoryStr.Equals("Windows", StringComparison.OrdinalIgnoreCase) || categoryStr.Equals("Ventanas", StringComparison.OrdinalIgnoreCase)
+                        ? BuiltInCategory.OST_Windows
+                        : BuiltInCategory.OST_Doors;
+
+                    var doorItems = DoorAssemblyManagerService.GetDoorItems(doc, groupByInstance, targetCategory);
+                    if (doorItems == null || doorItems.Count == 0)
+                    {
+                        result["status"] = "error";
+                        result["error"] = $"No se encontraron elementos de categoría '{categoryStr}' en el proyecto.";
+                        break;
+                    }
+
+                    var batchOpts = new BatchAssemblyOptions
+                    {
+                        GroupByInstance = groupByInstance,
+                        SingleInstancePerType = singleInstancePerType,
+                        InitialName = initialName,
+                        Category = targetCategory
+                    };
+
+                    var (createdAssemblies, assLogs) = DoorAssemblyManagerService.CreateBatchDoorAssemblies(doc, doorItems, batchOpts);
+
+                    int createdViewsCount = 0;
+                    if (createViews && createdAssemblies.Count > 0)
+                    {
+                        var viewOpts = new AssemblyBatchViewOptions
+                        {
+                            CreateSchedule = true,
+                            ScheduleNameTemplate = "Despiece y Medidas",
+                            CreatePlan = true,
+                            CreateFrontElevation = true,
+                            CreateBackElevation = false,
+                            Create3DOrthographic = true,
+                            CreateSection = false,
+                            ViewScale = 20,
+                            AutoDimensionViews = true,
+                            CategoryId = new ElementId(targetCategory)
+                        };
+
+                        ViewSchedule? masterTemplate = new FilteredElementCollector(doc)
+                            .OfClass(typeof(ViewSchedule))
+                            .Cast<ViewSchedule>()
+                            .FirstOrDefault(s => !s.IsTemplate && s.Definition.CategoryId == new ElementId(targetCategory));
+
+                        var (vCount, vLogs) = DoorAssemblyManagerService.CreateBatchAssemblyViews(doc, createdAssemblies, viewOpts, masterTemplate);
+                        createdViewsCount = vCount;
+                        assLogs.AddRange(vLogs);
+                    }
+
+                    result["status"] = "success";
+                    result["assemblies_created"] = createdAssemblies.Count;
+                    result["views_created"] = createdViewsCount;
+                    result["assembly_names"] = new JArray(createdAssemblies.Select(a => a.AssemblyTypeName ?? a.Name));
+                    result["logs"] = new JArray(assLogs);
+                    break;
+                }
+
                 default:
                     result["status"] = "error";
                     result["error"] = $"Herramienta '{toolName}' no reconocida en McpExternalEventHandler.";

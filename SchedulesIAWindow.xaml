@@ -525,7 +525,6 @@
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <!-- BARRA SUPERIOR DE MODO DE AGRUPACIÓN Y BUSCADOR -->
@@ -561,9 +560,9 @@
                             <!-- RESUMEN DE PUERTAS -->
                             <TextBlock x:Name="txtDoorSummary" Grid.Row="1" Text="Cargando catálogo de puertas..." FontSize="10.5" Foreground="#72777F" Margin="2,0,0,4"/>
 
-                            <!-- LISTA DE PUERTAS / TIPOS -->
+                            <!-- LISTA DE PUERTAS / TIPOS (ALTA VISIBILIDAD) -->
                             <ListBox x:Name="lstDoorItems" Grid.Row="2" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
-                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" MinHeight="380">
                                 <ListBox.ItemContainerStyle>
                                     <Style TargetType="ListBoxItem">
                                         <Setter Property="Padding" Value="0"/>
@@ -571,7 +570,7 @@
                                         <Setter Property="Template">
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="ListBoxItem">
-                                                    <Border x:Name="DoorItemBorder" Background="#FFFFFF" BorderBrush="#C2C7CF" BorderThickness="0,0,0,1" Padding="6,4">
+                                                    <Border x:Name="DoorItemBorder" Background="#FFFFFF" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" Padding="6,3">
                                                         <ContentPresenter/>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
@@ -601,7 +600,7 @@
                                                     <TextBlock Text="{Binding DisplayTitle}" FontWeight="Bold" FontSize="11" Foreground="#1C1C19"/>
                                                     <TextBlock Text="{Binding Dimensions, StringFormat=' ({0})'}" Foreground="#0F4369" FontSize="10.5" FontWeight="SemiBold"/>
                                                 </StackPanel>
-                                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                <StackPanel Orientation="Horizontal" Margin="0,1,0,0">
                                                     <TextBlock Text="{Binding InstanceCount, StringFormat='{}Cantidad: {0}'}" FontSize="10" Foreground="#72777F" Margin="0,0,10,0"/>
                                                     <TextBlock Text="{Binding LevelName, StringFormat='{}Ubicación: {0}'}" FontSize="10" Foreground="#72777F" Margin="0,0,10,0"/>
                                                     <TextBlock Text="{Binding TargetAssemblyName, StringFormat='🎯 Ensamblaje: {0}'}" FontSize="10" Foreground="#059669" FontWeight="SemiBold"/>
@@ -615,104 +614,121 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
 
-                            <!-- CONFIGURACIÓN BATCH: NOMENCLATURA & CREACIÓN DE ENSAMBLAJES -->
-                            <GroupBox Header="1. Nomenclatura &amp; Creación de Ensamblajes" Style="{StaticResource ArcaGroupBox}" Grid.Row="3" Margin="0,4,0,4">
-                                <Grid Margin="4,4,4,4">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
+                            <!-- CONFIGURACIÓN COMPACTA LADO A LADO (NOMENCLATURA & VISTAS TÉCNICAS) -->
+                            <Grid Grid.Row="3" Margin="0,4,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                                    <!-- FILA 1: Nombre Inicial Directo y Vista Previa -->
-                                    <Grid Grid.Row="0" Margin="0,0,0,5">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="140"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
+                                <!-- COLUMNA 1: CONFIGURACIÓN DE NOMENCLATURA -->
+                                <GroupBox Header="1. Nomenclatura de Ensamblajes" Style="{StaticResource ArcaGroupBox}" Grid.Column="0">
+                                    <Grid Margin="4,3">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
 
-                                        <TextBlock Text="Nombre Inicial:" FontSize="10.5" FontWeight="SemiBold" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                        <TextBox x:Name="txtBatchInitialName" Grid.Column="1" Style="{StaticResource ArcaTextBox}" Text="P-01" FontSize="11" FontWeight="Bold" 
-                                                 TextChanged="txtBatchInitialName_TextChanged" ToolTip="Escribe el nombre de partida completo (ej: P-01, V-01, P04A, PUERTA-A, 101). Revit incrementará números o letras automáticamente."/>
-
-                                        <Border Grid.Column="2" Background="#F0F4F8" BorderBrush="#0F4369" BorderThickness="1" CornerRadius="3" Padding="8,3" Margin="8,0,0,0">
-                                            <TextBlock x:Name="txtBatchNamePreview" Text="Secuencia: P-01 ➜ P-02 ➜ P-03..." FontSize="10" Foreground="#0F4369" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                        </Border>
-                                    </Grid>
-
-                                    <!-- FILA 2: Opción Por Tipo (1 ejemplar vs Todas las instancias) -->
-                                    <Border Grid.Row="1" Background="#F6F3EE" BorderBrush="#C2C7CF" BorderThickness="1" Padding="6,3" Margin="0,2,0,5">
-                                        <Grid>
+                                        <!-- Nombre Inicial y Vista Previa -->
+                                        <Grid Grid.Row="0" Margin="0,0,0,3">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="90"/>
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
-                                            <Button x:Name="btnToggleSingleInstancePerType" Click="btnToggleSingleInstancePerType_Click" Style="{StaticResource SecondaryButton}"
-                                                    Content="⭐ Solo tomar 1 instancia por tipo para el assembly" Padding="8,3" FontSize="10"
-                                                    ToolTip="Alterna entre tomar solo 1 ejemplar de muestra por tipo o todas las instancias existentes"/>
-                                            <TextBlock x:Name="txtSingleInstanceHelp" Grid.Column="1" Text="💡 1 ejemplar de muestra por tipo (vistas y cotas limpias)." 
-                                                       FontSize="9.5" Foreground="#0F4369" VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis"/>
+
+                                            <TextBlock Text="Inicio:" FontSize="10" FontWeight="SemiBold" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <TextBox x:Name="txtBatchInitialName" Grid.Column="1" Style="{StaticResource ArcaTextBox}" Text="P-01" FontSize="10.5" FontWeight="Bold" 
+                                                     TextChanged="txtBatchInitialName_TextChanged" ToolTip="Nombre base (ej: P-01, V-01, P04A, 101). Revit incrementa números o letras."/>
+
+                                            <Border Grid.Column="2" Background="#F0F4F8" BorderBrush="#0F4369" BorderThickness="1" CornerRadius="2" Padding="4,2" Margin="4,0,0,0">
+                                                <TextBlock x:Name="txtBatchNamePreview" Text="Secuencia: P-01 ➜ P-02..." FontSize="9.5" Foreground="#0F4369" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            </Border>
                                         </Grid>
-                                    </Border>
 
-                                    <!-- FILA 3: Botón Crear Ensamblajes Únicamente -->
-                                    <Button x:Name="btnCreateDoorAssembliesOnly" Grid.Row="2" Click="btnCreateDoorAssembliesOnly_Click" 
-                                            Style="{StaticResource PrimaryButton}" Height="30" FontSize="10.5"
-                                            Content="📦 1. CREAR ENSAMBLAJES (SIN VISTAS)"/>
-                                </Grid>
-                            </GroupBox>
-
-                            <!-- PANEL DE VISTAS BATCH (INDEPENDIENTE PARA NUEVOS O YA EXISTENTES) -->
-                            <GroupBox Header="2. Vistas Técnicas de Ensamblaje (Nuevos o Ya Creados)" Style="{StaticResource ArcaGroupBox}" Grid.Row="4" Margin="0,0,0,4">
-                                <Grid Margin="4,4,4,4">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    
-                                    <Grid Grid.Row="0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-
-                                        <WrapPanel Grid.Column="0" VerticalAlignment="Center">
-                                            <CheckBox x:Name="chkBatchViewSchedule" Style="{StaticResource ArcaCheckBox}" Content="📊 Tabla Despiece" IsChecked="True" Margin="0,0,8,3"/>
-                                            <CheckBox x:Name="chkBatchView3D" Style="{StaticResource ArcaCheckBox}" Content="🧊 3D Isométrica" IsChecked="True" Margin="0,0,8,3"/>
-                                            <CheckBox x:Name="chkBatchViewPlan" Style="{StaticResource ArcaCheckBox}" Content="📐 Planta Detalle" IsChecked="True" Margin="0,0,8,3"/>
-                                            <CheckBox x:Name="chkBatchViewFront" Style="{StaticResource ArcaCheckBox}" Content="🏛️ Elevación Frontal" IsChecked="True" Margin="0,0,8,3"/>
-                                            <CheckBox x:Name="chkBatchViewBack" Style="{StaticResource ArcaCheckBox}" Content="🔍 Elevación Posterior" IsChecked="False" Margin="0,0,8,3"/>
-                                            <CheckBox x:Name="chkBatchViewSection" Style="{StaticResource ArcaCheckBox}" Content="✂️ Sección Transversal" IsChecked="False" Margin="0,0,8,3"/>
-                                        </WrapPanel>
-
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,3">
-                                            <TextBlock Text="📏 Escala:" FontWeight="Bold" FontSize="10.5" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <ComboBox x:Name="cmbBatchViewScale" Width="145" Height="24" FontSize="10" SelectedIndex="1" ToolTip="Escala de dibujo aplicada a todas las vistas de detalle generadas">
-                                                <ComboBoxItem Content="1:10 (Detalle constructivo)"/>
-                                                <ComboBoxItem Content="1:20 (Estándar Carpintería)" IsSelected="True"/>
-                                                <ComboBoxItem Content="1:25 (Carpintería arquitectónica)"/>
-                                                <ComboBoxItem Content="1:50 (Escala general)"/>
-                                                <ComboBoxItem Content="1:100 (Ubicación esquemática)"/>
-                                            </ComboBox>
-                                        </StackPanel>
+                                        <!-- Selector Muestra Única por Tipo -->
+                                        <Border Grid.Row="1" Background="#F6F3EE" BorderBrush="#C2C7CF" BorderThickness="1" Padding="4,2">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Button x:Name="btnToggleSingleInstancePerType" Click="btnToggleSingleInstancePerType_Click" Style="{StaticResource SecondaryButton}"
+                                                        Content="⭐ 1 instancia por tipo" Padding="6,2" FontSize="9.5"
+                                                        ToolTip="Alterna entre tomar solo 1 ejemplar de muestra por tipo o todas las instancias existentes"/>
+                                                <TextBlock x:Name="txtSingleInstanceHelp" Grid.Column="1" Text="💡 Vistas y cotas limpias sin duplicidad" 
+                                                           FontSize="9" Foreground="#0F4369" VerticalAlignment="Center" Margin="6,0,0,0" TextTrimming="CharacterEllipsis"/>
+                                            </Grid>
+                                        </Border>
                                     </Grid>
+                                </GroupBox>
 
-                                    <!-- Botón para generar vistas de forma independiente a ensamblajes existentes -->
-                                    <Button x:Name="btnGenerateAssemblyViewsOnly" Grid.Row="1" Click="btnGenerateAssemblyViewsOnly_Click" 
-                                            Style="{StaticResource SecondaryButton}" Height="28" FontSize="10" Margin="0,3,0,0"
-                                            Content="📐 2. GENERAR / AGREGAR VISTAS A ELEMENTOS CON ENSAMBLAJE"
-                                            ToolTip="Genera las vistas seleccionadas para los elementos de la lista que ya tienen un ensamblaje creado"/>
+                                <!-- COLUMNA 2: OPCIONES DE VISTAS TÉCNICAS -->
+                                <GroupBox Header="2. Opciones de Vistas Técnicas" Style="{StaticResource ArcaGroupBox}" Grid.Column="2">
+                                    <Grid Margin="4,3">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
 
-                                    <TextBlock Grid.Row="2" Text="💡 Puedes seleccionar elementos que ya tienen ensamblaje y pulsar aquí para agregarles vistas adicionales en cualquier momento." FontSize="9" Foreground="#72777F" Margin="0,2,0,0"/>
-                                </Grid>
-                            </GroupBox>
+                                        <Grid Grid.Row="0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
 
-                            <!-- BOTONERA DE ACCIÓN COMBINADA -->
-                            <Button x:Name="btnCreateDoorAssembliesAndViews" Grid.Row="5" Click="btnCreateDoorAssembliesAndViews_Click" 
-                                    Style="{StaticResource SuccessButton}" Height="34" FontSize="11" Margin="0,2,0,2"
-                                    Content="⚡ CREAR ENSAMBLAJES + GENERAR VISTAS (EN 1 PASO)"/>
+                                            <WrapPanel Grid.Column="0" VerticalAlignment="Center">
+                                                <CheckBox x:Name="chkBatchViewSchedule" Style="{StaticResource ArcaCheckBox}" Content="📊 Despiece" IsChecked="True" Margin="0,0,6,2" FontSize="10"/>
+                                                <CheckBox x:Name="chkBatchView3D" Style="{StaticResource ArcaCheckBox}" Content="🧊 3D" IsChecked="True" Margin="0,0,6,2" FontSize="10"/>
+                                                <CheckBox x:Name="chkBatchViewPlan" Style="{StaticResource ArcaCheckBox}" Content="📐 Planta" IsChecked="True" Margin="0,0,6,2" FontSize="10"/>
+                                                <CheckBox x:Name="chkBatchViewFront" Style="{StaticResource ArcaCheckBox}" Content="🏛️ Frontal" IsChecked="True" Margin="0,0,6,2" FontSize="10"/>
+                                                <CheckBox x:Name="chkBatchViewBack" Style="{StaticResource ArcaCheckBox}" Content="🔍 Posterior" IsChecked="False" Margin="0,0,6,2" FontSize="10"/>
+                                                <CheckBox x:Name="chkBatchViewSection" Style="{StaticResource ArcaCheckBox}" Content="✂️ Sección" IsChecked="False" Margin="0,0,6,2" FontSize="10"/>
+                                            </WrapPanel>
+
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,0,0">
+                                                <TextBlock Text="📏 Escala:" FontWeight="Bold" FontSize="10" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,3,0"/>
+                                                <ComboBox x:Name="cmbBatchViewScale" Width="105" Height="22" FontSize="9.5" SelectedIndex="1" ToolTip="Escala de dibujo aplicada a todas las vistas de detalle generadas">
+                                                    <ComboBoxItem Content="1:10 (Detalle)"/>
+                                                    <ComboBoxItem Content="1:20 (Estándar)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="1:25 (Carpintería)"/>
+                                                    <ComboBoxItem Content="1:50 (General)"/>
+                                                    <ComboBoxItem Content="1:100 (Ubicación)"/>
+                                                </ComboBox>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Grid>
+                                </GroupBox>
+                            </Grid>
+
+                            <!-- BOTONERA DE ACCIÓN BATCH: 1 (CREAR ENSAMBLAJES), 2 (SOLO GENERAR VISTAS), COMBINADO -->
+                            <Grid Grid.Row="4" Margin="0,2,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- BOTÓN 1: SOLO CREAR ENSAMBLAJES (AZUL) -->
+                                <Button x:Name="btnCreateDoorAssembliesOnly" Grid.Column="0" Click="btnCreateDoorAssembliesOnly_Click" 
+                                        Style="{StaticResource PrimaryButton}" Height="34" FontSize="11"
+                                        Content="📦 1. CREAR ENSAMBLAJES BATCH"
+                                        ToolTip="Paso 1: Crea los ensamblajes para los elementos seleccionados en la lista (sin vistas aún)"/>
+
+                                <!-- BOTÓN 2: SOLO GENERAR VISTAS A LOS ENSAMBLAJES (VERDE) -->
+                                <Button x:Name="btnGenerateAssemblyViewsOnly" Grid.Column="2" Click="btnGenerateAssemblyViewsOnly_Click" 
+                                        Style="{StaticResource SuccessButton}" Height="34" FontSize="11"
+                                        Content="📐 2. GENERAR VISTAS BATCH"
+                                        ToolTip="Paso 2: Genera únicamente las vistas técnicas y tablas de despiece a los elementos que ya tienen ensamblaje"/>
+
+                                <!-- BOTÓN COMBINADO OPCIONAL: AMBOS PASOS EN 1 SOLO CLIC -->
+                                <Button x:Name="btnCreateDoorAssembliesAndViews" Grid.Column="4" Click="btnCreateDoorAssembliesAndViews_Click" 
+                                        Style="{StaticResource SecondaryButton}" Height="34" FontSize="10" Padding="10,0"
+                                        Content="⚡ 1+2. TODO EN 1 PASO"
+                                        ToolTip="Crea los ensamblajes y genera inmediatamente sus vistas simultáneamente en un solo clic"/>
+                            </Grid>
                         </Grid>
                     </GroupBox>
                 </Grid>
@@ -720,22 +736,21 @@
         </TabItem>
         </TabControl>
 
-        <!-- PANEL INFERIOR: LOG / REGISTRO DE OPERACIONES -->
-        <Border Grid.Row="3" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="0,1,0,0" Padding="12,8">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <TextBlock Text="REGISTRO DE ACTIVIDAD Y DIAGNÓSTICO REVIEW" FontSize="10" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,0,4"/>
-                <Border Grid.Row="1" Background="#1C1C19" BorderBrush="#0F4369" BorderThickness="1" Padding="6">
-                    <TextBox x:Name="txtAssemblyLog" Height="80" IsReadOnly="True" 
-                             FontFamily="Consolas, monospace" FontSize="9.5" Background="Transparent" Foreground="#D1FAE5" 
-                             BorderThickness="0" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"
-                             Text="Listo. Selecciona una tabla (opcional) y los ensamblajes donde deseas generar los cómputos."/>
-                </Border>
-            </Grid>
-        </Border>
+        <!-- PANEL INFERIOR: LOG / REGISTRO DE OPERACIONES (COLAPSABLE PARA MAXIMIZAR EL ESPACIO DE LAS LISTAS) -->
+        <Expander x:Name="expLogPanel" Grid.Row="3" IsExpanded="False" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="0,1,0,0" Padding="10,4">
+            <Expander.Header>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="📋 REGISTRO DE ACTIVIDAD Y DIAGNÓSTICO REVIEW" FontSize="10" FontWeight="Bold" Foreground="#0F4369" Margin="0,0,12,0"/>
+                    <TextBlock x:Name="txtLogQuickStatus" Text="Listo para operar" FontSize="9.5" Foreground="#72777F" FontStyle="Italic"/>
+                </StackPanel>
+            </Expander.Header>
+            <Border Background="#1C1C19" BorderBrush="#0F4369" BorderThickness="1" Padding="6" Margin="0,4,0,0">
+                <TextBox x:Name="txtAssemblyLog" Height="75" IsReadOnly="True" 
+                         FontFamily="Consolas, monospace" FontSize="9.5" Background="Transparent" Foreground="#D1FAE5" 
+                         BorderThickness="0" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"
+                         Text="Listo. Selecciona una tabla (opcional) y los ensamblajes donde deseas generar los cómputos."/>
+            </Border>
+        </Expander>
 
         <!-- MODAL OVERLAY PARA RENOMBRAR TABLA -->
         <Grid x:Name="pnlRenameModal" Grid.Row="0" Grid.RowSpan="4" Background="#7F1C1C19" Visibility="Collapsed">

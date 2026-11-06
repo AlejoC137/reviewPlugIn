@@ -129,24 +129,42 @@ namespace RevitToSupabasePlugin
 
         private void UpdateBiMcpDisplay()
         {
-            txtBadgeMcpPort.Text = "CLOUD:HTTPS";
-            txtMcpPort.Text = "HTTPS Seguro (TLS)";
-            txtMcpActiveUser.Text = AuthenticationService.IsLoggedIn ? AuthenticationService.UserEmail : "Sesión AnonKey";
+            bool isRunning = App.McpServerInstance?.IsRunning ?? false;
+            int port = App.McpServerInstance?.Port ?? 8080;
 
-            txtMcpRunningState.Text = "🟢 EN LÍNEA (CLOUD)";
-            txtMcpRunningState.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(6, 95, 70));
-            boxMcpRunning.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(209, 250, 229));
-            boxMcpRunning.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(5, 150, 105));
-            badgeMcpStatus.Background = boxMcpRunning.Background;
-            badgeMcpStatus.BorderBrush = boxMcpRunning.BorderBrush;
-            dotMcpStatus.Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(16, 185, 129));
+            txtBadgeMcpPort.Text = isRunning ? $"MCP:{port}" : "MCP:OFF";
+            txtMcpPort.Text = "MCP Stdio (Node.js Bridge)";
+            txtMcpInternalPort.Text = $"127.0.0.1:{port}";
+            txtMcpActiveUser.Text = AuthenticationService.IsLoggedIn ? AuthenticationService.UserEmail : "Local (Sin login requerido)";
 
+            if (isRunning)
+            {
+                txtMcpRunningState.Text = "🟢 EN LÍNEA (MCP ACTIVO)";
+                txtMcpRunningState.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(6, 95, 70));
+                boxMcpRunning.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(209, 250, 229));
+                boxMcpRunning.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(5, 150, 105));
+                badgeMcpStatus.Background = boxMcpRunning.Background;
+                badgeMcpStatus.BorderBrush = boxMcpRunning.BorderBrush;
+                dotMcpStatus.Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(16, 185, 129));
+            }
+            else
+            {
+                txtMcpRunningState.Text = "🔴 DETENIDO";
+                txtMcpRunningState.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(153, 27, 27));
+                boxMcpRunning.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(254, 226, 226));
+                boxMcpRunning.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(220, 38, 38));
+                badgeMcpStatus.Background = boxMcpRunning.Background;
+                badgeMcpStatus.BorderBrush = boxMcpRunning.BorderBrush;
+                dotMcpStatus.Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
+            }
+
+            string bridgePath = "G:/Mi unidad/git/reviewPlugIn/Antigravity_MCP/bridge/revit-mcp-bridge.mjs";
             txtMcpConfigJson.Text = "{\n" +
-                                   "  \"reviewEcosystem\": {\n" +
-                                   "    \"cloudEndpoint\": \"https://arca-review.vercel.app\",\n" +
-                                   "    \"mcpCloud\": \"https://arca-review.vercel.app/mcp\",\n" +
-                                   "    \"changeQueue\": \"Supabase REST (revit_change_queue)\",\n" +
-                                   "    \"directActions\": \"Ribbon ➔ Acciones IA ➔ Acciones Directas IA\"\n" +
+                                   "  \"mcpServers\": {\n" +
+                                   "    \"reviewplugin\": {\n" +
+                                   "      \"command\": \"node\",\n" +
+                                   $"      \"args\": [\n        \"{bridgePath}\"\n      ]\n" +
+                                   "    }\n" +
                                    "  }\n" +
                                    "}";
         }
@@ -525,12 +543,88 @@ namespace RevitToSupabasePlugin
             try
             {
                 System.Windows.Clipboard.SetText(txtMcpConfigJson.Text);
-                AddLog("📋 Configuración Review Cloud copiada al portapapeles.");
-                WpfMessageBox.Show("Configuración del ecosistema copiada al portapapeles.\n\nPuedes utilizarla para configurar clientes o asistentes externos.", "Configuración Copiada", MessageBoxButton.OK, MessageBoxImage.Information);
+                AddLog("📋 Configuración Antigravity & Claude MCP copiada al portapapeles.");
+                WpfMessageBox.Show("Configuración MCP copiada al portapapeles.\n\nPuedes pegarla directamente en tu archivo mcp_config.json de Antigravity o claude_desktop_config.json.", "Configuración Copiada", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 AddLog($"Error al copiar: {ex.Message}");
+            }
+        }
+
+        private void BtnOpenMcpFullWindow_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var win = new Views.McpControlPanelWindow();
+                win.Show();
+                AddLog("🖥️ Centro de Control Bi-MCP abierto en ventana dedicada.");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error abriendo Centro de Control MCP: {ex.Message}");
+            }
+        }
+
+        private void BtnRestartMcp_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                AddLog("🔄 Reiniciando Servidor MCP Local de Revit...");
+                App.McpServerInstance?.Stop();
+                var newServer = new RevitMcpServer();
+                newServer.Start();
+                App.McpServerInstance = newServer;
+                AddLog($"🟢 Servidor MCP reiniciado con éxito en puerto {newServer.Port}.");
+                UpdateBiMcpDisplay();
+                WpfMessageBox.Show($"Servidor MCP reiniciado con éxito.\n\nPuerto Loopback: {newServer.Port}\nEstado: Listo para recibir comandos de Antigravity y Claude.", "MCP Reiniciado", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                AddLog($"❌ Error al reiniciar MCP: {ex.Message}");
+                WpfMessageBox.Show($"Error al reiniciar el servidor MCP:\n{ex.Message}", "Error MCP", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void BtnOpenMcpFolder_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string folder = @"G:\Mi unidad\git\reviewPlugIn\Antigravity_MCP";
+                if (System.IO.Directory.Exists(folder))
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = folder,
+                        UseShellExecute = true
+                    });
+                    AddLog("📂 Carpeta Antigravity_MCP abierta en el Explorador.");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error abriendo carpeta: {ex.Message}");
+            }
+        }
+
+        private void BtnRunInstaller_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string script = @"G:\Mi unidad\git\reviewPlugIn\Antigravity_MCP\deploy\install_mcp.cmd";
+                if (System.IO.File.Exists(script))
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = script,
+                        UseShellExecute = true
+                    });
+                    AddLog("⚡ Autoinstalador MCP ejecutado.");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error al ejecutar instalador: {ex.Message}");
             }
         }
 

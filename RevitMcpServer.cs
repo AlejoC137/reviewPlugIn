@@ -20,6 +20,9 @@ namespace RevitToSupabasePlugin
 
         public bool IsRunning => _isRunning;
         public int Port { get; private set; } = 8080;
+        public int RequestCount { get; internal set; } = 0;
+
+        public static event Action<string>? OnLogMessage;
 
         public RevitMcpServer()
         {
@@ -298,8 +301,13 @@ namespace RevitToSupabasePlugin
                     string toolName = rpcReq["params"]?["name"]?.ToString() ?? "";
                     JObject arguments = rpcReq["params"]?["arguments"] as JObject ?? new JObject();
 
+                    RequestCount++;
+                    OnLogMessage?.Invoke($"[{DateTime.Now:HH:mm:ss}] 📥 Petición MCP de Agente: '{toolName}'");
+
                     var taskResult = await _handler.EnqueueTaskAsync(_externalEvent, toolName, arguments);
                     bool isErr = taskResult["error"] != null || (taskResult["status"]?.ToString() == "error");
+
+                    OnLogMessage?.Invoke($"[{DateTime.Now:HH:mm:ss}] {(isErr ? "❌ Error en" : "✅ Ejecutado exitosamente")}: '{toolName}'");
 
                     rpcRes["result"] = new JObject
                     {
@@ -571,9 +579,38 @@ namespace RevitToSupabasePlugin
           ""include_3d_scene"": { ""type"": ""boolean"" }
         }
       }
+    },
+    {
+      ""name"": ""revit_create_door_assemblies"",
+      ""description"": ""Crea ensamblajes (Assemblies) en lote para puertas o ventanas (por ejemplo: un ejemplar representativo por cada tipo o por cada ejemplar) y opcionalmente genera sus vistas técnicas de taller."",
+      ""inputSchema"": {
+        ""type"": ""object"",
+        ""properties"": {
+          ""group_by_instance"": { ""type"": ""boolean"", ""description"": ""True para crear un ensamble por cada ejemplar físico; False para agrupar por tipo."" },
+          ""single_instance_per_type"": { ""type"": ""boolean"", ""description"": ""Si agrupa por tipo, True toma solo 1 ejemplar de muestra representativo."" },
+          ""initial_name"": { ""type"": ""string"", ""description"": ""Prefijo y correlativo inicial, por ejemplo 'P-01' o 'PUERTA-01'."" },
+          ""create_views"": { ""type"": ""boolean"", ""description"": ""Si es True, genera vistas de taller (Planta, Elevación Frontal, 3D Isométrico y Tabla)."" },
+          ""category"": { ""type"": ""string"", ""enum"": [""Doors"", ""Windows""], ""description"": ""Categoría a ensamblar ('Doors' o 'Windows')."" }
+        }
+      }
     }
   ]
 }");
+        }
+
+        public async Task<JObject> ExecuteToolDirectAsync(string toolName, JObject arguments)
+        {
+            RequestCount++;
+            OnLogMessage?.Invoke($"[{DateTime.Now:HH:mm:ss}] 🧪 Prueba Manual UI: '{toolName}'");
+            var taskResult = await _handler.EnqueueTaskAsync(_externalEvent, toolName, arguments);
+            bool isErr = taskResult["error"] != null || (taskResult["status"]?.ToString() == "error");
+            OnLogMessage?.Invoke($"[{DateTime.Now:HH:mm:ss}] {(isErr ? "❌ Error en prueba manual" : "✅ Prueba manual completada")}: '{toolName}'");
+            return taskResult;
+        }
+
+        public JObject GetToolsManifestPublic()
+        {
+            return GetToolsManifest();
         }
     }
 }

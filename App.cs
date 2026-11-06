@@ -11,7 +11,7 @@ namespace RevitToSupabasePlugin
     public class App : IExternalApplication
     {
         private static UIControlledApplication? _uiApp;
-        public static RevitMcpServer? McpServerInstance { get; private set; }
+        public static RevitMcpServer? McpServerInstance { get; internal set; }
 
         public Result OnStartup(UIControlledApplication application)
         {
@@ -30,8 +30,17 @@ namespace RevitToSupabasePlugin
 
             InitializeRibbon(application);
 
-            // Servidor MCP Local 8080 desmontado: La comunicación con IA se canaliza vía Review Cloud (HTTPS)
-            // y a través del comando 'Acciones Directas IA' con validación segura de JSON.
+            // Iniciar Servidor MCP Local de ReviewPlugin para Antigravity / Claude
+            try
+            {
+                McpServerInstance = new RevitMcpServer();
+                McpServerInstance.Start();
+                System.Diagnostics.Debug.WriteLine($"[reviewPlugIn] RevitMcpServer iniciado en puerto {McpServerInstance.Port}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[reviewPlugIn] Error iniciando RevitMcpServer: {ex.Message}");
+            }
 
             return Result.Succeeded;
         }
@@ -149,9 +158,13 @@ namespace RevitToSupabasePlugin
             if (panelControl != null && panelControl.GetItems().Count == 0)
             {
                 PushButtonData btnControl = CreateBtnData("cmdToggleControlPanel", "Panel de\nControl", "CommandToggleControlPanel", "icon_control_panel");
+                PushButtonData btnMcpControl = CreateBtnData("cmdMcpControl", "Centro\nBi-MCP", "CommandMcpControlPanel", "icon_copilot");
+                btnMcpControl.ToolTip = "🤖 Centro de Control Bi-MCP: Monitor en vivo, catálogo de 16 herramientas y probador para Antigravity y Claude Desktop.";
+
                 PushButtonData btnSyncSheets = CreateBtnData("cmdSyncSheetsQueue", "Gestor de\nCambios", "CommandSyncSheets", "icon_sync_sheets");
                 btnSyncSheets.ToolTip = "Gestor de Cambios: Revisa, aprueba e implementa en Revit los cambios solicitados desde la App de Review (Láminas, parámetros, etc.).";
                 panelControl.AddItem(btnControl);
+                panelControl.AddItem(btnMcpControl);
                 panelControl.AddItem(btnSyncSheets);
 
                 // Slide-Out: Documentación y mapa
@@ -283,6 +296,15 @@ namespace RevitToSupabasePlugin
 
         public Result OnShutdown(UIControlledApplication application)
         {
+            try
+            {
+                McpServerInstance?.Stop();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[reviewPlugIn] Error deteniendo RevitMcpServer: {ex.Message}");
+            }
+
             if (_uiApp != null)
             {
                 // _uiApp.Idling -= Application_Idling;

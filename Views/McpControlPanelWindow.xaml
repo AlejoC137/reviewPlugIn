@@ -1,0 +1,316 @@
+<Window x:Class="RevitToSupabasePlugin.Views.McpControlPanelWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="🤖 Review Bi-MCP — Centro de Control Antigravity &amp; Claude"
+        Height="700" Width="1000"
+        MinHeight="600" MinWidth="850"
+        WindowStartupLocation="CenterScreen"
+        Background="#FCF9F4"
+        Foreground="#1C1C19"
+        FontFamily="Segoe UI, Inter, sans-serif">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/RevitToSupabasePlugin;component/ReviewDesignSystem.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Paleta ARCA REVIEW de respaldo directo -->
+            <SolidColorBrush x:Key="ArcaBg" Color="#FCF9F4"/>
+            <SolidColorBrush x:Key="ArcaSurface" Color="#F6F3EE"/>
+            <SolidColorBrush x:Key="ArcaSurfaceHighlight" Color="#E5E2DD"/>
+            <SolidColorBrush x:Key="ArcaCardBg" Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="ArcaPrimary" Color="#0F4369"/>
+            <SolidColorBrush x:Key="ArcaPrimaryHover" Color="#1C1C19"/>
+            <SolidColorBrush x:Key="ArcaPrimaryContainer" Color="#D1E4F9"/>
+            <SolidColorBrush x:Key="ArcaPrimaryDark" Color="#09283F"/>
+            <SolidColorBrush x:Key="ArcaInk" Color="#1C1C19"/>
+            <SolidColorBrush x:Key="ArcaMuted" Color="#72777F"/>
+            <SolidColorBrush x:Key="ArcaBorder" Color="#1C1C19"/>
+            <SolidColorBrush x:Key="ArcaOutlineVariant" Color="#C2C7CF"/>
+            <SolidColorBrush x:Key="ArcaSuccess" Color="#059669"/>
+            <SolidColorBrush x:Key="ArcaSuccessBg" Color="#D1FAE5"/>
+            <SolidColorBrush x:Key="ArcaSuccessText" Color="#065F46"/>
+            <SolidColorBrush x:Key="ArcaError" Color="#BA1A1A"/>
+            <SolidColorBrush x:Key="ArcaErrorBg" Color="#FFDAD6"/>
+
+            <!-- Estilo de Pestañas ModernTabControl -->
+            <Style x:Key="ModernTabControl" TargetType="TabControl">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="0"/>
+            </Style>
+
+            <Style TargetType="TabItem">
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="#1C1C19"/>
+                <Setter Property="Padding" Value="14,7"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="TabItem">
+                            <Border x:Name="tabBorder" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="1,1,1,0" Padding="{TemplateBinding Padding}" Margin="0,0,4,0">
+                                <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="tabBorder" Property="Background" Value="#0F4369"/>
+                                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                                    <Setter Property="FontWeight" Value="Bold"/>
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="tabBorder" Property="Background" Value="#E5E2DD"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/> <!-- Header -->
+            <RowDefinition Height="*"/>    <!-- Tabs Content -->
+            <RowDefinition Height="Auto"/> <!-- Footer -->
+        </Grid.RowDefinitions>
+
+        <!-- HEADER -->
+        <Border Grid.Row="0" Background="{StaticResource ArcaSurface}" BorderBrush="{StaticResource ArcaBorder}" BorderThickness="1" Padding="14,10" Margin="0,0,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="🤖 ARCA REVIEW BI-MCP" FontSize="16" FontWeight="Bold" Foreground="{StaticResource ArcaPrimary}"/>
+                        <Border Background="{StaticResource ArcaPrimaryContainer}" BorderBrush="{StaticResource ArcaPrimary}" BorderThickness="1" Padding="6,1" Margin="10,0,0,0">
+                            <TextBlock Text="v2.5.0 STDIO" FontSize="10" FontWeight="Bold" Foreground="{StaticResource ArcaPrimary}"/>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Text="Puente nativo para control de Autodesk Revit desde Google Antigravity y Claude Desktop"
+                               FontSize="11" Foreground="{StaticResource ArcaMuted}" Margin="0,2,0,0"/>
+                </StackPanel>
+
+                <!-- Status Badge -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border x:Name="borderStatus" Background="{StaticResource ArcaSuccessBg}" BorderBrush="{StaticResource ArcaSuccess}" BorderThickness="1" Padding="10,4">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="dotStatus" Width="8" Height="8" Fill="{StaticResource ArcaSuccess}" Margin="0,0,6,0"/>
+                            <TextBlock x:Name="txtStatus" Text="🟢 EN LÍNEA: 127.0.0.1:8080" FontSize="11" FontWeight="Bold" Foreground="{StaticResource ArcaSuccessText}"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- MAIN TAB CONTROL -->
+        <TabControl Grid.Row="1" Style="{StaticResource ModernTabControl}">
+
+            <!-- TAB 1: 📡 ESTADO Y CONSOLA EN VIVO -->
+            <TabItem Header="📡 Estado &amp; Consola en Vivo">
+                <Grid Margin="0,10,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/> <!-- KPI Cards -->
+                        <RowDefinition Height="Auto"/> <!-- Action Buttons -->
+                        <RowDefinition Height="*"/>    <!-- Terminal Log -->
+                    </Grid.RowDefinitions>
+
+                    <!-- KPI Cards (4 columnas) -->
+                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- KPI 1 -->
+                        <Border Grid.Column="0" Style="{StaticResource KpiCard}">
+                            <StackPanel>
+                                <TextBlock Text="ESTADO DEL SERVIDOR" FontSize="9.5" FontWeight="Bold" Foreground="{StaticResource ArcaMuted}"/>
+                                <TextBlock x:Name="txtKpiState" Text="ACTIVO" FontSize="16" FontWeight="Bold" Foreground="{StaticResource ArcaSuccessText}" Margin="0,2"/>
+                                <TextBlock Text="Loopback HTTP 127.0.0.1" FontSize="9" Foreground="{StaticResource ArcaMuted}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- KPI 2 -->
+                        <Border Grid.Column="1" Style="{StaticResource KpiCard}">
+                            <StackPanel>
+                                <TextBlock Text="PUERTO ASIGNADO" FontSize="9.5" FontWeight="Bold" Foreground="{StaticResource ArcaMuted}"/>
+                                <TextBlock x:Name="txtKpiPort" Text="8080" FontSize="16" FontWeight="Bold" Foreground="{StaticResource ArcaPrimary}" Margin="0,2"/>
+                                <TextBlock Text="Detección multi-puerto auto" FontSize="9" Foreground="{StaticResource ArcaMuted}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- KPI 3 -->
+                        <Border Grid.Column="2" Style="{StaticResource KpiCard}">
+                            <StackPanel>
+                                <TextBlock Text="HERRAMIENTAS MCP" FontSize="9.5" FontWeight="Bold" Foreground="{StaticResource ArcaMuted}"/>
+                                <TextBlock Text="16 TOOLS" FontSize="16" FontWeight="Bold" Foreground="{StaticResource ArcaInk}" Margin="0,2"/>
+                                <TextBlock Text="Ensambles, Sheets, Vistas..." FontSize="9" Foreground="{StaticResource ArcaMuted}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- KPI 4 -->
+                        <Border Grid.Column="3" Style="{StaticResource KpiCard}">
+                            <StackPanel>
+                                <TextBlock Text="PETICIONES ATENDIDAS" FontSize="9.5" FontWeight="Bold" Foreground="{StaticResource ArcaMuted}"/>
+                                <TextBlock x:Name="txtKpiRequests" Text="0" FontSize="16" FontWeight="Bold" Foreground="{StaticResource ArcaPrimary}" Margin="0,2"/>
+                                <TextBlock Text="Llamadas de Antigravity / Claude" FontSize="9" Foreground="{StaticResource ArcaMuted}"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- Quick Actions Toolbar -->
+                    <Border Grid.Row="1" Background="{StaticResource ArcaSurface}" BorderBrush="{StaticResource ArcaOutlineVariant}" BorderThickness="1" Padding="8" Margin="0,0,0,10">
+                        <WrapPanel>
+                            <Button x:Name="btnRestart" Style="{StaticResource PrimaryButton}" Content="🔄 Reiniciar Servidor MCP" Margin="0,0,8,0" Click="BtnRestart_Click"/>
+                            <Button x:Name="btnTestSession" Style="{StaticResource SecondaryButton}" Content="🧪 Test Sesión Activa" Margin="0,0,8,0" Click="BtnTestSession_Click"/>
+                            <Button x:Name="btnTestDoorAssemblies" Style="{StaticResource SecondaryButton}" Content="🚪 Test Ensambles Puertas (1 por tipo)" Margin="0,0,8,0" Click="BtnTestDoorAssemblies_Click"/>
+                            <Button x:Name="btnOpenFolder" Style="{StaticResource SecondaryButton}" Content="📂 Abrir Carpeta MCP" Margin="0,0,8,0" Click="BtnOpenFolder_Click"/>
+                            <Button x:Name="btnLaunchInstaller" Style="{StaticResource SecondaryButton}" Content="⚡ Ejecutar Autoinstalador" Click="BtnLaunchInstaller_Click"/>
+                        </WrapPanel>
+                    </Border>
+
+                    <!-- Live Terminal Log -->
+                    <Border Grid.Row="2" Background="#141412" BorderBrush="{StaticResource ArcaBorder}" BorderThickness="1" Padding="8">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0" Margin="0,0,0,6">
+                                <TextBlock Text="REGISTRO EN VIVO DE COMUNICACIÓN CON AGENTES (MCP LOG)" FontSize="10" FontWeight="Bold" Foreground="#A8ADB7"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Style="{StaticResource SecondaryButton}" Content="Copiar Log" FontSize="9" Padding="6,2" Margin="0,0,6,0" Click="BtnCopyLog_Click"/>
+                                    <Button Style="{StaticResource SecondaryButton}" Content="Limpiar" FontSize="9" Padding="6,2" Click="BtnClearLog_Click"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBox Grid.Row="1" x:Name="txtConsoleLog"
+                                     Background="Transparent" Foreground="#10B981"
+                                     BorderThickness="0" FontFamily="Consolas, monospace" FontSize="11"
+                                     IsReadOnly="True" TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- TAB 2: 🛠️ CATÁLOGO Y PROBADOR DE HERRAMIENTAS -->
+            <TabItem Header="🛠️ Catálogo &amp; Probador (16 Tools)">
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="340"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Tool List -->
+                    <Border Grid.Column="0" Background="{StaticResource ArcaCardBg}" BorderBrush="{StaticResource ArcaBorder}" BorderThickness="1" Padding="6" Margin="0,0,10,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="HERRAMIENTAS MCP ACTIVAS" FontSize="10" FontWeight="Bold" Foreground="{StaticResource ArcaPrimary}" Margin="4,4,4,8"/>
+                            <ListBox Grid.Row="1" x:Name="lstTools" BorderThickness="0" SelectionChanged="LstTools_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="{StaticResource ArcaOutlineVariant}" BorderThickness="0,0,0,1" Padding="6,4">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="11" Foreground="{StaticResource ArcaInk}"/>
+                                                <TextBlock Text="{Binding Description}" FontSize="9.5" Foreground="{StaticResource ArcaMuted}" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+
+                    <!-- Tool Details & Tester -->
+                    <Border Grid.Column="1" Style="{StaticResource CardBorder}" Margin="0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/> <!-- Title & Desc -->
+                                <RowDefinition Height="Auto"/> <!-- Input Params Label -->
+                                <RowDefinition Height="120"/>  <!-- Input Params Box -->
+                                <RowDefinition Height="Auto"/> <!-- Execute Button -->
+                                <RowDefinition Height="Auto"/> <!-- Output Label -->
+                                <RowDefinition Height="*"/>    <!-- Output Box -->
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                                <TextBlock x:Name="txtSelectedToolName" Text="Selecciona una herramienta de la lista" FontSize="14" FontWeight="Bold" Foreground="{StaticResource ArcaPrimary}"/>
+                                <TextBlock x:Name="txtSelectedToolDesc" Text="Descripción detallada de la herramienta MCP seleccionada..." FontSize="10.5" Foreground="{StaticResource ArcaMuted}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            </StackPanel>
+
+                            <TextBlock Grid.Row="1" Text="ARGUMENTOS JSON DE ENTRADA:" FontSize="9.5" FontWeight="Bold" Foreground="{StaticResource ArcaMuted}" Margin="0,0,0,4"/>
+                            <Border Grid.Row="2" Background="{StaticResource ArcaCardBg}" BorderBrush="{StaticResource ArcaOutlineVariant}" BorderThickness="1">
+                                <TextBox x:Name="txtToolInputJson" Text="{}{}" FontFamily="Consolas, monospace" FontSize="10.5" BorderThickness="0" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="4"/>
+                            </Border>
+
+                            <Button Grid.Row="3" x:Name="btnExecuteToolDirect" Style="{StaticResource PrimaryButton}" Content="▶️ Ejecutar Herramienta en Revit Ahora" Margin="0,8,0,8" Click="BtnExecuteToolDirect_Click"/>
+
+                            <TextBlock Grid.Row="4" Text="RESPUESTA EN TIEMPO REAL DE REVIT (JSON OUTPUT):" FontSize="9.5" FontWeight="Bold" Foreground="{StaticResource ArcaMuted}" Margin="0,0,0,4"/>
+                            <Border Grid.Row="5" Background="#1C1C19" BorderBrush="{StaticResource ArcaBorder}" BorderThickness="1" Padding="6">
+                                <TextBox x:Name="txtToolOutputJson" Background="Transparent" Foreground="#E5E2DD" BorderThickness="0" FontFamily="Consolas, monospace" FontSize="10" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+                            </Border>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- TAB 3: ⚙️ CONFIGURACIÓN ANTIGRAVITY & CLAUDE -->
+            <TabItem Header="⚙️ Configuración Clientes IA">
+                <Grid Margin="0,10,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Background="{StaticResource ArcaSurface}" BorderBrush="{StaticResource ArcaBorder}" BorderThickness="1" Padding="12" Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock Text="INTEGRACIÓN NATIVA CON CLIENTES MCP" FontSize="12" FontWeight="Bold" Foreground="{StaticResource ArcaPrimary}"/>
+                            <TextBlock Text="Antigravity y Claude Desktop se conectan por stdio lanzando el script puente local en Node.js. No se requieren puertos públicos ni firewalls."
+                                       FontSize="10" Foreground="{StaticResource ArcaMuted}" Margin="0,2,0,8"/>
+
+                            <WrapPanel>
+                                <Button x:Name="btnConfigureGemini" Style="{StaticResource PrimaryButton}" Content="⚡ Autoconfigurar Antigravity" Margin="0,0,8,0" Click="BtnConfigureGemini_Click"/>
+                                <Button x:Name="btnConfigureClaude" Style="{StaticResource PrimaryButton}" Content="⚡ Autoconfigurar Claude Desktop" Margin="0,0,8,0" Click="BtnConfigureClaude_Click"/>
+                                <Button x:Name="btnCopyJsonSnippet" Style="{StaticResource SecondaryButton}" Content="📋 Copiar JSON al Portapapeles" Click="BtnCopyJsonSnippet_Click"/>
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Snippet Box -->
+                    <Border Grid.Row="1" Background="#1C1C19" BorderBrush="{StaticResource ArcaBorder}" BorderThickness="1" Padding="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="CONFIGURACIÓN JSON GENERADA PARA ESTE EQUIPO:" FontSize="10" FontWeight="Bold" Foreground="#A8ADB7" Margin="0,0,0,6"/>
+                            <TextBox Grid.Row="1" x:Name="txtConfigSnippet" Background="Transparent" Foreground="#F6F3EE" BorderThickness="0" FontFamily="Consolas, monospace" FontSize="11" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+        </TabControl>
+
+        <!-- FOOTER -->
+        <Border Grid.Row="2" Background="{StaticResource ArcaSurface}" BorderBrush="{StaticResource ArcaBorder}" BorderThickness="1" Padding="10,6" Margin="0,10,0,0">
+            <Grid>
+                <TextBlock Text="Autodesk Revit API &amp; Model Context Protocol (reviewPlugIn)" FontSize="9.5" Foreground="{StaticResource ArcaMuted}" VerticalAlignment="Center"/>
+                <Button Style="{StaticResource SecondaryButton}" Content="Cerrar Ventana" HorizontalAlignment="Right" Padding="12,4" Click="BtnClose_Click"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

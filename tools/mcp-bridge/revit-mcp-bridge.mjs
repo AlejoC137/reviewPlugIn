@@ -208,6 +208,20 @@ const FALLBACK_TOOLS = [
         include_3d_scene: { type: "boolean" }
       }
     }
+  },
+  {
+    name: "revit_create_door_assemblies",
+    description: "Crea ensamblajes (Assemblies) en lote para puertas o ventanas (por ejemplo: un ejemplar representativo por cada tipo o por cada ejemplar) y opcionalmente genera sus vistas técnicas de taller.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        group_by_instance: { type: "boolean", description: "True para crear un ensamble por cada ejemplar físico; False para agrupar por tipo." },
+        single_instance_per_type: { type: "boolean", description: "Si agrupa por tipo, True toma solo 1 ejemplar de muestra representativo." },
+        initial_name: { type: "string", description: "Prefijo y correlativo inicial, por ejemplo 'P-01' o 'PUERTA-01'." },
+        create_views: { type: "boolean", description: "Si es True, genera vistas de taller (Planta, Elevación Frontal, 3D Isométrico y Tabla)." },
+        category: { type: "string", enum: ["Doors", "Windows"], description: "Categoría a ensamblar ('Doors' o 'Windows')." }
+      }
+    }
   }
 ];
 
