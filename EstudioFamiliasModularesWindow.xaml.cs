@@ -20,7 +20,6 @@ namespace RevitToSupabasePlugin
         private readonly Document? _doc;
 
         private List<Autodesk.Revit.DB.Material> _materials = new List<Autodesk.Revit.DB.Material>();
-        private List<InPlaceFamilyItem> _inPlaceItems = new List<InPlaceFamilyItem>();
 
         private System.Windows.Point _lastMousePos;
         private double _cameraAngleX = -45;
@@ -41,7 +40,6 @@ namespace RevitToSupabasePlugin
             LoadMaterials();
             PopulateSubtypesForCategory(0);
             RefreshLoadedModularFamilies();
-            RefreshInPlaceList();
             UpdateCamera();
             RenderCurrentPreview();
         }
@@ -58,14 +56,12 @@ namespace RevitToSupabasePlugin
                     .ToList();
 
                 cmbSpecMaterial.ItemsSource = _materials;
-                cmbInPlaceMaterial.ItemsSource = _materials;
                 cmbRoofTileMaterial.ItemsSource = _materials;
                 cmbSkirtingMaterial.ItemsSource = _materials;
 
                 if (_materials.Count > 0)
                 {
                     cmbSpecMaterial.SelectedIndex = 0;
-                    cmbInPlaceMaterial.SelectedIndex = 0;
                     cmbRoofTileMaterial.SelectedIndex = 0;
                     cmbSkirtingMaterial.SelectedIndex = 0;
                 }
@@ -253,7 +249,7 @@ namespace RevitToSupabasePlugin
                         $"• Familia: {createdSymbol.Family.Name}\n" +
                         $"• Tipo: {createdSymbol.Name}\n" +
                         $"• Archivo .RFA: {savedPath}\n\n" +
-                        $"Ya está disponible en el Motor de Instanciamiento (Pestaña 3) y en el Modelador de Pisos.",
+                        $"Ya está disponible en el Motor de Instanciamiento (Pestaña 2) y en el Modelador de Pisos.",
                         "Familia Modular Creada",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
@@ -266,119 +262,7 @@ namespace RevitToSupabasePlugin
         }
 
         // =========================================================================
-        // PESTAÑA 2: IN-SITU A CARGABLE (.RFA)
-        // =========================================================================
-
-        private void BtnRefreshInPlace_Click(object sender, RoutedEventArgs e)
-        {
-            RefreshInPlaceList();
-        }
-
-        private void RefreshInPlaceList()
-        {
-            if (_doc == null) return;
-            try
-            {
-                _inPlaceItems = ModularFamilyStudioService.GetInPlaceFamilies(_doc);
-                lstInPlaceFamilies.ItemsSource = _inPlaceItems;
-
-                if (_inPlaceItems.Count > 0)
-                {
-                    lstInPlaceFamilies.SelectedIndex = 0;
-                    lblStatus.Text = $"Se detectaron {_inPlaceItems.Count} familia(s) In-Situ en el modelo listas para convertir a .RFA cargables.";
-                }
-                else
-                {
-                    lblStatus.Text = "No se encontraron familias In-Situ (IsInPlace) en el documento actual.";
-                }
-            }
-            catch (Exception ex)
-            {
-                lblStatus.Text = "Error escaneando In-Situ: " + ex.Message;
-            }
-        }
-
-        private void LstInPlaceFamilies_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (lstInPlaceFamilies.SelectedItem is InPlaceFamilyItem item)
-            {
-                txtInPlaceNewFamilyName.Text = item.FamilyName + "_Cargable";
-                if (item.MaterialId != ElementId.InvalidElementId)
-                {
-                    var foundMat = _materials.FirstOrDefault(m => m.Id == item.MaterialId);
-                    if (foundMat != null) cmbInPlaceMaterial.SelectedItem = foundMat;
-                }
-                RenderCurrentPreview();
-            }
-        }
-
-        private void BtnSelectInPlaceInView_Click(object sender, RoutedEventArgs e)
-        {
-            if (_uidoc == null) return;
-            if (lstInPlaceFamilies.SelectedItem is InPlaceFamilyItem item)
-            {
-                try
-                {
-                    _uidoc.Selection.SetElementIds(new List<ElementId> { item.InstanceId });
-                    _uidoc.ShowElements(item.InstanceId);
-                }
-                catch { }
-            }
-        }
-
-        private void BtnConvertInPlace_Click(object sender, RoutedEventArgs e)
-        {
-            if (_doc == null) return;
-            if (lstInPlaceFamilies.SelectedItem is not InPlaceFamilyItem item)
-            {
-                System.Windows.MessageBox.Show("Selecciona primero una Familia In-Situ de la lista.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            try
-            {
-                string newFamName = txtInPlaceNewFamilyName.Text.Trim();
-                var overrideMat = cmbInPlaceMaterial.SelectedItem as Autodesk.Revit.DB.Material;
-                bool replaceInModel = chkReplaceInPlaceInstance.IsChecked == true;
-
-                FamilySymbol? sym = ModularFamilyStudioService.ConvertInPlaceToLoadableFamily(
-                    _doc,
-                    item,
-                    newFamName,
-                    "Tipo Modular (0,0)",
-                    overrideMat != null ? overrideMat.Id : ElementId.InvalidElementId,
-                    replaceInModel,
-                    out string savedRfaPath,
-                    out FamilyInstance? replacementInst);
-
-                RefreshInPlaceList();
-                RefreshLoadedModularFamilies();
-
-                if (sym != null)
-                {
-                    string replaceMsg = replacementInst != null
-                        ? $"• Instancia In-Situ reemplazada en su coordenada (0,0) por ID {replacementInst.Id.Value}."
-                        : "• Familia cargada en el proyecto (el elemento In-Situ original se conservó).";
-
-                    System.Windows.MessageBox.Show(
-                        $"Conversión de In-Situ a Familia Cargable (.rfa) completada:\n\n" +
-                        $"• Nueva Familia: {sym.Family.Name}\n" +
-                        $"• Dimensiones en (0,0,0): {item.LengthCm:F1} × {item.WidthCm:F1} × {item.HeightCm:F1} cm\n" +
-                        $"• Archivo .RFA: {savedRfaPath}\n" +
-                        $"{replaceMsg}",
-                        "Conversión In-Situ Exitosa",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Windows.MessageBox.Show($"Error convirtiendo familia In-Situ a cargable:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        // =========================================================================
-        // PESTAÑA 3: MOTOR DE INSTANCIAMIENTO EN PROYECTO DESDE (0,0)
+        // PESTAÑA 2: MOTOR DE INSTANCIAMIENTO EN PROYECTO DESDE (0,0)
         // =========================================================================
 
         private void BtnPlaceRoofTiles_Click(object sender, RoutedEventArgs e)
@@ -500,24 +384,6 @@ namespace RevitToSupabasePlugin
             modelGroup.Children.Add(new AmbientLight(System.Windows.Media.Color.FromRgb(115, 115, 115)));
             modelGroup.Children.Add(new DirectionalLight(Colors.White, new Vector3D(-1.2, 1.0, -1.8)));
             modelGroup.Children.Add(new DirectionalLight(System.Windows.Media.Color.FromRgb(90, 105, 120), new Vector3D(1.0, -1.2, 0.8)));
-
-            // Si estamos en la Pestaña 2 (In-Situ) y hay un elemento seleccionado, renderizar su malla real
-            if (tabMain != null && tabMain.SelectedIndex == 1 && lstInPlaceFamilies?.SelectedItem is InPlaceFamilyItem inPlaceItem)
-            {
-                lblPreviewTitle.Text = $"VISTA 3D IN-SITU NORMALIZADA A (0,0,0): {inPlaceItem.FamilyName}";
-                lblPreviewMetrics.Text = $"Largo X: {inPlaceItem.LengthCm:F1} cm | Ancho Y: {inPlaceItem.WidthCm:F1} cm | Alto Z: {inPlaceItem.HeightCm:F1} cm | Vol: {inPlaceItem.VolumeM3:F3} m³";
-
-                double maxDim = Math.Max(20, Math.Max(inPlaceItem.LengthCm, Math.Max(inPlaceItem.WidthCm, inPlaceItem.HeightCm)));
-                AddCartesianAxesAndGrid(maxDim * 0.75);
-
-                MeshGeometry3D inPlaceMesh = ModularFamilyStudioService.BuildWpfMeshFromInPlaceItem(inPlaceItem);
-                var mat = new DiffuseMaterial(new SolidColorBrush(System.Windows.Media.Color.FromRgb(205, 133, 84)));
-                var geomModel = new GeometryModel3D(inPlaceMesh, mat) { BackMaterial = mat };
-                // Trasladar para que su esquina mínima se vea en (0,0,0)
-                geomModel.Transform = new TranslateTransform3D(inPlaceItem.LengthCm * 0.5, inPlaceItem.WidthCm * 0.5, inPlaceItem.HeightCm * 0.5);
-                modelGroup.Children.Add(geomModel);
-                return;
-            }
 
             // Renderizar el arquetipo paramétrico de la Pestaña 1 desde (0,0,0)
             ModularFamilySpec spec = ReadCurrentModularSpec();

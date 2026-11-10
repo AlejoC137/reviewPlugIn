@@ -45,6 +45,8 @@ namespace IconGenerator
                 ("icon_plan_ambientador", DrawPlanAmbientador),
                 ("icon_detalles", DrawDetalles),
                 ("icon_manual", DrawManual),
+                ("icon_estudio_modular", DrawEstudioModular),
+                ("icon_insitu_rfa", DrawInSituToRfa),
                 // Fallbacks para compatibilidad
                 ("icon_copilot", DrawGenIA),
                 ("icon_generador", DrawGenIA),
@@ -741,6 +743,50 @@ namespace IconGenerator
 
             // Marcapáginas colgante arriba
             dc.DrawRectangle(Ink, null, new Rect(7.3 * sc, 1.5 * sc, 1.4 * sc, 3.5 * sc));
+        }
+
+        // -------------------------------------------------------------------------
+        // 23. Estudio Modular .RFA (Ejes cartesianos 0,0 con módulo isométrico)
+        // -------------------------------------------------------------------------
+        static void DrawEstudioModular(DrawingContext dc, double s)
+        {
+            double sc = s / 16.0;
+            double w = 1.3 * sc;
+
+            // Ejes cartesianos desde origen (3, 13)
+            dc.DrawLine(P(1.4 * sc), new Point(2.5 * sc, 13.5 * sc), new Point(2.5 * sc, 2 * sc));
+            dc.DrawLine(P(1.4 * sc), new Point(2.5 * sc, 13.5 * sc), new Point(14.5 * sc, 13.5 * sc));
+
+            // Punto de origen (0,0) destacado
+            dc.DrawEllipse(Ink, null, new Point(2.5 * sc, 13.5 * sc), 1.7 * sc, 1.7 * sc);
+
+            // Pieza modular paramétrica anclada al origen
+            dc.DrawRectangle(White, P(w), new Rect(4.2 * sc, 5 * sc, 8.8 * sc, 6.8 * sc));
+            dc.DrawRectangle(LightTint, P(0.9 * sc), new Rect(4.2 * sc, 5 * sc, 4.4 * sc, 3.4 * sc));
+            dc.DrawRectangle(White, P(0.9 * sc), new Rect(8.6 * sc, 8.4 * sc, 4.4 * sc, 3.4 * sc));
+        }
+
+        // -------------------------------------------------------------------------
+        // 24. Gestor In-Situ a Cargable .RFA (Bloque punteado In-Situ -> Cubo .RFA)
+        // -------------------------------------------------------------------------
+        static void DrawInSituToRfa(DrawingContext dc, double s)
+        {
+            double sc = s / 16.0;
+            double w = 1.3 * sc;
+
+            // Bloque In-Situ atrás (esquina superior izquierda)
+            dc.DrawRectangle(LightTint, P(1.0 * sc), new Rect(1.5 * sc, 2 * sc, 6.5 * sc, 6.5 * sc));
+            dc.DrawLine(P(0.9 * sc), new Point(3 * sc, 4 * sc), new Point(6.5 * sc, 4 * sc));
+            dc.DrawLine(P(0.9 * sc), new Point(3 * sc, 6 * sc), new Point(5.5 * sc, 6 * sc));
+
+            // Cubo/Familia Cargable .RFA adelante (esquina inferior derecha)
+            dc.DrawRoundedRectangle(White, P(w), new Rect(6.5 * sc, 6.5 * sc, 8 * sc, 7.8 * sc), 1.0 * sc, 1.0 * sc);
+            dc.DrawRectangle(Ink, null, new Rect(6.5 * sc, 6.5 * sc, 8 * sc, 2.4 * sc));
+
+            // Flecha de conversión de In-Situ hacia .RFA
+            dc.DrawLine(P(1.4 * sc), new Point(8.2 * sc, 11.2 * sc), new Point(12.8 * sc, 11.2 * sc));
+            dc.DrawLine(P(1.4 * sc), new Point(11.0 * sc, 9.6 * sc), new Point(12.8 * sc, 11.2 * sc));
+            dc.DrawLine(P(1.4 * sc), new Point(11.0 * sc, 12.8 * sc), new Point(12.8 * sc, 11.2 * sc));
         }
 
         // Helper para destello ✦ IA consistente

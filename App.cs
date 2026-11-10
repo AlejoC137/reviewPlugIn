@@ -274,11 +274,17 @@ namespace RevitToSupabasePlugin
             {
                 PushButtonData btnGenPisos = CreateBtnData("cmdGenPisos", "Piezas y\nBaldosas", "CommandGenerarFamiliasPisos", "icon_gen_pisos");
                 PushButtonData btnConvPisos = CreateBtnData("cmdConvPisos", "Modelador\nde Pisos", "CommandConvertirPisosABaldosas", "icon_conv_pisos");
-                PushButtonData btnEstudioModular = CreateBtnData("cmdEstudioModular", "Estudio .RFA\n& In-Situ", "CommandEstudioFamiliasModulares", "icon_gen_ia");
-                btnEstudioModular.ToolTip = "Estudio de Familias Cargables Modulares (0,0) (Tejas, Zócalos, Baldosas, Pegas, Listones) y Convertidor de Familias In-Situ a Cargables (.rfa).";
+
+                PushButtonData btnEstudioModular = CreateBtnData("cmdEstudioModular", "Estudio\nModular .RFA", "CommandEstudioFamiliasModulares", "icon_estudio_modular");
+                btnEstudioModular.ToolTip = "Estudio de Familias Cargables Modulares (0,0): Creador paramétrico de Tejas, Zócalos, Baldosas, Pegas, Listones y Cumbreras, y Motor de Instanciamiento.";
+
+                PushButtonData btnGestorInSitu = CreateBtnData("cmdGestorInSituCargable", "In-Situ a\nCargable", "CommandGestorInSituCargable", "icon_insitu_rfa");
+                btnGestorInSitu.ToolTip = "Gestor y Convertidor de Familias In-Situ a Cargables (.RFA): Audita elementos In-Situ (IsInPlace), normaliza su origen en (0,0,0) y los convierte a familias cargables .rfa.";
+
                 panelPisos.AddItem(btnGenPisos);
                 panelPisos.AddItem(btnConvPisos);
                 panelPisos.AddItem(btnEstudioModular);
+                panelPisos.AddItem(btnGestorInSitu);
             }
 
             // --- Panel 7: 🔩 Steel Decks ---
