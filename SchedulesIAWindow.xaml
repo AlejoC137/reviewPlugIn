@@ -421,319 +421,455 @@
                 </Grid>
             </TabItem>
 
-            <!-- PESTAÑA 2: CUADRO DE CARPINTERÍAS & BATCH ASSEMBLIES / VISTAS -->
-            <TabItem Header="🚪/🪟 Carpinterías (Puertas &amp; Ventanas) &amp; Ensamblajes Batch">
+            <!-- PESTAÑA 2: FLUJO DE 3 COLUMNAS — 1. TABLAS -> 2. ASSEMBLY (P01-A ON/OFF) -> 3. VISTAS (ON/OFF) -->
+            <TabItem Header="🚪/🪟 Carpinterías (Tablas ➔ Assembly ON/OFF ➔ Vistas ON/OFF)">
                 <Grid Margin="0,6,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- BARRA SUPERIOR: SELECTOR DE CATEGORÍA (PUERTAS VS VENTANAS) -->
+                    <!-- BARRA SUPERIOR: FILTRO DE CATEGORÍA Y UTILIDADES RÁPIDAS -->
                     <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1" Padding="10,6" Margin="0,0,0,8">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock Text="Categoría BIM Activa:" FontSize="11" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="Filtro de Tablas:" FontSize="11" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,10,0"/>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                <RadioButton x:Name="rbCategoryDoors" Style="{StaticResource ArcaRadioButton}" Content="🚪 Puertas (Doors)" IsChecked="True" Checked="rbCategory_Checked" Margin="0,0,14,0" FontSize="11" FontWeight="SemiBold"/>
-                                <RadioButton x:Name="rbCategoryWindows" Style="{StaticResource ArcaRadioButton}" Content="🪟 Ventanas (Windows)" IsChecked="False" Checked="rbCategory_Checked" FontSize="11" FontWeight="SemiBold"/>
+                                <RadioButton x:Name="rbCategoryAllCarp" Style="{StaticResource ArcaRadioButton}" Content="🚪+🪟 Todas (Doors &amp; Windows)" IsChecked="True" Checked="rbCategory_Checked" Margin="0,0,12,0" FontSize="10.5" FontWeight="SemiBold"/>
+                                <RadioButton x:Name="rbCategoryDoors" Style="{StaticResource ArcaRadioButton}" Content="🚪 Puertas (Doors)" IsChecked="False" Checked="rbCategory_Checked" Margin="0,0,12,0" FontSize="10.5" FontWeight="SemiBold"/>
+                                <RadioButton x:Name="rbCategoryWindows" Style="{StaticResource ArcaRadioButton}" Content="🪟 Ventanas (Windows)" IsChecked="False" Checked="rbCategory_Checked" FontSize="10.5" FontWeight="SemiBold"/>
                             </StackPanel>
 
-                            <TextBlock x:Name="txtCategoryHelp" Grid.Column="2" Text="💡 Genera cuadros técnicos, ensamblajes individuales o por tipo y despieces automáticos para la categoría seleccionada."
-                                       FontSize="10" Foreground="#72777F" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="txtCategoryHelp" Grid.Column="2" Text="1️⃣ Elige una Tabla completa ➔ 2️⃣ Prende/Apaga Assemblies (P01-A, P04-A, 1 ud) ➔ 3️⃣ Prende/Apaga Vistas"
+                                       FontSize="10" Foreground="#0F4369" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button x:Name="btnCreateBaseDoorSchedule" Click="btnGenerateDoorSchedule_Click"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,3" FontSize="10" Margin="0,0,6,0"
+                                        Content="📋 + Crear Tabla Base Completa"
+                                        ToolTip="Crea un cuadro nuevo con las 6 propiedades requeridas: Family, Type, Assembly Code, Type Mark, Mark, Description"/>
+                                <Button x:Name="btnAutoMarkDoors" Click="btnAutoMarkDoors_Click"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,3" FontSize="10" Margin="0,0,6,0"
+                                        Content="🏷️ Automarcar (Assembly Code + Type Mark)"
+                                        ToolTip="Escribe en Mark = Assembly Code + '-' + Type Mark (ej. P04-A)"/>
+                                <Button x:Name="btnPurgeOrphanAssemblies" Click="btnPurgeOrphanAssemblies_Click"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,3" FontSize="10"
+                                        Content="🧹 Limpiar Huérfanos (P04AA...)"
+                                        ToolTip="Elimina del navegador de proyectos cualquier AssemblyType vacío sin instancias"/>
+                            </StackPanel>
                         </Grid>
                     </Border>
 
-                    <!-- PANEL DE 2 COLUMNAS (CUADRO Y ENSAMBLAJES BATCH) -->
+                    <!-- PANEL DE 3 COLUMNAS EN CASCADA (TABLAS -> ASSEMBLY ON/OFF -> VISTAS ON/OFF) -->
                     <Grid Grid.Row="1">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="420" MinWidth="340"/>
-                            <ColumnDefinition Width="8"/>
-                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="340" MinWidth="270"/>
+                            <ColumnDefinition Width="6"/>
+                            <ColumnDefinition Width="*" MinWidth="360"/>
+                            <ColumnDefinition Width="6"/>
+                            <ColumnDefinition Width="360" MinWidth="290"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- COLUMNA IZQUIERDA: CONFIGURADOR DEL CUADRO DE PUERTAS / VENTANAS -->
-                        <GroupBox x:Name="grpConfigSchedule" Header="1. Configurar &amp; Crear Cuadro Maestro" Style="{StaticResource ArcaGroupBox}" Grid.Column="0">
-                        <Grid Margin="2,4,2,2">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
+                        <!-- ========================================================================= -->
+                        <!-- COLUMNA 1: TABLAS (PUERTAS Y VENTANAS) CON VALIDACIÓN DE 6 PROPIEDADES   -->
+                        <!-- ========================================================================= -->
+                        <GroupBox Header="1. TABLAS (Doors &amp; Windows)" Style="{StaticResource ArcaGroupBox}" Grid.Column="0">
+                            <Grid Margin="2,4,2,2">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
 
-                            <!-- NOMBRE DEL CUADRO -->
-                            <StackPanel Grid.Row="0" Margin="0,0,0,8">
-                                <TextBlock Text="Nombre del Cuadro de Puertas en Revit:" FontSize="10.5" FontWeight="SemiBold" Foreground="#0F4369" Margin="0,0,0,3"/>
-                                <TextBox x:Name="txtDoorScheduleName" Style="{StaticResource ArcaTextBox}" Text="CUADRO GENERAL DE PUERTAS" FontSize="11"/>
-                            </StackPanel>
+                                <!-- Buscador de Tablas -->
+                                <Grid Grid.Row="0" Margin="0,0,0,6">
+                                    <TextBox x:Name="txtSearchCarpSchedule" Style="{StaticResource ArcaTextBox}" TextChanged="txtSearchCarpSchedule_TextChanged"
+                                             ToolTip="Filtrar tablas de puertas y ventanas..."/>
+                                    <TextBlock Text="🔍 Buscar tabla de puertas o ventanas..." IsHitTestVisible="False" Foreground="#72777F"
+                                               Margin="8,0,0,0" VerticalAlignment="Center" FontSize="10.5"
+                                               Visibility="{Binding Text.IsEmpty, ElementName=txtSearchCarpSchedule, Converter={StaticResource BoolToVis}}"/>
+                                </Grid>
 
-                            <!-- OPCIONES DE TOTALES Y AGRUPACIÓN -->
-                            <StackPanel Grid.Row="1" Margin="0,0,0,8">
-                                <CheckBox x:Name="chkDoorItemize" Style="{StaticResource ArcaCheckBox}" Content="Detallar cada ejemplar (Itemize instances)" IsChecked="False" Margin="0,0,0,4"/>
-                                <TextBlock Text="Campos y Columnas Técnicas del Cuadro:" FontSize="10.5" FontWeight="SemiBold" Foreground="#0F4369" Margin="0,2,0,2"/>
-                            </StackPanel>
+                                <!-- Regla de Propiedades Requeridas -->
+                                <Border Grid.Row="1" Background="#F6F3EE" BorderBrush="#C2C7CF" BorderThickness="1" Padding="6,4" Margin="0,0,0,6">
+                                    <StackPanel>
+                                        <TextBlock Text="Required Schedule Properties:" FontSize="9.5" FontWeight="Bold" Foreground="#0F4369"/>
+                                        <TextBlock Text="Family • Type • Assembly Code • Type Mark • Mark • Description" FontSize="9" Foreground="#1C1C19" TextWrapping="Wrap"/>
+                                        <TextBlock x:Name="txtCarpSchedulesSummary" Text="Cargando tablas..." FontSize="9" Foreground="#72777F" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                </Border>
 
-                            <!-- LISTA DE CAMPOS TÉCNICOS CONFIGURABLES -->
-                            <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1" Padding="4">
-                                <ListBox x:Name="lstDoorFieldsConfig" BorderThickness="0" Background="Transparent">
+                                <!-- Listado de Tablas (Completas seleccionables, Incompletas en gris con botón de inyección) -->
+                                <ListBox x:Name="lstCarpSchedules" Grid.Row="2"
+                                         SelectionChanged="lstCarpSchedules_SelectionChanged"
+                                         Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Padding" Value="0"/>
+                                            <Setter Property="Margin" Value="0,1"/>
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem">
+                                                        <Border x:Name="SchedBorder" Background="{Binding CardBackground}" Opacity="{Binding CardOpacity}"
+                                                                BorderBrush="#C2C7CF" BorderThickness="0,0,0,1" Padding="8,6">
+                                                            <ContentPresenter/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter TargetName="SchedBorder" Property="Background" Value="#D1E4F9"/>
+                                                                <Setter TargetName="SchedBorder" Property="BorderBrush" Value="#0F4369"/>
+                                                                <Setter TargetName="SchedBorder" Property="BorderThickness" Value="2"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <Grid Margin="2,2">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="100"/>
-                                                </Grid.ColumnDefinitions>
-                                                <CheckBox Style="{StaticResource ArcaCheckBox}" IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                <TextBlock Text="{Binding HeaderName}" FontWeight="SemiBold" FontSize="10.5" Foreground="#1C1C19" Grid.Column="1" VerticalAlignment="Center"/>
-                                                <TextBox Text="{Binding HeaderName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ArcaTextBox}" FontSize="10" Grid.Column="2" Padding="4,1" ToolTip="Editar título de columna"/>
-                                            </Grid>
+                                            <StackPanel>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="11" Foreground="{Binding TitleForeground}"
+                                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="4,0,0,0">
+                                                        <Border Background="{Binding CategoryColor}" Padding="4,1" Margin="0,0,3,0">
+                                                            <TextBlock Text="{Binding CategoryBadge}" FontSize="8" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                                        </Border>
+                                                        <Border Background="{Binding StatusColor}" Padding="4,1">
+                                                            <TextBlock Text="{Binding StatusBadge}" FontSize="8" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                                        </Border>
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <TextBlock Text="{Binding SubtitleInfo}" FontSize="9.5" Foreground="{Binding TitleForeground}"
+                                                           Margin="0,3,0,0" TextWrapping="Wrap"/>
+
+                                                <!-- Botón para inyectar vía código las propiedades faltantes cuando la tabla está en gris -->
+                                                <Button Content="➕ Add Missing Properties (Family, Type, Assembly Code, Type Mark, Mark, Description)"
+                                                        Click="btnAddMissingScheduleProps_Click"
+                                                        Visibility="{Binding IsIncomplete, Converter={StaticResource BoolToVis}}"
+                                                        Style="{StaticResource PrimaryButton}"
+                                                        Height="25" FontSize="9" Margin="0,5,0,0" Padding="6,2"
+                                                        HorizontalAlignment="Stretch"
+                                                        ToolTip="Agrega automáticamente por código las propiedades faltantes a esta tabla y la habilita para selección"/>
+                                            </StackPanel>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>
-                            </Border>
 
-                            <!-- BOTONES DE GESTIÓN DE CAMPOS -->
-                            <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,6,0,8">
-                                <Button Content="Todos" Click="btnSelectAllDoorFields_Click" Style="{StaticResource SecondaryButton}" Padding="8,3" FontSize="10" Margin="0,0,4,0"/>
-                                <Button Content="Ninguno" Click="btnDeselectAllDoorFields_Click" Style="{StaticResource SecondaryButton}" Padding="8,3" FontSize="10" Margin="0,0,4,0"/>
-                                <Button Content="↺ Reset Predeterminados" Click="btnResetDoorFields_Click" Style="{StaticResource SecondaryButton}" Padding="8,3" FontSize="10"/>
-                            </StackPanel>
-
-                            <!-- BOTÓN GENERAR CUADRO DE PUERTAS -->
-                            <Button x:Name="btnGenerateDoorSchedule" Grid.Row="4" Click="btnGenerateDoorSchedule_Click" 
-                                    Style="{StaticResource PrimaryButton}" Height="36" FontSize="11"
-                                    Content="📋 CREAR / ACTUALIZAR CUADRO DE PUERTAS EN REVIT"/>
-                        </Grid>
-                    </GroupBox>
-
-                    <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Center" Background="#C2C7CF" Cursor="SizeWE"/>
-
-                    <!-- COLUMNA DERECHA: ENSAMBLAJES BATCH DE PUERTAS Y GENERADOR DE VISTAS -->
-                    <GroupBox Header="2. Puertas Detectadas, Ensamblajes Batch &amp; Vistas" Style="{StaticResource ArcaGroupBox}" Grid.Column="2">
-                        <Grid Margin="2,4,2,2">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-
-                            <!-- BARRA SUPERIOR DE MODO DE AGRUPACIÓN Y BUSCADOR -->
-                            <Grid Grid.Row="0" Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <RadioButton x:Name="rbDoorGroupType" Style="{StaticResource ArcaRadioButton}" Content="📦 Por Tipo de Puerta" IsChecked="True" Checked="rbDoorGroupMode_Checked" Margin="0,0,8,0" FontSize="10.5" ToolTip="Crea un ensamblaje por cada Tipo de Familia"/>
-                                    <RadioButton x:Name="rbDoorGroupInstance" Style="{StaticResource ArcaRadioButton}" Content="🚪 Por Ejemplar Físico" IsChecked="False" Checked="rbDoorGroupMode_Checked" FontSize="10.5" ToolTip="Crea un ensamblaje para cada puerta del modelo"/>
-                                    <Button x:Name="btnQuickToggleSingleInstance" Click="btnToggleSingleInstancePerType_Click" Style="{StaticResource SecondaryButton}" 
-                                            Content="⭐ Solo tomar 1 instancia por tipo para el assembly" Padding="8,3" FontSize="10" Margin="10,0,0,0" 
-                                            ToolTip="Alterna entre tomar solo 1 ejemplar de muestra por tipo o todas las instancias existentes"/>
-                                </StackPanel>
-
-                                <TextBox x:Name="txtSearchDoors" Grid.Column="1" Style="{StaticResource ArcaTextBox}" TextChanged="txtSearchDoors_TextChanged" Margin="8,0,0,0" ToolTip="Filtrar puertas por familia, tipo o marca..."/>
-                                <TextBlock Text="🔍 Filtrar puertas..." Grid.Column="1" IsHitTestVisible="False" Foreground="#72777F" 
-                                           Margin="16,0,0,0" VerticalAlignment="Center" FontSize="11"
-                                           Visibility="{Binding Text.IsEmpty, ElementName=txtSearchDoors, Converter={StaticResource BoolToVis}}"/>
-
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="6,0,0,0">
-                                    <Button Content="Todos" Click="btnSelectAllDoors_Click" Style="{StaticResource SecondaryButton}" Padding="7,3" FontSize="10" Margin="0,0,4,0"/>
-                                    <Button Content="Ninguno" Click="btnDeselectAllDoors_Click" Style="{StaticResource SecondaryButton}" Padding="7,3" FontSize="10" Margin="0,0,4,0"/>
-                                    <Button Content="Sin Ensamblaje" Click="btnSelectDoorsWithoutAssembly_Click" Style="{StaticResource SecondaryButton}" Padding="7,3" FontSize="10" Margin="0,0,4,0" ToolTip="Selecciona solo elementos que aún no tienen ensamblaje"/>
-                                    <Button Content="Con Ensamblaje" Click="btnSelectDoorsWithAssembly_Click" Style="{StaticResource SecondaryButton}" Padding="7,3" FontSize="10" Margin="0,0,4,0" ToolTip="Selecciona elementos que ya tienen ensamblaje para generarles vistas"/>
-                                    <Button x:Name="btnSelectOnePerType" Content="1 por Tipo" Click="btnSelectOnePerType_Click" Style="{StaticResource SecondaryButton}" Padding="7,3" FontSize="10" ToolTip="Selecciona solo 1 ejemplar de cada tipo"/>
-                                </StackPanel>
+                                <!-- Pie de Columna 1: Botón para reparar todas las tablas grises de un clic -->
+                                <Button x:Name="btnFixAllCarpSchedules" Grid.Row="3" Click="btnFixAllCarpSchedules_Click"
+                                        Style="{StaticResource SecondaryButton}" Height="28" FontSize="9.5" Margin="0,6,0,0"
+                                        Content="⚡ Agregar Propiedades Faltantes a Todas las Tablas"/>
                             </Grid>
+                        </GroupBox>
 
-                            <!-- RESUMEN DE PUERTAS -->
-                            <TextBlock x:Name="txtDoorSummary" Grid.Row="1" Text="Cargando catálogo de puertas..." FontSize="10.5" Foreground="#72777F" Margin="2,0,0,4"/>
+                        <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Center" Background="#C2C7CF" Cursor="SizeWE"/>
 
-                            <!-- LISTA DE PUERTAS / TIPOS (ALTA VISIBILIDAD) -->
-                            <ListBox x:Name="lstDoorItems" Grid.Row="2" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
-                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" MinHeight="380">
-                                <ListBox.ItemContainerStyle>
-                                    <Style TargetType="ListBoxItem">
-                                        <Setter Property="Padding" Value="0"/>
-                                        <Setter Property="Margin" Value="0,1"/>
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="ListBoxItem">
-                                                    <Border x:Name="DoorItemBorder" Background="#FFFFFF" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" Padding="6,3">
-                                                        <ContentPresenter/>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="DoorItemBorder" Property="Background" Value="#F6F3EE"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsSelected" Value="True">
-                                                            <Setter TargetName="DoorItemBorder" Property="Background" Value="#D1E4F9"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Style>
-                                </ListBox.ItemContainerStyle>
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <CheckBox Style="{StaticResource ArcaCheckBox}" IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="{Binding DisplayTitle}" FontWeight="Bold" FontSize="11" Foreground="#1C1C19"/>
-                                                    <TextBlock Text="{Binding Dimensions, StringFormat=' ({0})'}" Foreground="#0F4369" FontSize="10.5" FontWeight="SemiBold"/>
-                                                </StackPanel>
-                                                <StackPanel Orientation="Horizontal" Margin="0,1,0,0">
-                                                    <TextBlock Text="{Binding InstanceCount, StringFormat='{}Cantidad: {0}'}" FontSize="10" Foreground="#72777F" Margin="0,0,10,0"/>
-                                                    <TextBlock Text="{Binding LevelName, StringFormat='{}Ubicación: {0}'}" FontSize="10" Foreground="#72777F" Margin="0,0,10,0"/>
-                                                    <TextBlock Text="{Binding TargetAssemblyName, StringFormat='🎯 Ensamblaje: {0}'}" FontSize="10" Foreground="#059669" FontWeight="SemiBold"/>
-                                                </StackPanel>
-                                            </StackPanel>
-                                            <Border Grid.Column="2" Background="{Binding StatusColor}" Padding="6,2" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding StatusBadge}" FontSize="8.5" FontWeight="Bold" Foreground="#FFFFFF"/>
-                                            </Border>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
+                        <!-- ========================================================================= -->
+                        <!-- COLUMNA 2: ASSEMBLY (FAMILIA + TIPO -> CÓDIGO P01-A, P04-A CON ON / OFF)  -->
+                        <!-- ========================================================================= -->
+                        <GroupBox Header="2. ASSEMBLY (Assembly Code + Type Mark = P01-A, P04-A)" Style="{StaticResource ArcaGroupBox}" Grid.Column="2">
+                            <Grid Margin="2,4,2,2">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
 
-                            <!-- CONFIGURACIÓN COMPACTA LADO A LADO (NOMENCLATURA & VISTAS TÉCNICAS) -->
-                            <Grid Grid.Row="3" Margin="0,4,0,4">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="6"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-
-                                <!-- COLUMNA 1: CONFIGURACIÓN DE NOMENCLATURA -->
-                                <GroupBox Header="1. Nomenclatura de Ensamblajes" Style="{StaticResource ArcaGroupBox}" Grid.Column="0">
-                                    <Grid Margin="4,3">
+                                <!-- CABECERA DE ASSEMBLY (Caja superior de la Columna 2 en el diagrama) -->
+                                <Border Grid.Row="0" Background="#D1E4F9" BorderBrush="#0F4369" BorderThickness="1" Padding="8,6" Margin="0,0,0,6">
+                                    <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
+                                        <TextBlock x:Name="txtActiveCarpScheduleHeader" Grid.Row="0"
+                                                   Text="📋 Selecciona una Tabla en la Columna 1"
+                                                   FontSize="11" FontWeight="Bold" Foreground="#0F4369" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock x:Name="txtDoorSummary" Grid.Row="1"
+                                                   Text="Fórmula: Assembly Code + '-' + Type Mark (ej. P04-A) | Siempre 1 sola instancia por Assembly"
+                                                   FontSize="9.5" Foreground="#1C1C19" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                    </Grid>
+                                </Border>
 
-                                        <!-- Nombre Inicial y Vista Previa -->
-                                        <Grid Grid.Row="0" Margin="0,0,0,3">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="90"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
+                                <!-- Buscador y Selección Rápida en Columna 2 -->
+                                <Grid Grid.Row="1" Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
 
-                                            <TextBlock Text="Inicio:" FontSize="10" FontWeight="SemiBold" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <TextBox x:Name="txtBatchInitialName" Grid.Column="1" Style="{StaticResource ArcaTextBox}" Text="P-01" FontSize="10.5" FontWeight="Bold" 
-                                                     TextChanged="txtBatchInitialName_TextChanged" ToolTip="Nombre base (ej: P-01, V-01, P04A, 101). Revit incrementa números o letras."/>
+                                    <TextBox x:Name="txtSearchDoors" Grid.Column="0" Style="{StaticResource ArcaTextBox}" TextChanged="txtSearchDoors_TextChanged"
+                                             ToolTip="Filtrar por código (P01-A, P04-A), familia o tipo..."/>
+                                    <TextBlock Text="🔍 Filtrar P01-A, P04-A, familia o tipo..." Grid.Column="0" IsHitTestVisible="False" Foreground="#72777F"
+                                               Margin="8,0,0,0" VerticalAlignment="Center" FontSize="10.5"
+                                               Visibility="{Binding Text.IsEmpty, ElementName=txtSearchDoors, Converter={StaticResource BoolToVis}}"/>
 
-                                            <Border Grid.Column="2" Background="#F0F4F8" BorderBrush="#0F4369" BorderThickness="1" CornerRadius="2" Padding="4,2" Margin="4,0,0,0">
-                                                <TextBlock x:Name="txtBatchNamePreview" Text="Secuencia: P-01 ➜ P-02..." FontSize="9.5" Foreground="#0F4369" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                            </Border>
-                                        </Grid>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="6,0,0,0">
+                                        <Button Content="☑️ Todos" Click="btnSelectAllDoors_Click" Style="{StaticResource SecondaryButton}" Padding="6,3" FontSize="9.5" Margin="0,0,3,0"/>
+                                        <Button Content="◻️ Ninguno" Click="btnDeselectAllDoors_Click" Style="{StaticResource SecondaryButton}" Padding="6,3" FontSize="9.5"/>
+                                    </StackPanel>
+                                </Grid>
 
-                                        <!-- Selector Muestra Única por Tipo -->
-                                        <Border Grid.Row="1" Background="#F6F3EE" BorderBrush="#C2C7CF" BorderThickness="1" Padding="4,2">
+                                <!-- LISTADO DE TARJETAS FAMILIA + TIPO CON SWITCH ON / OFF -->
+                                <ListBox x:Name="lstDoorItems" Grid.Row="2"
+                                         SelectionMode="Extended"
+                                         SelectionChanged="lstDoorItems_SelectionChanged"
+                                         Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Padding" Value="0"/>
+                                            <Setter Property="Margin" Value="0,2"/>
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem">
+                                                        <Border x:Name="DoorItemBorder" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1" Padding="8,6" Margin="3,1">
+                                                            <ContentPresenter/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="DoorItemBorder" Property="Background" Value="#F6F3EE"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter TargetName="DoorItemBorder" Property="Background" Value="#D1E4F9"/>
+                                                                <Setter TargetName="DoorItemBorder" Property="BorderBrush" Value="#0F4369"/>
+                                                                <Setter TargetName="DoorItemBorder" Property="BorderThickness" Value="2"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <Button x:Name="btnToggleSingleInstancePerType" Click="btnToggleSingleInstancePerType_Click" Style="{StaticResource SecondaryButton}"
-                                                        Content="⭐ 1 instancia por tipo" Padding="6,2" FontSize="9.5"
-                                                        ToolTip="Alterna entre tomar solo 1 ejemplar de muestra por tipo o todas las instancias existentes"/>
-                                                <TextBlock x:Name="txtSingleInstanceHelp" Grid.Column="1" Text="💡 Vistas y cotas limpias sin duplicidad" 
-                                                           FontSize="9" Foreground="#0F4369" VerticalAlignment="Center" Margin="6,0,0,0" TextTrimming="CharacterEllipsis"/>
-                                            </Grid>
-                                        </Border>
-                                    </Grid>
-                                </GroupBox>
 
-                                <!-- COLUMNA 2: OPCIONES DE VISTAS TÉCNICAS -->
-                                <GroupBox Header="2. Opciones de Vistas Técnicas" Style="{StaticResource ArcaGroupBox}" Grid.Column="2">
-                                    <Grid Margin="4,3">
+                                                <!-- CheckBox para seleccionar este Assembly y ver/controlar sus vistas en la Columna 3 -->
+                                                <CheckBox Grid.Column="0" Style="{StaticResource ArcaCheckBox}"
+                                                          IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          Click="chkDoorItemSelect_Click"
+                                                          VerticalAlignment="Center" Margin="0,0,8,0"
+                                                          ToolTip="Seleccionar para gestionar sus vistas en la Columna 3"/>
+
+                                                <!-- Información de Código (Assembly Code + Type Mark = P01-A, P04-A) -->
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding ComputedCode}" FontWeight="Bold" FontSize="13" Foreground="#0F4369"/>
+                                                        <TextBlock Text="  —  " Foreground="#72777F" FontSize="11" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding FamilyName}" FontWeight="SemiBold" FontSize="11" Foreground="#1C1C19" VerticalAlignment="Center"/>
+                                                        <TextBlock Text=" : " Foreground="#72777F" FontSize="11" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding TypeName}" FontWeight="SemiBold" FontSize="11" Foreground="#1C1C19" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding Dimensions, StringFormat=' ({0})'}" Foreground="#72777F" FontSize="10" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+
+                                                    <TextBlock Text="{Binding FormulaSubtitle}" FontSize="9.5" Foreground="#059669" FontWeight="SemiBold" Margin="0,2,0,0"/>
+                                                    <TextBlock Text="{Binding DescriptionInfo}" FontSize="9.5" Foreground="#72777F" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+
+                                                <!-- SWITCH ON / OFF DE EXISTENCIA DEL ASSEMBLY EN EL PROJECT BROWSER -->
+                                                <StackPanel Grid.Column="2" Orientation="Vertical" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="8,0,0,0">
+                                                    <Button Click="btnToggleItemAssembly_Click"
+                                                            Background="{Binding SwitchBackground}"
+                                                            Foreground="#FFFFFF"
+                                                            BorderBrush="#1C1C19"
+                                                            BorderThickness="1"
+                                                            Padding="14,5"
+                                                            Cursor="Hand"
+                                                            FontWeight="Bold"
+                                                            FontSize="10.5"
+                                                            Content="{Binding SwitchLabel}"
+                                                            ToolTip="ON: Crea/Renombra el Assembly en el Project Browser (con 1 sola instancia). OFF: Desarma (Disassemble) y borra el AssemblyType."/>
+                                                    <TextBlock Text="{Binding StatusBadge}" FontSize="8.5" Foreground="{Binding StatusColor}" FontWeight="Bold"
+                                                               HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+
+                                <!-- Botonera Batch Inferior de Columna 2 (Prender o Apagar todos los marcados) -->
+                                <Grid Grid.Row="3" Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button x:Name="btnTurnOnSelectedAssemblies" Grid.Column="0" Click="btnCreateDoorAssembliesOnly_Click"
+                                            Style="{StaticResource SuccessButton}" Height="32" FontSize="10"
+                                            Content="🟢 ON: Crear Assembly en Marcados (1 ud)"
+                                            ToolTip="Activa (ON) el Assembly para todos los tipos marcados con 1 sola instancia representativa"/>
+
+                                    <Button x:Name="btnTurnOffSelectedAssemblies" Grid.Column="2" Click="btnDisassembleSelected_Click"
+                                            Style="{StaticResource DangerButton}" Height="32" FontSize="10"
+                                            Content="⚪ OFF: Desarmar (Disassemble) Marcados"
+                                            ToolTip="Apaga (OFF) y desarma los Assemblies marcados, limpiando los tipos vacíos"/>
+                                </Grid>
+                            </Grid>
+                        </GroupBox>
+
+                        <GridSplitter Grid.Column="3" Width="4" HorizontalAlignment="Center" Background="#C2C7CF" Cursor="SizeWE"/>
+
+                        <!-- ========================================================================= -->
+                        <!-- COLUMNA 3: VISTAS DEL ASSEMBLY O ASSEMBLIES SELECCIONADOS (ON / OFF)      -->
+                        <!-- ========================================================================= -->
+                        <GroupBox Header="3. VISTAS POR ASSEMBLY (ON / OFF)" Style="{StaticResource ArcaGroupBox}" Grid.Column="4">
+                            <Grid Margin="2,4,2,2">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- CABECERA: NOMBRES DE ASSEMBLY O ASSEMBLIES SELECCIONADOS (Como en el diagrama) -->
+                                <Border Grid.Row="0" Background="#1C1C19" BorderBrush="#0F4369" BorderThickness="1" Padding="10,7" Margin="0,0,0,6">
+                                    <StackPanel>
+                                        <TextBlock Text="NOMBRES DE ASSEMBLY O ASSEMBLIES SELECCIONADOS:" FontSize="9" FontWeight="Bold" Foreground="#93C5FD"/>
+                                        <TextBlock x:Name="txtSelectedAssembliesNames"
+                                                   Text="Ningún Assembly seleccionado en Columna 2"
+                                                   FontSize="12" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ESCALA Y OPCIONES DE ACOTADO -->
+                                <Border Grid.Row="1" Background="#F6F3EE" BorderBrush="#C2C7CF" BorderThickness="1" Padding="8,5" Margin="0,0,0,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="115"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="📏 Escala:" FontWeight="Bold" FontSize="10" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <ComboBox x:Name="cmbBatchViewScale" Grid.Column="1" Height="22" FontSize="9.5" SelectedIndex="1">
+                                            <ComboBoxItem Content="1:10 (Detalle)"/>
+                                            <ComboBoxItem Content="1:20 (Estándar)" IsSelected="True"/>
+                                            <ComboBoxItem Content="1:25 (Carpintería)"/>
+                                            <ComboBoxItem Content="1:50 (General)"/>
+                                            <ComboBoxItem Content="1:100 (Ubicación)"/>
+                                        </ComboBox>
+
+                                        <CheckBox x:Name="chkAutoDimensionViews" Grid.Column="2" Style="{StaticResource ArcaCheckBox}"
+                                                  Content="Acotar al crear" IsChecked="True" FontSize="9.5" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- LISTADO ÚNICO DE VISTAS CON SWITCH ON / OFF -->
+                                <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1" Padding="6">
+                                    <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
                                         </Grid.RowDefinitions>
 
-                                        <Grid Grid.Row="0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Row="0"
+                                                   Text="LISTADO DE VISTAS (ON = Crea/Sobrescribe | OFF = Elimina):"
+                                                   FontSize="9.5" FontWeight="Bold" Foreground="#0F4369" Margin="2,0,2,6"/>
 
-                                            <WrapPanel Grid.Column="0" VerticalAlignment="Center">
-                                                <CheckBox x:Name="chkBatchViewSchedule" Style="{StaticResource ArcaCheckBox}" Content="📊 Despiece" IsChecked="True" Margin="0,0,6,2" FontSize="10"/>
-                                                <CheckBox x:Name="chkBatchView3D" Style="{StaticResource ArcaCheckBox}" Content="🧊 3D" IsChecked="True" Margin="0,0,6,2" FontSize="10"/>
-                                                <CheckBox x:Name="chkBatchViewPlan" Style="{StaticResource ArcaCheckBox}" Content="📐 Planta" IsChecked="True" Margin="0,0,6,2" FontSize="10"/>
-                                                <CheckBox x:Name="chkBatchViewFront" Style="{StaticResource ArcaCheckBox}" Content="🏛️ Frontal" IsChecked="True" Margin="0,0,6,2" FontSize="10"/>
-                                                <CheckBox x:Name="chkBatchViewBack" Style="{StaticResource ArcaCheckBox}" Content="🔍 Posterior" IsChecked="False" Margin="0,0,6,2" FontSize="10"/>
-                                                <CheckBox x:Name="chkBatchViewSection" Style="{StaticResource ArcaCheckBox}" Content="✂️ Sección" IsChecked="False" Margin="0,0,6,2" FontSize="10"/>
-                                            </WrapPanel>
+                                        <ListBox x:Name="lstAssemblyViews" Grid.Row="1"
+                                                 BorderThickness="0" Background="Transparent"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                            <ListBox.ItemContainerStyle>
+                                                <Style TargetType="ListBoxItem">
+                                                    <Setter Property="Padding" Value="0"/>
+                                                    <Setter Property="Margin" Value="0,3"/>
+                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="ListBoxItem">
+                                                                <Border Background="#FCF9F4" BorderBrush="{Binding BorderStroke}" BorderThickness="1" Padding="8,7">
+                                                                    <ContentPresenter/>
+                                                                </Border>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Style>
+                                            </ListBox.ItemContainerStyle>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
 
-                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,0,0">
-                                                <TextBlock Text="📏 Escala:" FontWeight="Bold" FontSize="10" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,3,0"/>
-                                                <ComboBox x:Name="cmbBatchViewScale" Width="105" Height="22" FontSize="9.5" SelectedIndex="1" ToolTip="Escala de dibujo aplicada a todas las vistas de detalle generadas">
-                                                    <ComboBoxItem Content="1:10 (Detalle)"/>
-                                                    <ComboBoxItem Content="1:20 (Estándar)" IsSelected="True"/>
-                                                    <ComboBoxItem Content="1:25 (Carpintería)"/>
-                                                    <ComboBoxItem Content="1:50 (General)"/>
-                                                    <ComboBoxItem Content="1:100 (Ubicación)"/>
-                                                </ComboBox>
-                                            </StackPanel>
-                                        </Grid>
+                                                        <TextBlock Grid.Column="0" Text="{Binding Icon}" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
+
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Title}" FontWeight="Bold" FontSize="10.5" Foreground="#1C1C19"/>
+                                                            <TextBlock Text="{Binding NamingPreview}" FontSize="9" Foreground="#72777F" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                                        </StackPanel>
+
+                                                        <Button Grid.Column="2"
+                                                                Click="btnToggleAssemblyView_Click"
+                                                                IsEnabled="{Binding IsEnabled}"
+                                                                Background="{Binding SwitchBackground}"
+                                                                Foreground="#FFFFFF"
+                                                                BorderBrush="#1C1C19"
+                                                                BorderThickness="1"
+                                                                Padding="14,5"
+                                                                Margin="8,0,0,0"
+                                                                Cursor="Hand"
+                                                                FontWeight="Bold"
+                                                                FontSize="10.5"
+                                                                Content="{Binding SwitchLabel}"
+                                                                ToolTip="ON: Crea o sobrescribe esta vista en los Assemblies seleccionados. OFF: Elimina esta vista."/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
                                     </Grid>
-                                </GroupBox>
+                                </Border>
+
+                                <!-- Botonera Inferior de Columna 3: Encender o Apagar todas las vistas de los seleccionados -->
+                                <Grid Grid.Row="3" Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button x:Name="btnGenerateAssemblyViewsOnly" Grid.Column="0" Click="btnTurnAllViewsOn_Click"
+                                            Style="{StaticResource SuccessButton}" Height="32" FontSize="10"
+                                            Content="🟢 ON: Todas las Vistas"/>
+
+                                    <Button x:Name="btnDeleteAllAssemblyViews" Grid.Column="2" Click="btnTurnAllViewsOff_Click"
+                                            Style="{StaticResource DangerButton}" Height="32" FontSize="10"
+                                            Content="⚪ OFF: Borrar Vistas"/>
+                                </Grid>
                             </Grid>
-
-                            <!-- BOTONERA DE ACCIÓN BATCH: 1 (CREAR ENSAMBLAJES), 2 (SOLO GENERAR VISTAS), COMBINADO -->
-                            <Grid Grid.Row="4" Margin="0,2,0,2">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="6"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="6"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <!-- BOTÓN 1: SOLO CREAR ENSAMBLAJES (AZUL) -->
-                                <Button x:Name="btnCreateDoorAssembliesOnly" Grid.Column="0" Click="btnCreateDoorAssembliesOnly_Click" 
-                                        Style="{StaticResource PrimaryButton}" Height="34" FontSize="11"
-                                        Content="📦 1. CREAR ENSAMBLAJES BATCH"
-                                        ToolTip="Paso 1: Crea los ensamblajes para los elementos seleccionados en la lista (sin vistas aún)"/>
-
-                                <!-- BOTÓN 2: SOLO GENERAR VISTAS A LOS ENSAMBLAJES (VERDE) -->
-                                <Button x:Name="btnGenerateAssemblyViewsOnly" Grid.Column="2" Click="btnGenerateAssemblyViewsOnly_Click" 
-                                        Style="{StaticResource SuccessButton}" Height="34" FontSize="11"
-                                        Content="📐 2. GENERAR VISTAS BATCH"
-                                        ToolTip="Paso 2: Genera únicamente las vistas técnicas y tablas de despiece a los elementos que ya tienen ensamblaje"/>
-
-                                <!-- BOTÓN COMBINADO OPCIONAL: AMBOS PASOS EN 1 SOLO CLIC -->
-                                <Button x:Name="btnCreateDoorAssembliesAndViews" Grid.Column="4" Click="btnCreateDoorAssembliesAndViews_Click" 
-                                        Style="{StaticResource SecondaryButton}" Height="34" FontSize="10" Padding="10,0"
-                                        Content="⚡ 1+2. TODO EN 1 PASO"
-                                        ToolTip="Crea los ensamblajes y genera inmediatamente sus vistas simultáneamente en un solo clic"/>
-                            </Grid>
-                        </Grid>
-                    </GroupBox>
+                        </GroupBox>
+                    </Grid>
                 </Grid>
-            </Grid>
-        </TabItem>
+            </TabItem>
         </TabControl>
 
         <!-- PANEL INFERIOR: LOG / REGISTRO DE OPERACIONES (COLAPSABLE PARA MAXIMIZAR EL ESPACIO DE LAS LISTAS) -->

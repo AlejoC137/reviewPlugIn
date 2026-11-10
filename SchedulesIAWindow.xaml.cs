@@ -1019,323 +1019,179 @@ namespace RevitToSupabasePlugin
 
         #endregion
 
-        #region 5. Módulo: Cuadro de Puertas & Batch Assemblies / Vistas
+        #region 5. Módulo de 3 Columnas: 1. Tablas -> 2. Assembly (ON/OFF 1 ud) -> 3. Vistas (ON/OFF)
+
+        private List<CarpentryScheduleItem> _carpSchedules = new List<CarpentryScheduleItem>();
+        private CarpentryScheduleItem? _selectedCarpSchedule;
+        private List<AssemblyViewToggleItem> _currentViewToggles = new List<AssemblyViewToggleItem>();
+
+        private BuiltInCategory? FilterCarpCategory
+        {
+            get
+            {
+                if (rbCategoryDoors?.IsChecked == true) return BuiltInCategory.OST_Doors;
+                if (rbCategoryWindows?.IsChecked == true) return BuiltInCategory.OST_Windows;
+                return null;
+            }
+        }
 
         private BuiltInCategory ActiveCategory => rbCategoryWindows?.IsChecked == true
             ? BuiltInCategory.OST_Windows
             : BuiltInCategory.OST_Doors;
 
-        private void rbCategory_Checked(object sender, RoutedEventArgs e)
-        {
-            bool isWindow = rbCategoryWindows?.IsChecked == true;
-
-            // Cambiar nombre sugerido de cuadro si coincide con el predeterminado
-            if (txtDoorScheduleName != null)
-            {
-                if (isWindow && (txtDoorScheduleName.Text == "CUADRO GENERAL DE PUERTAS" || string.IsNullOrWhiteSpace(txtDoorScheduleName.Text)))
-                    txtDoorScheduleName.Text = "CUADRO GENERAL DE VENTANAS";
-                else if (!isWindow && (txtDoorScheduleName.Text == "CUADRO GENERAL DE VENTANAS" || string.IsNullOrWhiteSpace(txtDoorScheduleName.Text)))
-                    txtDoorScheduleName.Text = "CUADRO GENERAL DE PUERTAS";
-            }
-
-            // Cambiar prefijo inicial de ensamblaje si coincide con el predeterminado
-            if (txtBatchInitialName != null)
-            {
-                if (isWindow && (txtBatchInitialName.Text == "P-01" || string.IsNullOrWhiteSpace(txtBatchInitialName.Text)))
-                    txtBatchInitialName.Text = "V-01";
-                else if (!isWindow && (txtBatchInitialName.Text == "V-01" || string.IsNullOrWhiteSpace(txtBatchInitialName.Text)))
-                    txtBatchInitialName.Text = "P-01";
-            }
-
-            _doorFields = DoorAssemblyManagerService.GetDefaultFields(ActiveCategory);
-            if (lstDoorFieldsConfig != null)
-            {
-                lstDoorFieldsConfig.ItemsSource = _doorFields;
-            }
-
-            UpdateBatchNamePreview();
-            LoadDoors();
-        }
-
         private void InitDoorModule()
         {
             _doorFields = DoorAssemblyManagerService.GetDefaultFields(ActiveCategory);
-            if (lstDoorFieldsConfig != null)
-            {
-                lstDoorFieldsConfig.ItemsSource = _doorFields;
-            }
-            UpdateBatchNamePreview();
-            UpdateSingleInstanceButtonUi();
-            UpdateBatchGroupModeUi();
+        }
+
+        private void rbCategory_Checked(object sender, RoutedEventArgs e)
+        {
+            _doorFields = DoorAssemblyManagerService.GetDefaultFields(ActiveCategory);
+            LoadDoors();
         }
 
         private void LoadDoors()
         {
+            LoadCarpentrySchedules();
+        }
+
+        private void LoadCarpentrySchedules(ElementId? preferredScheduleId = null)
+        {
             try
             {
-                bool groupByInstance = rbDoorGroupInstance?.IsChecked == true;
-                _allDoors = DoorAssemblyManagerService.GetDoorItems(_doc, groupByInstance, ActiveCategory);
-                ApplyDoorFilter();
+                ElementId? keepId = preferredScheduleId ?? _selectedCarpSchedule?.Id;
+                _carpSchedules = DoorAssemblyManagerService.GetCarpentrySchedules(_doc, FilterCarpCategory);
+                ApplyCarpScheduleFilter(keepId);
             }
             catch (Exception ex)
             {
-                if (txtDoorSummary != null)
-                {
-                    string catLabel = ActiveCategory == BuiltInCategory.OST_Windows ? "ventanas" : "puertas";
-                    txtDoorSummary.Text = $"Error cargando {catLabel}: {ex.Message}";
-                }
+                if (txtCarpSchedulesSummary != null)
+                    txtCarpSchedulesSummary.Text = $"Error al cargar tablas: {ex.Message}";
             }
         }
 
-        private void ApplyDoorFilter()
+        private void ApplyCarpScheduleFilter(ElementId? preferredScheduleId = null)
         {
-            if (_allDoors == null || lstDoorItems == null) return;
+            if (lstCarpSchedules == null) return;
 
-            string searchText = txtSearchDoors?.Text?.Trim().ToLowerInvariant() ?? "";
-            var query = _allDoors.AsEnumerable();
+            string search = txtSearchCarpSchedule?.Text?.Trim().ToLowerInvariant() ?? "";
+            var query = _carpSchedules.AsEnumerable();
 
-            if (!string.IsNullOrEmpty(searchText))
+            if (!string.IsNullOrEmpty(search))
             {
-                query = query.Where(d =>
-                    d.FamilyName.ToLowerInvariant().Contains(searchText) ||
-                    d.TypeName.ToLowerInvariant().Contains(searchText) ||
-                    d.Mark.ToLowerInvariant().Contains(searchText) ||
-                    d.LevelName.ToLowerInvariant().Contains(searchText));
+                query = query.Where(s =>
+                    s.Name.ToLowerInvariant().Contains(search) ||
+                    s.SubtitleInfo.ToLowerInvariant().Contains(search));
             }
 
             var filtered = query.ToList();
-            lstDoorItems.ItemsSource = filtered;
+            lstCarpSchedules.ItemsSource = filtered;
 
-            UpdateDoorSummaryText();
+            int completeCount = _carpSchedules.Count(s => s.IsComplete);
+            int incompleteCount = _carpSchedules.Count(s => s.IsIncomplete);
+            if (txtCarpSchedulesSummary != null)
+            {
+                txtCarpSchedulesSummary.Text = $"✅ {completeCount} seleccionable(s) | ⚠️ {incompleteCount} con propiedades faltantes";
+            }
+
+            CarpentryScheduleItem? toSelect = null;
+            if (preferredScheduleId != null && preferredScheduleId != ElementId.InvalidElementId)
+            {
+                toSelect = filtered.FirstOrDefault(s => s.Id == preferredScheduleId && s.IsComplete);
+            }
+            if (toSelect == null)
+            {
+                toSelect = filtered.FirstOrDefault(s => s.IsComplete);
+            }
+
+            _selectedCarpSchedule = toSelect;
+            lstCarpSchedules.SelectedItem = toSelect;
+
+            LoadItemsForSelectedCarpSchedule();
         }
 
-        private void UpdateDoorSummaryText()
+        private void txtSearchCarpSchedule_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (txtDoorSummary == null || _allDoors == null) return;
-
-            int total = _allDoors.Count;
-            int selected = _allDoors.Count(d => d.IsSelected);
-            int inAss = _allDoors.Count(d => d.AlreadyInAssembly);
-            int totalInstances = _allDoors.Sum(d => d.InstanceCount);
-
-            bool isByType = rbDoorGroupType?.IsChecked == true;
-            string unit = isByType ? "tipos" : "ejemplares";
-            string catLabel = ActiveCategory == BuiltInCategory.OST_Windows ? "ventanas" : "puertas";
-
-            txtDoorSummary.Text = $"Catálogo de {catLabel}: {total} {unit} ({totalInstances} unidades en el modelo) | ☑️ {selected} seleccionadas | 📦 {inAss} ya en ensamblaje";
+            ApplyCarpScheduleFilter(_selectedCarpSchedule?.Id);
         }
 
-        private bool _singleInstancePerType = true;
-
-        private void btnToggleSingleInstancePerType_Click(object sender, RoutedEventArgs e)
+        private void lstCarpSchedules_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            _singleInstancePerType = !_singleInstancePerType;
-            UpdateSingleInstanceButtonUi();
-        }
-
-        private void UpdateSingleInstanceButtonUi()
-        {
-            var activeBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(209, 228, 249)); // #D1E4F9
-            var activeTextBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(15, 67, 105)); // #0F4369
-            var inactiveBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(246, 243, 238)); // #F6F3EE
-            var inactiveTextBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(114, 119, 127)); // #72777F
-
-            if (btnToggleSingleInstancePerType != null)
+            if (lstCarpSchedules.SelectedItem is CarpentryScheduleItem clicked)
             {
-                btnToggleSingleInstancePerType.Content = _singleInstancePerType
-                    ? "⭐ Solo tomar 1 instancia por tipo para el assembly"
-                    : "📦 Tomar todas las instancias del tipo para el assembly";
-                btnToggleSingleInstancePerType.Background = _singleInstancePerType ? activeBrush : inactiveBrush;
-                btnToggleSingleInstancePerType.Foreground = _singleInstancePerType ? activeTextBrush : inactiveTextBrush;
-                btnToggleSingleInstancePerType.FontWeight = _singleInstancePerType ? FontWeights.Bold : FontWeights.Normal;
-            }
-
-            if (btnQuickToggleSingleInstance != null)
-            {
-                btnQuickToggleSingleInstance.Content = _singleInstancePerType
-                    ? "⭐ Solo tomar 1 instancia por tipo para el assembly"
-                    : "📦 Tomar todas las instancias del tipo para el assembly";
-                btnQuickToggleSingleInstance.Background = _singleInstancePerType ? activeBrush : inactiveBrush;
-                btnQuickToggleSingleInstance.Foreground = _singleInstancePerType ? activeTextBrush : inactiveTextBrush;
-                btnQuickToggleSingleInstance.FontWeight = _singleInstancePerType ? FontWeights.Bold : FontWeights.Normal;
-            }
-
-            if (txtSingleInstanceHelp != null)
-            {
-                txtSingleInstanceHelp.Text = _singleInstancePerType
-                    ? "💡 Se creará 1 ensamblaje por tipo tomando solo 1 ejemplar de muestra (vistas y cotas limpias)."
-                    : "📦 Se agruparán todos los ejemplares existentes de este tipo en el mismo ensamblaje.";
-                txtSingleInstanceHelp.Foreground = _singleInstancePerType ? activeTextBrush : inactiveTextBrush;
-            }
-        }
-
-        private void rbDoorGroupMode_Checked(object sender, RoutedEventArgs e)
-        {
-            UpdateBatchGroupModeUi();
-            LoadDoors();
-        }
-
-        private void UpdateBatchGroupModeUi()
-        {
-            bool isByInstance = rbDoorGroupInstance?.IsChecked == true;
-            string elemName = ActiveCategory == BuiltInCategory.OST_Windows ? "ventana" : "puerta";
-
-            if (btnQuickToggleSingleInstance != null)
-            {
-                btnQuickToggleSingleInstance.Visibility = isByInstance ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
-            }
-
-            if (btnToggleSingleInstancePerType != null)
-            {
-                btnToggleSingleInstancePerType.Visibility = isByInstance ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
-            }
-
-            if (txtSingleInstanceHelp != null)
-            {
-                txtSingleInstanceHelp.Visibility = isByInstance ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
-            }
-
-            if (btnSelectOnePerType != null)
-            {
-                btnSelectOnePerType.Visibility = isByInstance ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
-            }
-        }
-
-        private void btnSelectOnePerType_Click(object sender, RoutedEventArgs e)
-        {
-            if (lstDoorItems?.ItemsSource is IEnumerable<DoorItemViewModel> items)
-            {
-                var list = items.ToList();
-                var typesSeen = new HashSet<ElementId>();
-                foreach (var d in list)
+                if (!clicked.IsComplete)
                 {
-                    if (!typesSeen.Contains(d.TypeId) && !d.AlreadyInAssembly)
-                    {
-                        d.IsSelected = true;
-                        typesSeen.Add(d.TypeId);
-                    }
-                    else
-                    {
-                        d.IsSelected = false;
-                    }
+                    txtAssemblyLog.Text = $"⚠️ La tabla '{clicked.Name}' no es seleccionable porque le faltan: {string.Join(", ", clicked.MissingFields)}. Pulsa '➕ Add Missing Properties'.\n{txtAssemblyLog.Text}";
+                    if (txtLogQuickStatus != null)
+                        txtLogQuickStatus.Text = $"⚠️ Missing: {string.Join(", ", clicked.MissingFields)}";
+
+                    lstCarpSchedules.SelectedItem = _selectedCarpSchedule;
+                    return;
                 }
-                UpdateDoorSummaryText();
-            }
-        }
 
-        private void txtBatchInitialName_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            UpdateBatchNamePreview();
-        }
-
-        private void UpdateBatchNamePreview()
-        {
-            if (txtBatchNamePreview == null) return;
-
-            string input = !string.IsNullOrWhiteSpace(txtBatchInitialName?.Text)
-                ? txtBatchInitialName.Text.Trim()
-                : (ActiveCategory == BuiltInCategory.OST_Windows ? "V-01" : "P-01");
-
-            string next1 = DoorAssemblyManagerService.GetNextRevitName(input);
-            string next2 = DoorAssemblyManagerService.GetNextRevitName(next1);
-
-            txtBatchNamePreview.Text = $"Secuencia: {input} ➜ {next1} ➜ {next2}...";
-
-            // Actualizar en tiempo real el nombre propuesto en la lista visible
-            if (_allDoors != null && _allDoors.Count > 0)
-            {
-                string runningName = input;
-                foreach (var d in _allDoors)
+                if (_selectedCarpSchedule?.Id != clicked.Id)
                 {
-                    if (!d.AlreadyInAssembly)
-                    {
-                        if (d.IsSelected)
-                        {
-                            d.TargetAssemblyName = runningName;
-                            runningName = DoorAssemblyManagerService.GetNextRevitName(runningName);
-                        }
-                        else
-                        {
-                            d.TargetAssemblyName = input;
-                        }
-                    }
+                    _selectedCarpSchedule = clicked;
+                    LoadItemsForSelectedCarpSchedule();
                 }
             }
         }
 
-        private void txtSearchDoors_TextChanged(object sender, TextChangedEventArgs e)
+        private void btnAddMissingScheduleProps_Click(object sender, RoutedEventArgs e)
         {
-            ApplyDoorFilter();
-        }
-
-        private void btnSelectAllDoors_Click(object sender, RoutedEventArgs e)
-        {
-            if (lstDoorItems?.ItemsSource is IEnumerable<DoorItemViewModel> items)
+            if (sender is FrameworkElement fe && fe.DataContext is CarpentryScheduleItem vm)
             {
-                foreach (var d in items) d.IsSelected = true;
-                UpdateDoorSummaryText();
+                var (_, msg) = DoorAssemblyManagerService.AddMissingRequiredFields(_doc, vm.Schedule);
+                txtAssemblyLog.Text = $"➕ {msg}\n{txtAssemblyLog.Text}";
+                if (txtLogQuickStatus != null) txtLogQuickStatus.Text = $"✅ {msg}";
+
+                LoadSchedules();
+                LoadCarpentrySchedules(vm.Id);
             }
         }
 
-        private void btnDeselectAllDoors_Click(object sender, RoutedEventArgs e)
+        private void btnFixAllCarpSchedules_Click(object sender, RoutedEventArgs e)
         {
-            if (lstDoorItems?.ItemsSource is IEnumerable<DoorItemViewModel> items)
+            var incompletes = _carpSchedules.Where(s => s.IsIncomplete).ToList();
+            if (incompletes.Count == 0)
             {
-                foreach (var d in items) d.IsSelected = false;
-                UpdateDoorSummaryText();
+                MessageBox.Show("Todas las tablas de Puertas y Ventanas ya tienen las 6 propiedades requeridas (Family, Type, Assembly Code, Type Mark, Mark, Description).",
+                    "Tablas Completas", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
             }
-        }
 
-        private void btnSelectDoorsWithoutAssembly_Click(object sender, RoutedEventArgs e)
-        {
-            if (lstDoorItems?.ItemsSource is IEnumerable<DoorItemViewModel> items)
+            int fixedTables = 0;
+            foreach (var item in incompletes)
             {
-                foreach (var d in items) d.IsSelected = !d.AlreadyInAssembly;
-                UpdateDoorSummaryText();
+                var (added, msg) = DoorAssemblyManagerService.AddMissingRequiredFields(_doc, item.Schedule);
+                if (added > 0)
+                {
+                    fixedTables++;
+                    txtAssemblyLog.Text = $"➕ {msg}\n{txtAssemblyLog.Text}";
+                }
             }
-        }
 
-        private void btnSelectDoorsWithAssembly_Click(object sender, RoutedEventArgs e)
-        {
-            if (lstDoorItems?.ItemsSource is IEnumerable<DoorItemViewModel> items)
-            {
-                foreach (var d in items) d.IsSelected = d.AlreadyInAssembly;
-                UpdateDoorSummaryText();
-            }
-        }
-
-        private void btnSelectAllDoorFields_Click(object sender, RoutedEventArgs e)
-        {
-            foreach (var f in _doorFields) f.IsSelected = true;
-            lstDoorFieldsConfig.Items.Refresh();
-        }
-
-        private void btnDeselectAllDoorFields_Click(object sender, RoutedEventArgs e)
-        {
-            foreach (var f in _doorFields) f.IsSelected = false;
-            lstDoorFieldsConfig.Items.Refresh();
-        }
-
-        private void btnResetDoorFields_Click(object sender, RoutedEventArgs e)
-        {
-            _doorFields = DoorAssemblyManagerService.GetDefaultFields(ActiveCategory);
-            lstDoorFieldsConfig.ItemsSource = _doorFields;
+            LoadSchedules();
+            LoadCarpentrySchedules(incompletes.First().Id);
+            MessageBox.Show($"Se inyectaron las propiedades requeridas en {fixedTables} tabla(s). Ahora todas están habilitadas para selección.",
+                "Propiedades Agregadas", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void btnGenerateDoorSchedule_Click(object sender, RoutedEventArgs e)
         {
-            string defaultName = ActiveCategory == BuiltInCategory.OST_Windows ? "CUADRO GENERAL DE VENTANAS" : "CUADRO GENERAL DE PUERTAS";
-            string schedName = txtDoorScheduleName?.Text?.Trim() ?? defaultName;
-            bool itemize = chkDoorItemize?.IsChecked ?? false;
+            BuiltInCategory targetCat = ActiveCategory;
+            string defaultName = targetCat == BuiltInCategory.OST_Windows ? "CUADRO GENERAL DE VENTANAS" : "CUADRO GENERAL DE PUERTAS";
+            var fields = DoorAssemblyManagerService.GetDefaultFields(targetCat);
 
-            var (sched, msg) = DoorAssemblyManagerService.CreateOrUpdateDoorSchedule(_doc, schedName, _doorFields, itemize, ActiveCategory);
-
+            var (sched, msg) = DoorAssemblyManagerService.CreateOrUpdateDoorSchedule(_doc, defaultName, fields, itemizeInstances: false, category: targetCat);
             txtAssemblyLog.Text = $"📋 {msg}\n{txtAssemblyLog.Text}";
 
             if (sched != null)
             {
                 LoadSchedules();
-                MessageBox.Show(msg, "Cuadro Generado en Revit", MessageBoxButton.OK, MessageBoxImage.Information);
+                LoadCarpentrySchedules(sched.Id);
+                MessageBox.Show($"{msg}\n\nIncluye las 6 propiedades requeridas: Family, Type, Assembly Code, Type Mark, Mark y Description.",
+                    "Tabla Base Creada", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             else
             {
@@ -1343,234 +1199,465 @@ namespace RevitToSupabasePlugin
             }
         }
 
-        private void btnSyncBridgeData_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                var (syncedCount, logs) = AssemblyBridgeService.SyncBridgeData(_doc, ActiveCategory);
-                var sb = new StringBuilder();
-                sb.AppendLine($"=== SINCRONIZACIÓN DE PARÁMETROS PUENTE ===");
-                sb.AppendLine($"Categoría: {(ActiveCategory == BuiltInCategory.OST_Windows ? "Ventanas" : "Puertas")} | Hora: {DateTime.Now:HH:mm:ss}");
-                foreach (var l in logs) sb.AppendLine(l);
-                txtAssemblyLog.Text = sb.ToString() + "\n" + txtAssemblyLog.Text;
+        // ============================================================
+        // COLUMNA 2: ASSEMBLY (Assembly Code + Type Mark = P01-A, P04-A)
+        // ============================================================
+        private bool _suppressCarpSelection = false;
 
-                string catName = ActiveCategory == BuiltInCategory.OST_Windows ? "ventanas" : "puertas";
-                MessageBox.Show($"¡Sincronización completada!\n\nSe estamparon los totales globales del modelo y ubicaciones en {syncedCount} {catName}.\nLas tablas de ensamblaje ahora reflejan la cantidad total en obra.", 
-                    "Parámetro Puente Sincronizado", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
+        private void LoadItemsForSelectedCarpSchedule()
+        {
+            if (lstDoorItems == null) return;
+
+            if (_selectedCarpSchedule == null || !_selectedCarpSchedule.IsComplete)
             {
-                MessageBox.Show($"Error al sincronizar datos puente: {ex.Message}", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+                _allDoors = new List<DoorItemViewModel>();
+                lstDoorItems.ItemsSource = null;
+                if (txtActiveCarpScheduleHeader != null)
+                    txtActiveCarpScheduleHeader.Text = "👈 Selecciona una tabla READY en la Columna 1";
+                if (txtDoorSummary != null)
+                    txtDoorSummary.Text = "0 tipos listados";
+                UpdateColumn3Views();
+                return;
+            }
+
+            if (txtActiveCarpScheduleHeader != null)
+            {
+                txtActiveCarpScheduleHeader.Text = $"{_selectedCarpSchedule.CategoryBadge}  |  Tabla activa: {_selectedCarpSchedule.Name}";
+            }
+
+            _allDoors = DoorAssemblyManagerService.GetItemsFromSchedule(_doc, _selectedCarpSchedule.Schedule);
+            ApplyDoorFilter();
+            UpdateColumn3Views();
+        }
+
+        private void ApplyDoorFilter()
+        {
+            if (lstDoorItems == null || _allDoors == null) return;
+
+            string q = txtSearchDoors?.Text?.Trim().ToLowerInvariant() ?? "";
+            var filtered = _allDoors.Where(d =>
+                string.IsNullOrEmpty(q) ||
+                d.Mark.ToLowerInvariant().Contains(q) ||
+                d.ComputedCode.ToLowerInvariant().Contains(q) ||
+                d.FamilyName.ToLowerInvariant().Contains(q) ||
+                d.TypeName.ToLowerInvariant().Contains(q) ||
+                d.DisplayTitle.ToLowerInvariant().Contains(q) ||
+                d.AssemblyCode.ToLowerInvariant().Contains(q) ||
+                d.TypeMark.ToLowerInvariant().Contains(q) ||
+                d.Description.ToLowerInvariant().Contains(q)).ToList();
+
+            lstDoorItems.ItemsSource = null;
+            lstDoorItems.ItemsSource = filtered;
+            UpdateDoorSummaryText();
+        }
+
+        private void UpdateDoorSummaryText()
+        {
+            if (txtDoorSummary == null || _allDoors == null) return;
+            int total = _allDoors.Count;
+            int onCount = _allDoors.Count(d => d.IsAssemblyOn);
+            int selCount = GetSelectedColumn2Items().Count;
+            txtDoorSummary.Text = $"{total} Familia+Tipo | 🟢 {onCount} ON | ☑️ {selCount} sel.";
+        }
+
+        private void txtSearchDoors_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ApplyDoorFilter();
+        }
+
+        private void chkDoorItemSelect_Click(object sender, RoutedEventArgs e)
+        {
+            UpdateDoorSummaryText();
+            UpdateColumn3Views();
+        }
+
+        private void lstDoorItems_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressCarpSelection || lstDoorItems == null) return;
+
+            // Sincronizar selección visual del ListBox con IsSelected cuando el usuario hace clic en la fila
+            if (lstDoorItems.SelectedItems.Count > 0)
+            {
+                foreach (var obj in lstDoorItems.Items)
+                {
+                    if (obj is DoorItemViewModel vm)
+                    {
+                        vm.IsSelected = lstDoorItems.SelectedItems.Contains(obj);
+                    }
+                }
+                lstDoorItems.Items.Refresh();
+            }
+
+            UpdateDoorSummaryText();
+            UpdateColumn3Views();
+        }
+
+        private void btnSelectAllDoors_Click(object sender, RoutedEventArgs e)
+        {
+            if (lstDoorItems?.ItemsSource is IEnumerable<DoorItemViewModel> currentView)
+            {
+                _suppressCarpSelection = true;
+                foreach (var d in currentView) d.IsSelected = true;
+                lstDoorItems.SelectAll();
+                _suppressCarpSelection = false;
+                lstDoorItems.Items.Refresh();
+                UpdateDoorSummaryText();
+                UpdateColumn3Views();
+            }
+        }
+
+        private void btnDeselectAllDoors_Click(object sender, RoutedEventArgs e)
+        {
+            if (_allDoors != null)
+            {
+                _suppressCarpSelection = true;
+                foreach (var d in _allDoors) d.IsSelected = false;
+                lstDoorItems?.UnselectAll();
+                _suppressCarpSelection = false;
+                lstDoorItems?.Items.Refresh();
+                UpdateDoorSummaryText();
+                UpdateColumn3Views();
+            }
+        }
+
+        /// <summary>
+        /// Switch ON / OFF individual por tarjeta en la Columna 2:
+        /// - Si está OFF -> Lo prende (ON): Crea el Assembly de 1 sola unidad con nombre AssemblyCode-TypeMark (ej. P04-A).
+        /// - Si está ON -> Lo apaga (OFF): Desensambla, borra vistas y purga el tipo del Project Browser.
+        /// </summary>
+        private void btnToggleItemAssembly_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && (fe.DataContext as DoorItemViewModel ?? fe.Tag as DoorItemViewModel) is DoorItemViewModel item)
+            {
+                bool targetOn = !item.IsAssemblyOn;
+                var (ok, msg) = DoorAssemblyManagerService.SetTypeAssemblyOnOff(_doc, item, targetOn);
+
+                AppendCarpentryLog($"[Switch Assembly {(targetOn ? "ON" : "OFF")}] {item.ComputedCode}: {msg}");
+
+                // Seleccionar este ítem para ver sus vistas inmediatamente en la Columna 3
+                item.IsSelected = true;
+
+                // Recargar manteniendo selección
+                var selectedTypeIds = (_allDoors ?? new List<DoorItemViewModel>()).Where(d => d.IsSelected).Select(d => d.TypeId).ToHashSet();
+                LoadItemsForSelectedCarpSchedule();
+                if (_allDoors != null)
+                {
+                    foreach (var d in _allDoors)
+                    {
+                        if (selectedTypeIds.Contains(d.TypeId)) d.IsSelected = true;
+                    }
+                }
+                lstDoorItems?.Items.Refresh();
+                UpdateDoorSummaryText();
+                UpdateColumn3Views();
+                LoadAssemblies();
+
+                if (!ok)
+                {
+                    MessageBox.Show(msg, "Aviso Assembly", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
             }
         }
 
         private void btnCreateDoorAssembliesOnly_Click(object sender, RoutedEventArgs e)
         {
-            ExecuteBatchDoorCreation(createViews: false);
-        }
-
-        private void btnCreateDoorAssembliesAndViews_Click(object sender, RoutedEventArgs e)
-        {
-            ExecuteBatchDoorCreation(createViews: true);
-        }
-
-        private void btnGenerateAssemblyViewsOnly_Click(object sender, RoutedEventArgs e)
-        {
-            var selectedDoors = _allDoors.Where(d => d.IsSelected).ToList();
-            string catName = ActiveCategory == BuiltInCategory.OST_Windows ? "Ventanas" : "Puertas";
-
-            if (selectedDoors.Count == 0)
+            var targets = GetSelectedColumn2Items();
+            if (targets.Count == 0 && _allDoors != null)
             {
-                MessageBox.Show($"Por favor selecciona en la lista los elementos a los que deseas generarles o agregarles vistas.", "Selección Requerida", MessageBoxButton.OK, MessageBoxImage.Warning);
+                targets = _allDoors.ToList();
+            }
+
+            if (targets.Count == 0)
+            {
+                MessageBox.Show("Primero selecciona una tabla válida en la Columna 1.", "Sin Tipos", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            int viewScale = 20;
-            if (cmbBatchViewScale != null)
+            int okCount = 0;
+            var selectedTypeIds = targets.Select(d => d.TypeId).ToHashSet();
+
+            foreach (var item in targets)
             {
-                switch (cmbBatchViewScale.SelectedIndex)
+                var (ok, msg) = DoorAssemblyManagerService.SetTypeAssemblyOnOff(_doc, item, turnOn: true);
+                AppendCarpentryLog($"[ON] {item.ComputedCode}: {msg}");
+                if (ok) okCount++;
+            }
+
+            LoadItemsForSelectedCarpSchedule();
+            if (_allDoors != null)
+            {
+                foreach (var d in _allDoors)
                 {
-                    case 0: viewScale = 10; break;
-                    case 1: viewScale = 20; break;
-                    case 2: viewScale = 25; break;
-                    case 3: viewScale = 50; break;
-                    case 4: viewScale = 100; break;
-                    default: viewScale = 20; break;
+                    if (selectedTypeIds.Contains(d.TypeId)) d.IsSelected = true;
                 }
             }
+            lstDoorItems?.Items.Refresh();
+            UpdateDoorSummaryText();
+            UpdateColumn3Views();
+            LoadAssemblies();
 
-            var viewOpts = new AssemblyBatchViewOptions
-            {
-                CreateSchedule = chkBatchViewSchedule?.IsChecked ?? true,
-                ScheduleNameTemplate = "Despiece y Medidas",
-                CreatePlan = chkBatchViewPlan?.IsChecked ?? true,
-                CreateFrontElevation = chkBatchViewFront?.IsChecked ?? true,
-                CreateBackElevation = chkBatchViewBack?.IsChecked ?? false,
-                Create3DOrthographic = chkBatchView3D?.IsChecked ?? true,
-                CreateSection = chkBatchViewSection?.IsChecked ?? false,
-                ViewScale = viewScale,
-                AutoDimensionViews = true,
-                CategoryId = new ElementId(ActiveCategory)
-            };
-
-            ViewSchedule? masterTemplate = _selectedTemplate?.Schedule;
-            if (masterTemplate == null)
-            {
-                masterTemplate = new FilteredElementCollector(_doc)
-                    .OfClass(typeof(ViewSchedule))
-                    .Cast<ViewSchedule>()
-                    .FirstOrDefault(s => !s.IsTemplate && s.Definition.CategoryId == new ElementId(ActiveCategory));
-            }
-
-            var logSb = new StringBuilder();
-            logSb.AppendLine($"=== INICIO: GENERACIÓN INDEPENDIENTE DE VISTAS DE ENSAMBLAJE ({catName.ToUpperInvariant()}) ===");
-            logSb.AppendLine($"Hora: {DateTime.Now:HH:mm:ss} | Elementos seleccionados: {selectedDoors.Count}");
-
-            var (createdViewsCount, viewLogs) = DoorAssemblyManagerService.GenerateViewsForDoorItems(_doc, selectedDoors, viewOpts, masterTemplate);
-
-            foreach (var l in viewLogs)
-            {
-                logSb.AppendLine($"• {l}");
-            }
-
-            logSb.AppendLine($"\n=== FIN GENERACIÓN DE VISTAS: {createdViewsCount} vistas técnicas creadas ===");
-            logSb.AppendLine($"Hora de término: {DateTime.Now:HH:mm:ss}");
-
-            txtAssemblyLog.Text = logSb.ToString() + "\n" + txtAssemblyLog.Text;
-
-            RefreshAll();
-
-            if (createdViewsCount == 0)
-            {
-                if (txtLogQuickStatus != null) txtLogQuickStatus.Text = "Aviso: Sin vistas creadas (requiere ensamblaje previo)";
-                MessageBox.Show($"No se pudieron generar vistas técnicas porque los elementos seleccionados aún no tienen un ensamblaje creado en Revit.\n\n👉 Primero pulsa '1. CREAR ENSAMBLAJES BATCH' o utiliza el filtro 'Con Ensamblaje'.", "Sin Ensamblajes Detectados", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
-            else
-            {
-                if (expLogPanel != null) expLogPanel.IsExpanded = true;
-                if (txtLogQuickStatus != null) txtLogQuickStatus.Text = $"✅ {createdViewsCount} vistas técnicas generadas";
-                MessageBox.Show($"¡Proceso de Vistas Completado!\n\n• Vistas técnicas creadas: {createdViewsCount}\n\nLos planos, cotas y tablas de despiece ya están disponibles en el Navegador de Proyectos de Revit.", "Vistas de Ensamblaje", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
+            if (txtLogQuickStatus != null) txtLogQuickStatus.Text = $"🟢 {okCount}/{targets.Count} Assemblies activos (1 unidad c/u)";
         }
 
-        private void ExecuteBatchDoorCreation(bool createViews)
+        private void btnDisassembleSelected_Click(object sender, RoutedEventArgs e)
         {
-            var selectedDoors = _allDoors.Where(d => d.IsSelected).ToList();
-            string catName = ActiveCategory == BuiltInCategory.OST_Windows ? "Ventanas" : "Puertas";
-            string defaultPrefix = ActiveCategory == BuiltInCategory.OST_Windows ? "V-01" : "P-01";
-
-            if (selectedDoors.Count == 0)
+            var targets = GetSelectedColumn2Items();
+            if (targets.Count == 0)
             {
-                MessageBox.Show($"Por favor selecciona al menos una {catName.ToLowerInvariant()} o tipo en la lista.", "Selección Requerida", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Selecciona en la Columna 2 al menos un tipo con Assembly para apagarlo (OFF / Disassemble).",
+                    "Selección Requerida", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            bool groupByInstance = rbDoorGroupInstance?.IsChecked == true;
-            bool singleInstancePerType = _singleInstancePerType;
-            string initialName = string.IsNullOrWhiteSpace(txtBatchInitialName?.Text) ? defaultPrefix : txtBatchInitialName.Text.Trim();
+            int offCount = 0;
+            var selectedTypeIds = targets.Select(d => d.TypeId).ToHashSet();
 
-            int viewScale = 20;
-            if (cmbBatchViewScale != null)
+            foreach (var item in targets)
             {
-                switch (cmbBatchViewScale.SelectedIndex)
-                {
-                    case 0: viewScale = 10; break;
-                    case 1: viewScale = 20; break;
-                    case 2: viewScale = 25; break;
-                    case 3: viewScale = 50; break;
-                    case 4: viewScale = 100; break;
-                    default: viewScale = 20; break;
-                }
+                var (ok, msg) = DoorAssemblyManagerService.SetTypeAssemblyOnOff(_doc, item, turnOn: false);
+                AppendCarpentryLog($"[OFF] {item.ComputedCode}: {msg}");
+                if (ok) offCount++;
             }
 
-            var batchOpts = new BatchAssemblyOptions
+            LoadItemsForSelectedCarpSchedule();
+            if (_allDoors != null)
             {
-                GroupByInstance = groupByInstance,
-                SingleInstancePerType = singleInstancePerType,
-                InitialName = initialName,
-                Category = ActiveCategory
-            };
-
-            var logSb = new StringBuilder();
-            logSb.AppendLine($"=== INICIO: BATCH CREACIÓN DE ENSAMBLAJES DE {catName.ToUpperInvariant()} ===");
-            string modeDetail = groupByInstance
-                ? $"Por Ejemplar Físico (1 {catName.ToLowerInvariant()} por ensamblaje)"
-                : (singleInstancePerType ? "Por Tipo (Solo 1 instancia por tipo para el assembly)" : "Por Tipo (Todas las instancias del tipo agrupadas)");
-            logSb.AppendLine($"Hora: {DateTime.Now:HH:mm:ss} | Modo: {modeDetail} | Nombre Inicial: '{initialName}'");
-            logSb.AppendLine($"Elementos seleccionados: {selectedDoors.Count}");
-
-            // 1. Crear Ensamblajes
-            var (createdAssemblies, assLogs) = DoorAssemblyManagerService.CreateBatchDoorAssemblies(_doc, selectedDoors, batchOpts);
-
-            foreach (var l in assLogs)
-            {
-                logSb.AppendLine($"• {l}");
-            }
-
-            int createdViewsCount = 0;
-
-            // 2. Generar Vistas si fue solicitado
-            if (createViews && createdAssemblies.Count > 0)
-            {
-                logSb.AppendLine("\n--- GENERACIÓN BATCH DE VISTAS TÉCNICAS ---");
-
-                var viewOpts = new AssemblyBatchViewOptions
+                foreach (var d in _allDoors)
                 {
-                    CreateSchedule = chkBatchViewSchedule?.IsChecked ?? true,
-                    ScheduleNameTemplate = "Despiece y Medidas",
-                    CreatePlan = chkBatchViewPlan?.IsChecked ?? true,
-                    CreateFrontElevation = chkBatchViewFront?.IsChecked ?? true,
-                    CreateBackElevation = chkBatchViewBack?.IsChecked ?? false,
-                    Create3DOrthographic = chkBatchView3D?.IsChecked ?? true,
-                    CreateSection = chkBatchViewSection?.IsChecked ?? false,
-                    ViewScale = viewScale,
-                    AutoDimensionViews = true,
-                    CategoryId = new ElementId(ActiveCategory)
-                };
-
-                // Si hay una tabla o plantilla activa para la categoría, usarla como molde
-                ViewSchedule? masterTemplate = _selectedTemplate?.Schedule;
-                if (masterTemplate == null)
-                {
-                    masterTemplate = new FilteredElementCollector(_doc)
-                        .OfClass(typeof(ViewSchedule))
-                        .Cast<ViewSchedule>()
-                        .FirstOrDefault(s => !s.IsTemplate && s.Definition.CategoryId == new ElementId(ActiveCategory));
-                }
-
-                var (viewsCount, viewLogs) = DoorAssemblyManagerService.CreateBatchAssemblyViews(_doc, createdAssemblies, viewOpts, masterTemplate);
-                createdViewsCount = viewsCount;
-
-                foreach (var vl in viewLogs)
-                {
-                    logSb.AppendLine(vl);
+                    if (selectedTypeIds.Contains(d.TypeId)) d.IsSelected = true;
                 }
             }
+            lstDoorItems?.Items.Refresh();
+            UpdateDoorSummaryText();
+            UpdateColumn3Views();
+            LoadAssemblies();
 
-            logSb.AppendLine("--------------------------------------------------");
-            logSb.AppendLine($"RESUMEN FINAL:");
-            logSb.AppendLine($"• Ensamblajes creados: {createdAssemblies.Count}");
-            if (createViews) logSb.AppendLine($"• Vistas/Tablas técnicas generadas: {createdViewsCount}");
-            logSb.AppendLine($"Hora de término: {DateTime.Now:HH:mm:ss}");
+            if (txtLogQuickStatus != null) txtLogQuickStatus.Text = $"⚪ {offCount} Assemblies desensamblados (OFF)";
+        }
 
-            txtAssemblyLog.Text = logSb.ToString() + "\n" + txtAssemblyLog.Text;
+        private void btnPurgeOrphanAssemblies_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                int purged = 0;
+                using (Transaction t = new Transaction(_doc, "Purgar Tipos de Ensamblaje Huérfanos"))
+                {
+                    t.Start();
+                    var instanceTypeIds = new FilteredElementCollector(_doc)
+                        .OfClass(typeof(AssemblyInstance))
+                        .Cast<AssemblyInstance>()
+                        .Select(a => a.GetTypeId())
+                        .ToHashSet();
 
-            // Refrescar todos los listados de la interfaz
-            RefreshAll();
+                    var orphanTypes = new FilteredElementCollector(_doc)
+                        .OfClass(typeof(AssemblyType))
+                        .Where(at => !instanceTypeIds.Contains(at.Id))
+                        .Select(at => at.Id)
+                        .ToList();
 
+                    foreach (var id in orphanTypes)
+                    {
+                        try { _doc.Delete(id); purged++; } catch { }
+                    }
+                    t.Commit();
+                }
+
+                AppendCarpentryLog($"🧹 Purga de AssemblyTypes huérfanos: {purged} eliminados.");
+                LoadItemsForSelectedCarpSchedule();
+                LoadAssemblies();
+                MessageBox.Show($"Se eliminaron {purged} tipos de ensamblaje huérfanos o fantasma (como P04AA antiguos) del Project Browser.",
+                    "Purga Completada", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al purgar tipos huérfanos: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void btnAutoMarkDoors_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = GetSelectedColumn2Items();
+            if (selected.Count == 0 && _allDoors != null) selected = _allDoors.ToList();
+
+            if (selected.Count == 0)
+            {
+                MessageBox.Show("Selecciona una tabla en la Columna 1 para automarcar sus elementos.", "Selección Requerida", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var ids = selected.SelectMany(d => d.MemberElementIds);
+            var (marked, logs) = DoorAutoMarkService.AutoMark(_doc, ids);
+
+            foreach (var l in logs) AppendCarpentryLog(l);
+
+            LoadItemsForSelectedCarpSchedule();
             if (expLogPanel != null) expLogPanel.IsExpanded = true;
-            if (txtLogQuickStatus != null)
+            MessageBox.Show($"Automarcado completado: {marked} elemento(s) marcados.", "Automarcado", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        // ============================================================
+        // COLUMNA 3: VISTAS POR ASSEMBLY SELECCIONADO (ON / OFF)
+        // ============================================================
+        private List<DoorItemViewModel> GetSelectedColumn2Items()
+        {
+            if (_allDoors == null) return new List<DoorItemViewModel>();
+            var checkedItems = _allDoors.Where(d => d.IsSelected).ToList();
+            if (checkedItems.Count > 0) return checkedItems;
+
+            if (lstDoorItems != null && lstDoorItems.SelectedItems.Count > 0)
             {
-                txtLogQuickStatus.Text = createViews
-                    ? $"✅ {createdAssemblies.Count} ensamblajes y {createdViewsCount} vistas creadas"
-                    : $"✅ {createdAssemblies.Count} ensamblajes creados";
+                return lstDoorItems.SelectedItems.Cast<DoorItemViewModel>().ToList();
+            }
+            return new List<DoorItemViewModel>();
+        }
+
+        private int GetSelectedViewScale()
+        {
+            if (cmbBatchViewScale == null) return 20;
+            return cmbBatchViewScale.SelectedIndex switch
+            {
+                0 => 10,
+                1 => 20,
+                2 => 25,
+                3 => 50,
+                4 => 100,
+                _ => 20
+            };
+        }
+
+        private void UpdateColumn3Views()
+        {
+            if (lstAssemblyViews == null) return;
+
+            var selectedItems = GetSelectedColumn2Items();
+            var activeAssemblies = selectedItems.Where(d => d.IsAssemblyOn && d.AssemblyId != ElementId.InvalidElementId).ToList();
+
+            if (txtSelectedAssembliesNames != null)
+            {
+                if (selectedItems.Count == 0)
+                {
+                    txtSelectedAssembliesNames.Text = "Ningún Assembly seleccionado en Columna 2";
+                }
+                else if (activeAssemblies.Count == 0)
+                {
+                    string codes = string.Join(", ", selectedItems.Select(s => s.ComputedCode));
+                    txtSelectedAssembliesNames.Text = $"{codes} (⚪ en OFF — préndelo en ON en la Columna 2 para activar sus vistas)";
+                }
+                else
+                {
+                    txtSelectedAssembliesNames.Text = string.Join(", ", activeAssemblies.Select(a => string.IsNullOrWhiteSpace(a.AssemblyName) ? a.ComputedCode : a.AssemblyName));
+                }
             }
 
-            string completionMsg = createViews
-                ? $"¡Proceso Batch Completado con Éxito!\n\n• Ensamblajes creados: {createdAssemblies.Count}\n• Vistas y despieces técnicos generados: {createdViewsCount}\n\nLos ensamblajes y sus vistas correspondientes ya están disponibles en el Navegador de Proyectos de Revit."
-                : $"¡Ensamblajes Batch Creados con Éxito!\n\n• Ensamblajes generados: {createdAssemblies.Count}\n\nPuedes generar sus vistas en cualquier momento.";
+            var unifiedViews = DoorAssemblyManagerService.GetUnifiedViewsForAssemblies(_doc, activeAssemblies);
+            lstAssemblyViews.ItemsSource = unifiedViews;
+            lstAssemblyViews.IsEnabled = activeAssemblies.Count > 0;
+        }
 
-            MessageBox.Show(completionMsg, "Operación Batch Exitosa", MessageBoxButton.OK, MessageBoxImage.Information);
+        private void btnToggleAssemblyView_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && (fe.DataContext as AssemblyViewToggleItem ?? fe.Tag as AssemblyViewToggleItem) is AssemblyViewToggleItem viewItem)
+            {
+                var selectedItems = GetSelectedColumn2Items();
+                var activeAssemblies = selectedItems.Where(d => d.IsAssemblyOn && d.AssemblyId != ElementId.InvalidElementId).ToList();
+
+                if (activeAssemblies.Count == 0)
+                {
+                    MessageBox.Show("Primero selecciona al menos un elemento con Assembly en estado 🟢 ON en la Columna 2.",
+                        "Assembly Requerido", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                bool turnOn = !viewItem.IsViewOn;
+                int scale = GetSelectedViewScale();
+                bool autoDim = chkAutoDimensionViews?.IsChecked ?? true;
+                ViewSchedule? masterSched = _selectedCarpSchedule?.Schedule ?? _selectedTemplate?.Schedule;
+
+                var (changed, logMsg) = DoorAssemblyManagerService.SetAssemblyViewOnOff(
+                    _doc, activeAssemblies, viewItem.ViewKey, turnOn, scale, autoDim, masterSched);
+
+                AppendCarpentryLog(logMsg);
+
+                // Refrescar el estado de los Assemblies y la lista única de vistas
+                var selectedTypeIds = selectedItems.Select(d => d.TypeId).ToHashSet();
+                LoadItemsForSelectedCarpSchedule();
+                if (_allDoors != null)
+                {
+                    foreach (var d in _allDoors)
+                    {
+                        if (selectedTypeIds.Contains(d.TypeId)) d.IsSelected = true;
+                    }
+                }
+                lstDoorItems?.Items.Refresh();
+                UpdateColumn3Views();
+                LoadAssemblies();
+
+                if (txtLogQuickStatus != null)
+                    txtLogQuickStatus.Text = $"{(turnOn ? "🟢 Vista creada/actualizada" : "⚪ Vista eliminada")}: {viewItem.Title} ({changed})";
+            }
+        }
+
+        private void btnTurnAllViewsOn_Click(object sender, RoutedEventArgs e)
+        {
+            SetAllViewsForSelection(turnOn: true);
+        }
+
+        private void btnTurnAllViewsOff_Click(object sender, RoutedEventArgs e)
+        {
+            SetAllViewsForSelection(turnOn: false);
+        }
+
+        private void SetAllViewsForSelection(bool turnOn)
+        {
+            var selectedItems = GetSelectedColumn2Items();
+            var activeAssemblies = selectedItems.Where(d => d.IsAssemblyOn && d.AssemblyId != ElementId.InvalidElementId).ToList();
+
+            if (activeAssemblies.Count == 0)
+            {
+                MessageBox.Show("Selecciona en la Columna 2 al menos un Assembly que esté en 🟢 ON.",
+                    "Assembly Requerido", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            int scale = GetSelectedViewScale();
+            bool autoDim = chkAutoDimensionViews?.IsChecked ?? true;
+            ViewSchedule? masterSched = _selectedCarpSchedule?.Schedule ?? _selectedTemplate?.Schedule;
+
+            string[] allKinds = new[] { "3D", "Plan", "Front", "Back", "Section", "Schedule" };
+            int totalChanged = 0;
+
+            foreach (string kind in allKinds)
+            {
+                var (changed, logMsg) = DoorAssemblyManagerService.SetAssemblyViewOnOff(
+                    _doc, activeAssemblies, kind, turnOn, scale, autoDim, masterSched);
+                totalChanged += changed;
+                AppendCarpentryLog(logMsg);
+            }
+
+            var selectedTypeIds = selectedItems.Select(d => d.TypeId).ToHashSet();
+            LoadItemsForSelectedCarpSchedule();
+            if (_allDoors != null)
+            {
+                foreach (var d in _allDoors)
+                {
+                    if (selectedTypeIds.Contains(d.TypeId)) d.IsSelected = true;
+                }
+            }
+            lstDoorItems?.Items.Refresh();
+            UpdateColumn3Views();
+            LoadAssemblies();
+
+            if (txtLogQuickStatus != null)
+                txtLogQuickStatus.Text = turnOn
+                    ? $"🟢 Todas las vistas encendidas ({totalChanged} creadas/actualizadas)"
+                    : $"⚪ Todas las vistas apagadas ({totalChanged} eliminadas)";
+        }
+
+        private void AppendCarpentryLog(string line)
+        {
+            if (txtAssemblyLog == null) return;
+            string timestamped = $"[{DateTime.Now:HH:mm:ss}] {line}";
+            txtAssemblyLog.Text = timestamped + "\n" + txtAssemblyLog.Text;
         }
 
         #endregion

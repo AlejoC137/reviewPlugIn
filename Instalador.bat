@@ -40,6 +40,7 @@ echo   [*] Generador Estructural con IA y Acciones Directas IA
 echo   [*] Gestor de Categorias de Sistema (Suelos, Muros, DirectShape)
 echo   [*] Despiece y Computos de Enchapes, Pisos y Steel Deck
 echo   [*] Revisor de Familias, Planos y Estudio de Familias Modulares
+echo   [*] Gestor Integral y Transformativo de Parametros BIM (.TXT + Cloud)
 echo.
 echo ============================================================
 echo.

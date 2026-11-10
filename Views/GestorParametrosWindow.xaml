@@ -1,0 +1,688 @@
+<Window x:Class="RevitToSupabasePlugin.Views.GestorParametrosWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="📕 ARCA REVIEW — Gestor Integral y Transformativo de Parámetros BIM"
+        Width="1320" Height="840"
+        MinWidth="1080" MinHeight="700"
+        WindowStartupLocation="CenterScreen"
+        Background="#FCF9F4"
+        FontFamily="Segoe UI">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/RevitToSupabasePlugin;component/ReviewDesignSystem.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="3"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="135"/>
+        </Grid.RowDefinitions>
+
+        <!-- Línea Superior de Identidad ARCA Review -->
+        <Rectangle Grid.Row="0" Height="3" Fill="#0F4369"/>
+
+        <!-- Encabezado Principal + Selector Multi-Documento + Estado Cloud -->
+        <Border Grid.Row="1" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="0,0,0,1" Padding="14,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <Border Background="#0F4369" Padding="6,2" Margin="0,0,8,0">
+                            <TextBlock Text="BIM PARAMETER STUDIO" Foreground="White" FontWeight="Bold" FontSize="10"/>
+                        </Border>
+                        <TextBlock Text="GESTOR INTEGRAL Y TRANSFORMATIVO DE PARÁMETROS"
+                                   Foreground="#0F4369" FontWeight="Bold" FontSize="15" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <TextBlock Text="Audita, transforma (No-Shared ➔ Shared / Instancia ↔ Tipo), opera valores masivamente y respalda archivos .TXT en Supabase Cloud."
+                               Foreground="#72777F" FontSize="11" Margin="0,3,0,0"/>
+                </StackPanel>
+
+                <!-- Selector de Documento Activo de Trabajo -->
+                <Border Grid.Column="1" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1" Padding="8,5" Margin="10,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="📄 DOC EN INSPECCIÓN:" FontWeight="Bold" FontSize="10.5" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <ComboBox x:Name="cmbOpenDocuments" Width="260" FontSize="11" FontWeight="SemiBold"
+                                  SelectionChanged="CmbOpenDocuments_SelectionChanged"/>
+                        <Button Content="🔄 Refrescar" Style="{StaticResource SecondaryButton}" Margin="6,0,0,0" Padding="7,3"
+                                Click="BtnRefreshAll_Click"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Badge de Sesión Unificada SSO -->
+                <Border Grid.Column="2" Background="#D1E4F9" BorderBrush="#0F4369" BorderThickness="1" Padding="10,5" VerticalAlignment="Center">
+                    <StackPanel>
+                        <TextBlock x:Name="txtSessionBadge" Text="☁️ Cloud: Conectado" FontWeight="Bold" FontSize="10.5" Foreground="#0F4369"/>
+                        <TextBlock x:Name="txtActiveTxtBadge" Text=".TXT: Cargando..." FontFamily="Consolas" FontSize="9.5" Foreground="#1C1C19" MaxWidth="230" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Barra de KPIs Técnicos -->
+        <Border Grid.Row="2" Background="#FCF9F4" Padding="12,6" BorderBrush="#C2C7CF" BorderThickness="0,0,0,1">
+            <UniformGrid Columns="5">
+                <Border Style="{StaticResource KpiCard}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="∑" FontSize="18" FontWeight="Bold" Foreground="#0F4369" Margin="4,0,10,0" VerticalAlignment="Center"/>
+                        <StackPanel>
+                            <TextBlock Text="TOTAL PARÁMETROS DOC" FontSize="9.5" FontWeight="Bold" Foreground="#72777F"/>
+                            <TextBlock x:Name="lblKpiTotal" Text="0" FontSize="15" FontWeight="Bold" Foreground="#1C1C19"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource KpiCard}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="🔶" FontSize="16" Margin="4,0,10,0" VerticalAlignment="Center"/>
+                        <StackPanel>
+                            <TextBlock Text="PROYECTO (NO-SHARED)" FontSize="9.5" FontWeight="Bold" Foreground="#72777F"/>
+                            <TextBlock x:Name="lblKpiProject" Text="0" FontSize="15" FontWeight="Bold" Foreground="#0F4369"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource KpiCard}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="🔗" FontSize="16" Margin="4,0,10,0" VerticalAlignment="Center"/>
+                        <StackPanel>
+                            <TextBlock Text="COMPARTIDOS (SHARED)" FontSize="9.5" FontWeight="Bold" Foreground="#72777F"/>
+                            <TextBlock x:Name="lblKpiShared" Text="0" FontSize="15" FontWeight="Bold" Foreground="#059669"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource KpiCard}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="⚠️" FontSize="16" Margin="4,0,10,0" VerticalAlignment="Center"/>
+                        <StackPanel>
+                            <TextBlock Text="HUÉRFANOS (NO EN .TXT)" FontSize="9.5" FontWeight="Bold" Foreground="#72777F"/>
+                            <TextBlock x:Name="lblKpiOrphans" Text="0" FontSize="15" FontWeight="Bold" Foreground="#BA1A1A"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource KpiCard}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="📑" FontSize="16" Margin="4,0,10,0" VerticalAlignment="Center"/>
+                        <StackPanel>
+                            <TextBlock Text="DEFINICIONES EN .TXT ACTIVO" FontSize="9.5" FontWeight="Bold" Foreground="#72777F"/>
+                            <TextBlock x:Name="lblKpiTxtDefs" Text="0" FontSize="15" FontWeight="Bold" Foreground="#1C1C19"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+        </Border>
+
+        <!-- Cuerpo Central: 5 Pestañas Operativas -->
+        <TabControl x:Name="mainTabControl" Grid.Row="3" Margin="12,8,12,4" Background="#FCF9F4" BorderBrush="#1C1C19" BorderThickness="1">
+
+            <!-- =========================================================================
+                 PESTAÑA 1: EXPLORADOR Y MATRIZ DE PARÁMETROS DEL PROYECTO
+                 ========================================================================= -->
+            <TabItem Header="📊 1. Explorador &amp; Matriz del Proyecto" Padding="12,6" FontWeight="Bold">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Barra de Filtros por Tipo de Parámetro y Búsqueda -->
+                    <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="8" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="FILTRAR POR:" FontWeight="Bold" FontSize="10.5" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <RadioButton x:Name="rbFilterAll" Content="Todos" Style="{StaticResource ArcaRadioButton}" IsChecked="True" Checked="FilterParameters_Changed"/>
+                                <RadioButton x:Name="rbFilterProject" Content="🔶 Proyecto (No-Shared)" Style="{StaticResource ArcaRadioButton}" Checked="FilterParameters_Changed"/>
+                                <RadioButton x:Name="rbFilterShared" Content="🔗 Compartidos (Shared)" Style="{StaticResource ArcaRadioButton}" Checked="FilterParameters_Changed"/>
+                                <RadioButton x:Name="rbFilterOrphan" Content="⚠️ Huérfanos de .TXT" Style="{StaticResource ArcaRadioButton}" Checked="FilterParameters_Changed"/>
+                                <RadioButton x:Name="rbFilterInstance" Content="Ejemplar (Instancia)" Style="{StaticResource ArcaRadioButton}" Checked="FilterParameters_Changed"/>
+                                <RadioButton x:Name="rbFilterType" Content="Tipo (Type)" Style="{StaticResource ArcaRadioButton}" Checked="FilterParameters_Changed"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="🔎 Buscar:" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <TextBox x:Name="txtSearchParams" Width="210" Style="{StaticResource ArcaTextBox}" TextChanged="TxtSearchParams_TextChanged"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- DataGrid Principal de Parámetros -->
+                    <DataGrid x:Name="dgProjectParameters" Grid.Row="1"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
+                              Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
+                              RowBackground="#FFFFFF" AlternatingRowBackground="#F6F3EE"
+                              GridLinesVisibility="All" HorizontalGridLinesBrush="#E5E2DD" VerticalGridLinesBrush="#E5E2DD"
+                              HeadersVisibility="Column" FontSize="11">
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn Header="✓" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="36"/>
+                            <DataGridTextColumn Header="Nombre del Parámetro" Binding="{Binding Name}" IsReadOnly="True" Width="175" FontWeight="Bold"/>
+                            <DataGridTextColumn Header="Nuevo Nombre (Opcional)" Binding="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" Width="165"/>
+                            <DataGridTextColumn Header="Origen / Naturaleza" Binding="{Binding OriginText}" IsReadOnly="True" Width="145"/>
+                            <DataGridTextColumn Header="Ámbito (Scope)" Binding="{Binding ScopeText}" IsReadOnly="True" Width="135"/>
+                            <DataGridTextColumn Header="Tipo de Dato" Binding="{Binding DataTypeLabel}" IsReadOnly="True" Width="110"/>
+                            <DataGridTextColumn Header="Grupo UI" Binding="{Binding GroupLabel}" IsReadOnly="True" Width="115"/>
+                            <DataGridTextColumn Header="GUID Compartido" Binding="{Binding GuidText}" IsReadOnly="True" Width="170" FontFamily="Consolas"/>
+                            <DataGridTextColumn Header="Vínculo .TXT" Binding="{Binding TxtLinkStatus}" IsReadOnly="True" Width="135"/>
+                            <DataGridTextColumn Header="Categorías Asignadas" Binding="{Binding CategoriesSummary}" IsReadOnly="True" Width="170"/>
+                            <DataGridTextColumn Header="Uso (Con Valor)" Binding="{Binding UsageSummary}" IsReadOnly="True" Width="115"/>
+                            <DataGridTextColumn Header="Estado" Binding="{Binding StatusText}" IsReadOnly="True" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Acciones Rápidas de la Pestaña 1 -->
+                    <Border Grid.Row="2" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="1" Padding="8" Margin="0,8,0,0">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                <Button Content="☑️ Marcar Visibles" Style="{StaticResource SecondaryButton}" Margin="0,0,6,0" Click="BtnSelectAllVisibleParams_Click"/>
+                                <Button Content="⬜ Desmarcar Todos" Style="{StaticResource SecondaryButton}" Margin="0,0,6,0" Click="BtnUnselectAllParams_Click"/>
+                                <Button Content="🔶 Marcar Solo No-Shared" Style="{StaticResource SecondaryButton}" Margin="0,0,6,0" Click="BtnSelectOnlyNonShared_Click"/>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Content="🛟 Rescatar Huérfanos hacia .TXT Activo" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0"
+                                        Click="BtnRescueOrphans_Click"/>
+                                <Button Content="🔄 Cambiar Instancia ↔ Tipo (Seleccionados)" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0"
+                                        Click="BtnQuickToggleScope_Click"/>
+                                <Button Content="⚡ Transformar Seleccionados a COMPARTIDOS (Shared)" Style="{StaticResource SuccessButton}"
+                                        Click="BtnQuickConvertToShared_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- =========================================================================
+                 PESTAÑA 2: MOTOR TRANSFORMATIVO (NO-SHARED -> SHARED / INSTANCIA <-> TIPO)
+                 ========================================================================= -->
+            <TabItem Header="⚡ 2. Motor Transformativo &amp; Creación" Padding="12,6" FontWeight="Bold">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.15*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="1*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Columna Izquierda: Transformación de Parámetros Existentes -->
+                    <StackPanel Grid.Column="0">
+                        <Border Style="{StaticResource CardBorder}" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="1. TRANSFORMAR PARÁMETROS DE PROYECTO (NO-SHARED) ➔ COMPARTIDOS (SHARED)"
+                                           FontWeight="Bold" FontSize="12.5" Foreground="#0F4369"/>
+                                <TextBlock Text="Convierte parámetros internos del proyecto en Parámetros Compartidos reales dentro del archivo .TXT activo, preservando automáticamente las categorías asignadas y TODOS los valores ya cargados en los elementos del modelo."
+                                           Foreground="#72777F" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,10"/>
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Grupo destino en archivo .TXT:" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                    <TextBox x:Name="txtTransformTargetGroup" Grid.Column="1" Text="01_ARCA_Transformados" Style="{StaticResource ArcaTextBox}"/>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Ámbito al transformar:" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                    <ComboBox x:Name="cmbTransformScopeMode" Grid.Column="1" SelectedIndex="0" FontSize="11">
+                                        <ComboBoxItem Content="Mantener ámbito original (Instancia o Tipo)" Tag="KEEP"/>
+                                        <ComboBoxItem Content="Transformar a Shared + Forzar a INSTANCIA (Ejemplar)" Tag="INSTANCE"/>
+                                        <ComboBoxItem Content="Transformar a Shared + Forzar a TIPO (ElementType)" Tag="TYPE"/>
+                                    </ComboBox>
+                                </Grid>
+
+                                <Button Content="⚡ EJECUTAR TRANSFORMACIÓN A COMPARTIDO (PRESERVANDO VALORES)"
+                                        Style="{StaticResource SuccessButton}" Height="34"
+                                        Click="BtnQuickConvertToShared_Click"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardBorder}" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="2. CONMUTADOR DE ÁMBITO: INSTANCIA (EJEMPLAR) ↔ TIPO (ELEMENT TYPE)"
+                                           FontWeight="Bold" FontSize="12.5" Foreground="#0F4369"/>
+                                <TextBlock Text="Invierte el ámbito de los parámetros marcados en la Pestaña 1. Si pasa de Tipo a Instancia, propaga el valor del tipo a todos sus ejemplares colocados. Si pasa de Instancia a Tipo, transfiere el valor de los ejemplares al ElementType."
+                                           Foreground="#72777F" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,10"/>
+
+                                <Button Content="🔄 INVERTIR ÁMBITO (INSTANCIA ↔ TIPO) EN PARÁMETROS SELECCIONADOS"
+                                        Style="{StaticResource PrimaryButton}" Height="34"
+                                        Click="BtnQuickToggleScope_Click"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardBorder}" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="3. RESCATE DE PARÁMETROS COMPARTIDOS HUÉRFANOS DEL MODELO (.RVT ➔ .TXT)"
+                                           FontWeight="Bold" FontSize="12.5" Foreground="#0F4369"/>
+                                <TextBlock Text="¿Recibiste un modelo .RVT con parámetros compartidos pero no tienes su archivo .TXT original? Esta herramienta extrae sus GUIDs reales desde la base de datos interna del .RVT y los reconstruye en tu archivo .TXT activo."
+                                           Foreground="#72777F" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,10"/>
+
+                                <Button Content="🛟 EXTRAER Y RECONSTRUIR PARÁMETROS HUÉRFANOS EN EL .TXT ACTIVO"
+                                        Style="{StaticResource SecondaryButton}" Height="32"
+                                        Click="BtnRescueOrphans_Click"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Columna Derecha: Creador Directo de Nuevos Parámetros Compartidos -->
+                    <Border Grid.Column="2" Style="{StaticResource CardBorder}" Padding="12">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0">
+                                <TextBlock Text="➕ CREAR NUEVO PARÁMETRO COMPARTIDO Y VINCULAR AL PROYECTO"
+                                           FontWeight="Bold" FontSize="12.5" Foreground="#0F4369"/>
+                                <TextBlock Text="Registra un nuevo parámetro en el archivo .TXT activo y lo vincula inmediatamente a las categorías seleccionadas."
+                                           Foreground="#72777F" FontSize="11" TextWrapping="Wrap" Margin="0,3,0,8"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1">
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="135"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Nombre Parámetro:" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                    <TextBox x:Name="txtNewParamName" Grid.Column="1" Text="ARCA_Nuevo_Parametro" Style="{StaticResource ArcaTextBox}"/>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="135"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Grupo en .TXT:" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                    <TextBox x:Name="txtNewParamGroup" Grid.Column="1" Text="01_ARCA_Identificacion" Style="{StaticResource ArcaTextBox}"/>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="135"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="110"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Tipo de Dato / Ámbito:" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                    <ComboBox x:Name="cmbNewParamDataType" Grid.Column="1" SelectedIndex="0" Margin="0,0,6,0">
+                                        <ComboBoxItem Content="TEXT (Texto)" Tag="TEXT"/>
+                                        <ComboBoxItem Content="LENGTH (Longitud)" Tag="LENGTH"/>
+                                        <ComboBoxItem Content="AREA (Área)" Tag="AREA"/>
+                                        <ComboBoxItem Content="VOLUME (Volumen)" Tag="VOLUME"/>
+                                        <ComboBoxItem Content="YESNO (Sí/No Booleano)" Tag="YESNO"/>
+                                        <ComboBoxItem Content="INTEGER (Entero)" Tag="INTEGER"/>
+                                        <ComboBoxItem Content="NUMBER (Número Decimal)" Tag="NUMBER"/>
+                                        <ComboBoxItem Content="CURRENCY (Moneda / Costo)" Tag="CURRENCY"/>
+                                        <ComboBoxItem Content="MATERIAL (Material)" Tag="MATERIAL"/>
+                                    </ComboBox>
+                                    <ComboBox x:Name="cmbNewParamScope" Grid.Column="2" SelectedIndex="0">
+                                        <ComboBoxItem Content="Instancia" Tag="INSTANCE"/>
+                                        <ComboBoxItem Content="Tipo" Tag="TYPE"/>
+                                    </ComboBox>
+                                </Grid>
+
+                                <TextBlock Text="Categorías donde se vinculará:" FontWeight="Bold" FontSize="11" Foreground="#0F4369" Margin="0,4,0,4"/>
+                            </StackPanel>
+
+                            <ListBox x:Name="lstNewParamCategories" Grid.Row="2" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Content="{Binding Name}" IsChecked="{Binding IsChecked, Mode=TwoWay}" Style="{StaticResource ArcaCheckBox}"/>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <StackPanel Grid.Row="3" Margin="0,8,0,0">
+                                <Button Content="➕ CREAR EN .TXT Y VINCULAR AL DOCUMENTO ACTIVO"
+                                        Style="{StaticResource PrimaryButton}" Height="34"
+                                        Click="BtnCreateAndBindNewSharedParam_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- =========================================================================
+                 PESTAÑA 3: OPERACIONES MASIVAS DE VALORES EN ELEMENTOS
+                 ========================================================================= -->
+            <TabItem Header="🧮 3. Operaciones Masivas (Elementos)" Padding="12,6" FontWeight="Bold">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="380"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Panel Izquierdo: Configuración de Origen, Destino y Reglas -->
+                    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <Border Style="{StaticResource CardBorder}" Padding="10">
+                                <StackPanel>
+                                    <TextBlock Text="1. SELECCIÓN DE ELEMENTOS Y PARÁMETROS" FontWeight="Bold" FontSize="12" Foreground="#0F4369" Margin="0,0,0,6"/>
+
+                                    <TextBlock Text="Categoría a operar:" FontWeight="SemiBold" FontSize="10.5"/>
+                                    <ComboBox x:Name="cmbMassCategory" DisplayMemberPath="Name" SelectedValuePath="CategoryId" Margin="0,2,0,6"/>
+
+                                    <CheckBox x:Name="chkMassInspectTypes" Content="Operar sobre Tipos (ElementType) en vez de Ejemplares"
+                                              Style="{StaticResource ArcaCheckBox}" Margin="0,0,0,6"/>
+
+                                    <TextBlock Text="Parámetro Origen (Lectura):" FontWeight="SemiBold" FontSize="10.5"/>
+                                    <ComboBox x:Name="cmbMassSourceParam" IsEditable="True" Margin="0,2,0,6" Text="Comentarios"/>
+
+                                    <TextBlock Text="Parámetro Destino (Escritura):" FontWeight="SemiBold" FontSize="10.5"/>
+                                    <ComboBox x:Name="cmbMassTargetParam" IsEditable="True" Margin="0,2,0,8" Text="Marca"/>
+
+                                    <Button Content="🔍 CARGAR MATRIZ DE ELEMENTOS" Style="{StaticResource PrimaryButton}"
+                                            Click="BtnLoadElementMatrix_Click"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource CardBorder}" Padding="10">
+                                <StackPanel>
+                                    <TextBlock Text="2. REGLA DE TRANSFORMACIÓN MASIVA" FontWeight="Bold" FontSize="12" Foreground="#0F4369" Margin="0,0,0,6"/>
+
+                                    <ComboBox x:Name="cmbMassRuleMode" SelectedIndex="0" Margin="0,0,0,8">
+                                        <ComboBoxItem Content="📋 Copiar Valor: Origen ➔ Destino" Tag="COPY"/>
+                                        <ComboBoxItem Content="🧩 Plantilla / Concatenar: {Categoria}-{Nivel}-{Marca}" Tag="TEMPLATE"/>
+                                        <ComboBoxItem Content="🔎 Buscar y Reemplazar Texto" Tag="REPLACE"/>
+                                        <ComboBoxItem Content="🏷️ Agregar Prefijo y Sufijo" Tag="PREFIX_SUFFIX"/>
+                                        <ComboBoxItem Content="🔠 Convertir a MAYÚSCULAS" Tag="UPPERCASE"/>
+                                        <ComboBoxItem Content="➗ Fórmula Numérica: (Valor * Factor) + Offset" Tag="MATH"/>
+                                    </ComboBox>
+
+                                    <TextBlock Text="Argumento 1 (Plantilla / Buscar / Prefijo / Factor):" FontWeight="SemiBold" FontSize="10.5"/>
+                                    <TextBox x:Name="txtMassArg1" Text="{}{Categoria}-{Nivel}-{#}" Style="{StaticResource ArcaTextBox}" Margin="0,2,0,4"/>
+                                    <TextBlock Text="Tokens disponibles: {Origen}, {Actual}, {Categoria}, {Familia}, {Nivel}, {Marca}, {Id}, {#}"
+                                               Foreground="#72777F" FontSize="9.5" TextWrapping="Wrap" Margin="0,0,0,6"/>
+
+                                    <TextBlock Text="Argumento 2 (Reemplazo / Sufijo / Offset):" FontWeight="SemiBold" FontSize="10.5"/>
+                                    <TextBox x:Name="txtMassArg2" Text="" Style="{StaticResource ArcaTextBox}" Margin="0,2,0,6"/>
+
+                                    <CheckBox x:Name="chkMassOnlyIfEmpty" Content="Solo escribir si el Parámetro Destino está vacío"
+                                              Style="{StaticResource ArcaCheckBox}" Margin="0,0,0,8"/>
+
+                                    <Button Content="👁️ PREVISUALIZAR TRANSFORMACIÓN EN TABLA" Style="{StaticResource SecondaryButton}" Margin="0,0,0,6"
+                                            Click="BtnPreviewMassRule_Click"/>
+
+                                    <Button Content="✅ APLICAR VALORES EN EL MODELO REVIT" Style="{StaticResource SuccessButton}" Height="34"
+                                            Click="BtnApplyMassMatrix_Click"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Panel Derecho: Matriz Interactiva de Elementos -->
+                    <Grid Grid.Column="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="1" Padding="8,6" Margin="0,0,0,6">
+                            <DockPanel>
+                                <TextBlock x:Name="lblMatrixSummary" Text="Carga una categoría para inspeccionar y transformar valores en masa."
+                                           FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Content="☑️ Todos" Style="{StaticResource SecondaryButton}" Padding="6,2" Margin="0,0,4,0" Click="BtnMatrixSelectAll_Click"/>
+                                    <Button Content="⬜ Ninguno" Style="{StaticResource SecondaryButton}" Padding="6,2" Click="BtnMatrixUnselectAll_Click"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+
+                        <DataGrid x:Name="dgElementMatrix" Grid.Row="1"
+                                  AutoGenerateColumns="False" CanUserAddRows="False"
+                                  Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
+                                  RowBackground="#FFFFFF" AlternatingRowBackground="#F6F3EE"
+                                  GridLinesVisibility="All" HorizontalGridLinesBrush="#E5E2DD" VerticalGridLinesBrush="#E5E2DD"
+                                  FontSize="11">
+                            <DataGrid.Columns>
+                                <DataGridCheckBoxColumn Header="✓" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="34"/>
+                                <DataGridTextColumn Header="ElementId" Binding="{Binding ElementId}" IsReadOnly="True" Width="75" FontFamily="Consolas"/>
+                                <DataGridTextColumn Header="Categoría" Binding="{Binding CategoryName}" IsReadOnly="True" Width="110"/>
+                                <DataGridTextColumn Header="Familia y Tipo" Binding="{Binding FamilyAndType}" IsReadOnly="True" Width="180"/>
+                                <DataGridTextColumn Header="Nivel" Binding="{Binding LevelName}" IsReadOnly="True" Width="85"/>
+                                <DataGridTextColumn Header="Valor Origen" Binding="{Binding SourceValue}" IsReadOnly="True" Width="135"/>
+                                <DataGridTextColumn Header="Valor Actual (Destino)" Binding="{Binding CurrentTargetValue}" IsReadOnly="True" Width="140"/>
+                                <DataGridTextColumn Header="Nuevo Valor (Editable)" Binding="{Binding PreviewNewValue, UpdateSourceTrigger=PropertyChanged}" Width="165" FontWeight="Bold"/>
+                                <DataGridTextColumn Header="Estado" Binding="{Binding Status}" IsReadOnly="True" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <!-- =========================================================================
+                 PESTAÑA 4: GESTOR .TXT DE PARÁMETROS COMPARTIDOS Y RESPALDO EN LA NUBE
+                 ========================================================================= -->
+            <TabItem Header="☁️ 4. Archivos .TXT &amp; Nube (Supabase)" Padding="12,6" FontWeight="Bold">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.25*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="1*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Izquierda: Archivo .TXT Local Activo -->
+                    <Grid Grid.Column="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="10" Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Text="ARCHIVO .TXT DE PARÁMETROS COMPARTIDOS ACTIVO EN REVIT"
+                                           FontWeight="Bold" FontSize="12" Foreground="#0F4369"/>
+                                <Grid Margin="0,6,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="txtActiveSharedFilePath" IsReadOnly="True" Style="{StaticResource ArcaTextBox}" FontFamily="Consolas" FontSize="10.5"/>
+                                    <Button Grid.Column="1" Content="📂 Cargar .TXT..." Style="{StaticResource SecondaryButton}" Margin="6,0,0,0"
+                                            Click="BtnBrowseLocalTxt_Click"/>
+                                    <Button Grid.Column="2" Content="🏛️ Usar Estándar ARCA" Style="{StaticResource SecondaryButton}" Margin="6,0,0,0"
+                                            Click="BtnActivateDefaultArcaTxt_Click"/>
+                                </Grid>
+                                <TextBlock Text="Selecciona parámetros de la tabla inferior para inyectarlos en el proyecto o familia activa, o respalda este archivo .TXT en Supabase Cloud."
+                                           Foreground="#72777F" FontSize="10.5"/>
+                            </StackPanel>
+                        </Border>
+
+                        <DataGrid x:Name="dgSharedTxtItems" Grid.Row="1"
+                                  AutoGenerateColumns="False" CanUserAddRows="False"
+                                  Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
+                                  RowBackground="#FFFFFF" AlternatingRowBackground="#F6F3EE"
+                                  GridLinesVisibility="All" HorizontalGridLinesBrush="#E5E2DD" VerticalGridLinesBrush="#E5E2DD"
+                                  FontSize="11">
+                            <DataGrid.Columns>
+                                <DataGridCheckBoxColumn Header="✓" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="34"/>
+                                <DataGridTextColumn Header="Grupo (.TXT)" Binding="{Binding GroupName}" IsReadOnly="True" Width="145"/>
+                                <DataGridTextColumn Header="Nombre Parámetro" Binding="{Binding Name}" IsReadOnly="True" Width="155" FontWeight="Bold"/>
+                                <DataGridTextColumn Header="Tipo" Binding="{Binding DataTypeLabel}" IsReadOnly="True" Width="85"/>
+                                <DataGridTextColumn Header="GUID Oficial" Binding="{Binding GuidString}" IsReadOnly="True" Width="165" FontFamily="Consolas"/>
+                                <DataGridTextColumn Header="Estado en Doc" Binding="{Binding DocPresenceText}" IsReadOnly="True" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <Border Grid.Row="2" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="1" Padding="8" Margin="0,8,0,0">
+                            <DockPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="☑️ Todos" Style="{StaticResource SecondaryButton}" Margin="0,0,6,0" Click="BtnSelectAllTxtItems_Click"/>
+                                    <ComboBox x:Name="cmbBindFromTxtScope" Width="120" SelectedIndex="0" Margin="0,0,6,0">
+                                        <ComboBoxItem Content="Como Instancia" Tag="INSTANCE"/>
+                                        <ComboBoxItem Content="Como Tipo" Tag="TYPE"/>
+                                    </ComboBox>
+                                </StackPanel>
+                                <Button Content="📥 VINCULAR SELECCIONADOS DEL .TXT AL DOCUMENTO ACTIVO"
+                                        Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right"
+                                        Click="BtnBindSelectedTxtItemsToDoc_Click"/>
+                            </DockPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- Derecha: Respaldo y Biblioteca en la Nube (Supabase) -->
+                    <Grid Grid.Column="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="10" Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Text="☁️ RESPALDAR / SUBIR .TXT ACTUAL A SUPABASE CLOUD"
+                                           FontWeight="Bold" FontSize="12" Foreground="#0F4369"/>
+                                <TextBlock Text="Guarda el archivo .TXT activo en el repositorio central de Supabase para compartir los mismos GUIDs con todo el equipo y en diferentes proyectos."
+                                           Foreground="#72777F" FontSize="10.5" TextWrapping="Wrap" Margin="0,3,0,8"/>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="125"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Título del Perfil:" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                    <TextBox x:Name="txtCloudProfileTitle" Grid.Column="1" Text="Estándar Parámetros ARCA BIM" Style="{StaticResource ArcaTextBox}"/>
+                                </Grid>
+
+                                <Button Content="☁️ SUBIR Y RESPALDAR .TXT ACTIVO EN LA NUBE"
+                                        Style="{StaticResource SuccessButton}" Height="32"
+                                        Click="BtnUploadTxtToCloud_Click"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Row="1" Style="{StaticResource CardBorder}" Padding="10" Margin="0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <DockPanel Grid.Row="0" Margin="0,0,0,6">
+                                    <TextBlock Text="📚 PERFILES .TXT EN SUPABASE &amp; BIBLIOTECA" FontWeight="Bold" FontSize="11.5" Foreground="#0F4369" VerticalAlignment="Center"/>
+                                    <Button Content="🔄 Consultar Nube" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Right" Padding="8,3"
+                                            Click="BtnRefreshCloudProfiles_Click"/>
+                                </DockPanel>
+
+                                <DataGrid x:Name="dgCloudProfiles" Grid.Row="1"
+                                          AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single"
+                                          Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
+                                          RowBackground="#FFFFFF" AlternatingRowBackground="#F6F3EE"
+                                          FontSize="10.5">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Perfil / Estándar" Binding="{Binding ProfileTitle}" IsReadOnly="True" Width="155" FontWeight="Bold"/>
+                                        <DataGridTextColumn Header="Archivo" Binding="{Binding FileName}" IsReadOnly="True" Width="125" FontFamily="Consolas"/>
+                                        <DataGridTextColumn Header="Params" Binding="{Binding ParamCount}" IsReadOnly="True" Width="55"/>
+                                        <DataGridTextColumn Header="Origen" Binding="{Binding SourceKind}" IsReadOnly="True" Width="115"/>
+                                        <DataGridTextColumn Header="Actualizado" Binding="{Binding UpdatedAtText}" IsReadOnly="True" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="2" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="1" Padding="8" Margin="0,8,0,0">
+                            <UniformGrid Columns="2">
+                                <Button Content="⬇️ Descargar y Activar en Revit" Style="{StaticResource PrimaryButton}" Margin="0,0,4,0"
+                                        Click="BtnDownloadAndActivateCloudTxt_Click"/>
+                                <Button Content="🔀 Fusionar con .TXT Local" Style="{StaticResource SecondaryButton}" Margin="4,0,0,0"
+                                        Click="BtnMergeCloudTxtIntoLocal_Click"/>
+                            </UniformGrid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <!-- =========================================================================
+                 PESTAÑA 5: PROPAGACIÓN Y SINCRONIZACIÓN MULTI-DOCUMENTO (.RVT y .RFA)
+                 ========================================================================= -->
+            <TabItem Header="🔄 5. Sincronizador Multi-Documento" Padding="12,6" FontWeight="Bold">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="10" Margin="0,0,0,8">
+                        <StackPanel>
+                            <TextBlock Text="SINCRONIZACIÓN TRANSVERSAL ENTRE MÚLTIPLES PROYECTOS (.RVT) Y FAMILIAS (.RFA) ABIERTOS"
+                                       FontWeight="Bold" FontSize="12.5" Foreground="#0F4369"/>
+                            <TextBlock Text="Selecciona los parámetros en la Pestaña 1 (Explorador) y marca aquí los documentos abiertos donde deseas inyectarlos con el mismo GUID y configuración de categorías."
+                                       Foreground="#72777F" FontSize="11" Margin="0,3,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <DataGrid x:Name="dgOpenDocsSync" Grid.Row="1"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
+                              Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
+                              RowBackground="#FFFFFF" AlternatingRowBackground="#F6F3EE"
+                              FontSize="11">
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn Header="Sincronizar ✓" Binding="{Binding IsSelectedForSync, UpdateSourceTrigger=PropertyChanged}" Width="95"/>
+                            <DataGridTextColumn Header="Documento Abierto en Revit" Binding="{Binding DisplayTitle}" IsReadOnly="True" Width="280" FontWeight="Bold"/>
+                            <DataGridTextColumn Header="Tipo de Archivo" Binding="{Binding DocKindLabel}" IsReadOnly="True" Width="150"/>
+                            <DataGridTextColumn Header="Ruta del Archivo" Binding="{Binding PathName}" IsReadOnly="True" Width="*" FontFamily="Consolas"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <Border Grid.Row="2" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="1" Padding="10" Margin="0,8,0,0">
+                        <DockPanel>
+                            <TextBlock Text="💡 Tip: Puedes tener varias familias (.rfa) y modelos (.rvt) abiertos simultáneamente para estandarizarlos en un solo paso."
+                                       Foreground="#72777F" VerticalAlignment="Center" FontSize="11"/>
+                            <Button Content="🚀 PROPAGAR PARÁMETROS SELECCIONADOS A LOS DOCUMENTOS MARCADOS"
+                                    Style="{StaticResource SuccessButton}" HorizontalAlignment="Right" Height="34"
+                                    Click="BtnPropagateMultiDoc_Click"/>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+        </TabControl>
+
+        <!-- Consola / Terminal Técnica de Diagnóstico (ArcaTerminalBorder) -->
+        <Border Grid.Row="4" Style="{StaticResource ArcaTerminalBorder}" Margin="12,0,12,10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <DockPanel Grid.Row="0" Margin="0,0,0,4">
+                    <TextBlock Text=">_ TERMINAL DE AUDITORÍA Y OPERACIONES DE PARÁMETROS BIM"
+                               Foreground="#D1E4F9" FontFamily="Consolas" FontWeight="Bold" FontSize="10"/>
+                    <Button Content="Limpiar Log" HorizontalAlignment="Right" Background="Transparent" Foreground="#C2C7CF"
+                            BorderThickness="0" FontSize="9.5" Cursor="Hand" Click="BtnClearLog_Click"/>
+                </DockPanel>
+                <TextBox x:Name="txtTerminalLog" Grid.Row="1"
+                         Background="Transparent" Foreground="#E5E2DD" BorderThickness="0"
+                         FontFamily="Consolas" FontSize="10" IsReadOnly="True"
+                         TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

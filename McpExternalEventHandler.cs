@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -90,6 +90,21 @@ namespace RevitToSupabasePlugin
                 result["status"] = "error";
                 result["error"] = "No hay ningún documento o proyecto activo abierto en Autodesk Revit.";
                 return result;
+            }
+
+            // Herramientas de solo lectura (catálogo compatible, Fase 1)
+            if (McpReadTools.Handles(toolName))
+            {
+                try
+                {
+                    return McpReadTools.Execute(uidoc, doc, toolName, args);
+                }
+                catch (Exception ex)
+                {
+                    result["status"] = "error";
+                    result["error"] = ex.Message;
+                    return result;
+                }
             }
 
             switch (toolName)
@@ -1139,17 +1154,14 @@ namespace RevitToSupabasePlugin
                     var batchOpts = new BatchAssemblyOptions
                     {
                         GroupByInstance = groupByInstance,
+                        GroupByCode = !groupByInstance,
                         SingleInstancePerType = singleInstancePerType,
                         InitialName = initialName,
                         Category = targetCategory
                     };
 
-                    var (createdAssemblies, assLogs) = DoorAssemblyManagerService.CreateBatchDoorAssemblies(doc, doorItems, batchOpts);
-
-                    int createdViewsCount = 0;
-                    if (createViews && createdAssemblies.Count > 0)
-                    {
-                        var viewOpts = new AssemblyBatchViewOptions
+                    AssemblyBatchViewOptions? viewOpts = createViews
+                        ? new AssemblyBatchViewOptions
                         {
                             CreateSchedule = true,
                             ScheduleNameTemplate = "Despiece y Medidas",
@@ -1161,17 +1173,19 @@ namespace RevitToSupabasePlugin
                             ViewScale = 20,
                             AutoDimensionViews = true,
                             CategoryId = new ElementId(targetCategory)
-                        };
+                        }
+                        : null;
 
-                        ViewSchedule? masterTemplate = new FilteredElementCollector(doc)
-                            .OfClass(typeof(ViewSchedule))
-                            .Cast<ViewSchedule>()
-                            .FirstOrDefault(s => !s.IsTemplate && s.Definition.CategoryId == new ElementId(targetCategory));
-
-                        var (vCount, vLogs) = DoorAssemblyManagerService.CreateBatchAssemblyViews(doc, createdAssemblies, viewOpts, masterTemplate);
-                        createdViewsCount = vCount;
-                        assLogs.AddRange(vLogs);
-                    }
+                    var batchResult = DoorAssemblyBatchPipeline.Run(doc, new DoorBatchRequest
+                    {
+                        Items = doorItems,
+                        Assembly = batchOpts,
+                        Views = viewOpts,
+                        MasterSchedule = null // primer cuadro de la categoría como molde
+                    });
+                    var createdAssemblies = batchResult.Assemblies;
+                    var assLogs = batchResult.Logs;
+                    int createdViewsCount = batchResult.ViewsCreated;
 
                     result["status"] = "success";
                     result["assemblies_created"] = createdAssemblies.Count;

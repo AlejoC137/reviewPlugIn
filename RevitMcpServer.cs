@@ -348,7 +348,7 @@ namespace RevitToSupabasePlugin
 
         private JObject GetToolsManifest()
         {
-            return JObject.Parse(@"{
+            var manifest = JObject.Parse(@"{
   ""tools"": [
     {
       ""name"": ""revit_get_active_session"",
@@ -596,6 +596,10 @@ namespace RevitToSupabasePlugin
     }
   ]
 }");
+            // Herramientas de solo lectura (catálogo compatible, Fase 1)
+            var toolsArray = (JArray)manifest["tools"]!;
+            foreach (JToken t in McpReadTools.Manifest()) toolsArray.Add(t);
+            return manifest;
         }
 
         public async Task<JObject> ExecuteToolDirectAsync(string toolName, JObject arguments)

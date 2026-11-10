@@ -13,7 +13,35 @@ namespace RevitToSupabasePlugin
         private static UIControlledApplication? _uiApp;
         public static RevitMcpServer? McpServerInstance { get; internal set; }
 
+        private static void LogStartup(string message)
+        {
+            try
+            {
+                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ARCA_REVIEW");
+                Directory.CreateDirectory(dir);
+                File.AppendAllText(Path.Combine(dir, "startup.log"),
+                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{Environment.NewLine}");
+            }
+            catch { }
+        }
+
         public Result OnStartup(UIControlledApplication application)
+        {
+            LogStartup($"OnStartup inicio (Revit {application.ControlledApplication.VersionNumber}, runtime {Environment.Version})");
+            try
+            {
+                var result = OnStartupCore(application);
+                LogStartup($"OnStartup terminado: {result}");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                LogStartup($"EXCEPCION en OnStartup: {ex}");
+                return Result.Failed;
+            }
+        }
+
+        private Result OnStartupCore(UIControlledApplication application)
         {
             _uiApp = application;
 
@@ -192,9 +220,14 @@ namespace RevitToSupabasePlugin
             RibbonPanel panelCategorias = GetOrCreatePanel("🏷️ Categorías & Plantillas");
             if (panelCategorias != null && panelCategorias.GetItems().Count == 0)
             {
+                PushButtonData btnGestorParametros = CreateBtnData("cmdGestorParametros", "Gestor de\nParámetros", "CommandGestorParametros", "icon_masivo");
+                btnGestorParametros.ToolTip = "Gestor Integral y Transformativo de Parámetros BIM: Audita, convierte Parámetros de Proyecto a Compartidos preservando valores, cambia Instancia ↔ Tipo, opera valores masivamente, sincroniza multi-documento y respalda archivos .TXT en Supabase Cloud.";
+
                 PushButtonData btnGestorCat = CreateBtnData("cmdGestorCat", "Gestor de\nCategorías", "CommandGestorCategorias", "icon_gestor_cat");
                 PushButtonData btnConfigPlantillas = CreateBtnData("cmdConfigPlantillas", "Configurar\nPlantillas", "CommandConfiguradorPlantilla", "icon_config_plantilla");
                 btnConfigPlantillas.ToolTip = "Configurador IA de Plantillas y Metadatos de Proyecto.";
+
+                panelCategorias.AddItem(btnGestorParametros);
                 panelCategorias.AddItem(btnGestorCat);
                 panelCategorias.AddItem(btnConfigPlantillas);
             }
