@@ -593,6 +593,34 @@ namespace RevitToSupabasePlugin
           ""category"": { ""type"": ""string"", ""enum"": [""Doors"", ""Windows""], ""description"": ""Categoría a ensamblar ('Doors' o 'Windows')."" }
         }
       }
+    },
+    {
+      ""name"": ""revit_create_or_update_opening_type"",
+      ""description"": ""Crea o actualiza un tipo de puerta/ventana (ej. 'P03') con hasta 8 capas paramétricas editables (nombre, material y espesor por capa) y marca de acústica. Si la familia ya existe en el proyecto la actualiza; si no, la crea desde la plantilla métrica."",
+      ""inputSchema"": {
+        ""type"": ""object"",
+        ""properties"": {
+          ""type_mark"": { ""type"": ""string"", ""description"": ""Marca del tipo, ej. 'P03'."" },
+          ""category"": { ""type"": ""string"", ""enum"": [""Windows"", ""Doors""], ""description"": ""Categoría; por defecto 'Windows'."" },
+          ""family_name"": { ""type"": ""string"", ""description"": ""Nombre de la familia; por defecto '<type_mark> - Ventana Acústica'."" },
+          ""acoustic"": { ""type"": ""boolean"", ""description"": ""True si es insonorizada (por defecto true)."" },
+          ""layers"": {
+            ""type"": ""array"", ""maxItems"": 8,
+            ""description"": ""Capas de dentro hacia fuera (máximo 8)."",
+            ""items"": {
+              ""type"": ""object"",
+              ""properties"": {
+                ""name"": { ""type"": ""string"" },
+                ""material"": { ""type"": ""string"" },
+                ""thickness_mm"": { ""type"": ""number"" }
+              }
+            }
+          },
+          ""width_mm"": { ""type"": ""number"", ""description"": ""Ancho opcional del tipo."" },
+          ""height_mm"": { ""type"": ""number"", ""description"": ""Alto opcional del tipo."" }
+        },
+        ""required"": [""type_mark""]
+      }
     }
   ]
 }");

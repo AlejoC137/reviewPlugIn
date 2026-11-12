@@ -1195,6 +1195,12 @@ namespace RevitToSupabasePlugin
                     break;
                 }
 
+                case "revit_create_or_update_opening_type":
+                {
+                    result = OpeningTypeService.CreateOrUpdate(app.Application, doc, args);
+                    break;
+                }
+
                 default:
                     result["status"] = "error";
                     result["error"] = $"Herramienta '{toolName}' no reconocida en McpExternalEventHandler.";
