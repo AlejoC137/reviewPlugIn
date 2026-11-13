@@ -546,5 +546,153 @@ namespace RevitToSupabasePlugin.Services
             uiApp.OpenAndActivateDocument(tempPath);
             return (true, $"Familia '{familyName}' extraída y abierta en el Editor de Familias.");
         }
+
+        private static readonly char[] RevitForbiddenChars = { '\\', ':', '{', '}', '[', ']', '|', ';', '<', '>', '?', '`', '~' };
+
+        /// <summary>
+        /// Renombra una familia (raíz en .rvt o cualquier familia anidada en .rvt / .rfa) directamente desde el árbol.
+        /// Si es una anidada profunda o desde un proyecto, abre en memoria la cadena padre, renombra y recarga automáticamente.
+        /// </summary>
+        public static (bool ok, string message) RenameFamilyNode(
+            Document activeDoc,
+            long rootFamilyIdValue,
+            NestedFamilyNode targetNode,
+            string newName)
+        {
+            if (activeDoc == null || targetNode == null)
+                return (false, "Documento o nodo inválido.");
+
+            string cleanName = (newName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(cleanName))
+                return (false, "El nombre de la familia no puede estar vacío.");
+
+            if (cleanName.IndexOfAny(RevitForbiddenChars) >= 0)
+                return (false, "El nombre contiene caracteres prohibidos por Revit (\\ : { } [ ] | ; < > ? ` ~).");
+
+            if (string.Equals(cleanName, targetNode.Name, StringComparison.Ordinal))
+                return (true, "El nombre no cambió.");
+
+            if (activeDoc.IsFamilyDocument && targetNode.IsRoot)
+                return (false, "La familia raíz abierta se renombra al guardarla (Guardar como .RFA). Selecciona una familia anidada para renombrarla.");
+
+            // Caso directo: raíz en .rvt (Depth 0) o anidada directa en .rfa (Depth 1)
+            bool isDirectChildInActiveDoc = (!activeDoc.IsFamilyDocument && targetNode.IsRoot)
+                                            || (activeDoc.IsFamilyDocument && targetNode.Depth == 1);
+
+            if (isDirectChildInActiveDoc)
+            {
+                Family? fam = targetNode.FamilyIdValue > 0
+                    ? activeDoc.GetElement(new ElementId(targetNode.FamilyIdValue)) as Family
+                    : FindFamilyByNameInDoc(activeDoc, targetNode.Name);
+
+                if (fam == null)
+                    return (false, $"No se encontró la familia '{targetNode.Name}' en el documento activo.");
+
+                return RenameFamilyDirectInDoc(activeDoc, fam, cleanName);
+            }
+
+            // Caso anidado en cadena (.rvt con Depth >= 1, o .rfa con Depth >= 2)
+            string[] segments = targetNode.PathBreadcrumb
+                .Split(new[] { " ▸ " }, StringSplitOptions.RemoveEmptyEntries);
+
+            if (segments.Length < 2)
+                return (false, "No se pudo resolver la ruta jerárquica de la familia anidada.");
+
+            // Construir lista de familias intermedias desde activeDoc hasta el padre inmediato de targetNode
+            var parentChainNames = new List<string>();
+            if (!activeDoc.IsFamilyDocument)
+            {
+                // En .rvt, segments[0] es la raíz cargable en activeDoc
+                for (int i = 0; i < segments.Length - 1; i++)
+                    parentChainNames.Add(segments[i]);
+            }
+            else
+            {
+                // En .rfa, segments[0] es el propio activeDoc; empezamos desde segments[1] hasta el padre inmediato
+                for (int i = 1; i < segments.Length - 1; i++)
+                    parentChainNames.Add(segments[i]);
+            }
+
+            return RenameNestedRecursive(activeDoc, rootFamilyIdValue, parentChainNames, 0, targetNode.Name, cleanName);
+        }
+
+        private static (bool ok, string message) RenameFamilyDirectInDoc(Document doc, Family fam, string cleanName)
+        {
+            bool duplicate = new FilteredElementCollector(doc)
+                .OfClass(typeof(Family))
+                .Cast<Family>()
+                .Any(f => f != null && f.Id != fam.Id && string.Equals(f.Name, cleanName, StringComparison.OrdinalIgnoreCase));
+
+            if (duplicate)
+                return (false, $"Ya existe una familia llamada '{cleanName}' en '{doc.Title}'.");
+
+            string oldName = fam.Name;
+            using (var tx = new Transaction(doc, $"ARCA: Renombrar familia {oldName}"))
+            {
+                tx.Start();
+                try
+                {
+                    fam.Name = cleanName;
+                    tx.Commit();
+                    return (true, $"Familia renombrada: '{oldName}' ➔ '{cleanName}'.");
+                }
+                catch (Exception ex)
+                {
+                    if (tx.HasStarted()) tx.RollBack();
+                    return (false, $"Revit no permitió renombrar '{oldName}': {ex.Message}");
+                }
+            }
+        }
+
+        private static (bool ok, string message) RenameNestedRecursive(
+            Document currentParentDoc,
+            long rootFamilyIdValue,
+            List<string> parentChainNames,
+            int chainIndex,
+            string targetNestedName,
+            string cleanNewName)
+        {
+            if (chainIndex >= parentChainNames.Count)
+            {
+                Family? targetFam = FindFamilyByNameInDoc(currentParentDoc, targetNestedName);
+                if (targetFam == null)
+                    return (false, $"No se encontró la familia anidada '{targetNestedName}'.");
+
+                return RenameFamilyDirectInDoc(currentParentDoc, targetFam, cleanNewName);
+            }
+
+            string nextParentName = parentChainNames[chainIndex];
+            Family? nextParentFam = (chainIndex == 0 && !currentParentDoc.IsFamilyDocument && rootFamilyIdValue > 0)
+                ? currentParentDoc.GetElement(new ElementId(rootFamilyIdValue)) as Family
+                : FindFamilyByNameInDoc(currentParentDoc, nextParentName);
+
+            if (nextParentFam == null || !nextParentFam.IsEditable)
+                return (false, $"No se pudo abrir la familia padre '{nextParentName}'.");
+
+            Document? childDoc = null;
+            try
+            {
+                childDoc = currentParentDoc.EditFamily(nextParentFam);
+                if (childDoc == null)
+                    return (false, $"No se pudo editar '{nextParentName}' en memoria.");
+
+                var (ok, msg) = RenameNestedRecursive(childDoc, -1, parentChainNames, chainIndex + 1, targetNestedName, cleanNewName);
+                if (!ok) return (false, msg);
+
+                childDoc.LoadFamily(currentParentDoc, new ModularFamilyLoadOptions());
+                return (true, msg);
+            }
+            catch (Exception ex)
+            {
+                return (false, $"Error recargando '{nextParentName}': {ex.Message}");
+            }
+            finally
+            {
+                if (childDoc != null)
+                {
+                    try { childDoc.Close(false); } catch { }
+                }
+            }
+        }
     }
 }

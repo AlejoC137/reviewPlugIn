@@ -571,13 +571,17 @@ namespace RevitToSupabasePlugin
             try
             {
                 AddLog("🔄 Reiniciando Servidor MCP Local de Revit...");
-                App.McpServerInstance?.Stop();
-                var newServer = new RevitMcpServer();
-                newServer.Start();
-                App.McpServerInstance = newServer;
-                AddLog($"🟢 Servidor MCP reiniciado con éxito en puerto {newServer.Port}.");
+                if (App.McpServerInstance == null)
+                {
+                    throw new InvalidOperationException("El servidor MCP no fue inicializado al arrancar Revit.");
+                }
+
+                // Reutiliza la instancia existente para conservar el ExternalEvent creado en OnStartup.
+                App.McpServerInstance.Restart();
+                var server = App.McpServerInstance;
+                AddLog($"🟢 Servidor MCP reiniciado con éxito en puerto {server.Port}.");
                 UpdateBiMcpDisplay();
-                WpfMessageBox.Show($"Servidor MCP reiniciado con éxito.\n\nPuerto Loopback: {newServer.Port}\nEstado: Listo para recibir comandos de Antigravity y Claude.", "MCP Reiniciado", MessageBoxButton.OK, MessageBoxImage.Information);
+                WpfMessageBox.Show($"Servidor MCP reiniciado con éxito.\n\nPuerto Loopback: {server.Port}\nEstado: Listo para recibir comandos de Antigravity y Claude.", "MCP Reiniciado", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {

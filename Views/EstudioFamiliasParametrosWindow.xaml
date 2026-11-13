@@ -194,7 +194,15 @@
 
                             <TreeView x:Name="tvNestedTree" Grid.Row="1"
                                       Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
-                                      SelectedItemChanged="TvNestedTree_SelectedItemChanged">
+                                      SelectedItemChanged="TvNestedTree_SelectedItemChanged"
+                                      KeyDown="TvNestedTree_KeyDown">
+                                <TreeView.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="✏️ Renombrar familia (F2)" Click="BtnStartRenameNode_Click"/>
+                                        <MenuItem Header="🎯 Seleccionar en Revit" Click="BtnSelectNodeInRevit_Click"/>
+                                        <MenuItem Header="🔧 Abrir en Editor .RFA" Click="BtnOpenNodeInEditor_Click"/>
+                                    </ContextMenu>
+                                </TreeView.ContextMenu>
                                 <TreeView.ItemContainerStyle>
                                     <Style TargetType="TreeViewItem">
                                         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
@@ -228,28 +236,54 @@
 
                         <!-- Cabecera del Nodo Seleccionado + Acciones -->
                         <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1" Padding="10" Margin="0,0,0,8">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
 
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="txtNodeTitle" Text="Selecciona una familia para inspeccionar"
-                                               FontWeight="Bold" FontSize="14" Foreground="#0F4369"/>
-                                    <TextBlock x:Name="txtNodeBreadcrumb" Text="Puedes seleccionar una familia de la lista o tocar un ejemplar en Revit y pulsar 'Leer Selección'."
-                                               FontSize="10.5" Foreground="#72777F" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
-                                </StackPanel>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock x:Name="txtNodeTitle" Text="Selecciona una familia para inspeccionar"
+                                                   FontWeight="Bold" FontSize="14" Foreground="#0F4369"/>
+                                        <TextBlock x:Name="txtNodeBreadcrumb" Text="Puedes seleccionar una familia de la lista o tocar un ejemplar en Revit y pulsar 'Leer Selección'."
+                                                   FontSize="10.5" Foreground="#72777F" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
 
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Button x:Name="btnSelectNodeInRevit" Content="🎯 Seleccionar en Revit"
-                                            Style="{StaticResource SecondaryButton}" Margin="0,0,6,0" IsEnabled="False"
-                                            Click="BtnSelectNodeInRevit_Click"/>
-                                    <Button x:Name="btnOpenNodeInEditor" Content="✏️ Abrir en Editor .RFA"
-                                            Style="{StaticResource PrimaryButton}" IsEnabled="False"
-                                            Click="BtnOpenNodeInEditor_Click"/>
-                                </StackPanel>
-                            </Grid>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button x:Name="btnRenameNode" Content="✏️ Renombrar"
+                                                Style="{StaticResource SecondaryButton}" Margin="0,0,6,0" IsEnabled="False"
+                                                Click="BtnStartRenameNode_Click"/>
+                                        <Button x:Name="btnSelectNodeInRevit" Content="🎯 Seleccionar en Revit"
+                                                Style="{StaticResource SecondaryButton}" Margin="0,0,6,0" IsEnabled="False"
+                                                Click="BtnSelectNodeInRevit_Click"/>
+                                        <Button x:Name="btnOpenNodeInEditor" Content="🔧 Abrir en Editor .RFA"
+                                                Style="{StaticResource PrimaryButton}" IsEnabled="False"
+                                                Click="BtnOpenNodeInEditor_Click"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Barra inline para renombrar nodo del árbol -->
+                                <Border x:Name="panelRenameNode" Background="#D1E4F9" BorderBrush="#0F4369" BorderThickness="1"
+                                        Padding="8,6" Margin="0,8,0,0" Visibility="Collapsed">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Nuevo nombre:" FontWeight="Bold" FontSize="11" Foreground="#0F4369"
+                                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBox x:Name="txtRenameNode" Grid.Column="1" Style="{StaticResource ArcaTextBox}"
+                                                 KeyDown="TxtRenameNode_KeyDown"/>
+                                        <Button Grid.Column="2" Content="✅ Guardar" Style="{StaticResource PrimaryButton}"
+                                                Padding="10,4" Margin="6,0,0,0" Click="BtnConfirmRenameNode_Click"/>
+                                        <Button Grid.Column="3" Content="✕" Style="{StaticResource SecondaryButton}"
+                                                Padding="8,4" Margin="4,0,0,0" Click="BtnCancelRenameNode_Click"/>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
                         </Border>
 
                         <!-- Sub-pestañas limpias del Nodo -->

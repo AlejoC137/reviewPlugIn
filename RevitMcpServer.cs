@@ -53,7 +53,7 @@ namespace RevitToSupabasePlugin
                     _listener = listener;
                     Port = p;
                     _isRunning = true;
-                    Task.Run(ListenLoop);
+                    Task.Run(() => ListenLoop(listener));
                     return;
                 }
                 catch
@@ -67,7 +67,7 @@ namespace RevitToSupabasePlugin
                         _listener = listener;
                         Port = p;
                         _isRunning = true;
-                        Task.Run(ListenLoop);
+                        Task.Run(() => ListenLoop(listener));
                         return;
                     }
                     catch
@@ -105,18 +105,25 @@ namespace RevitToSupabasePlugin
             _listener = null;
         }
 
-        private async Task ListenLoop()
+        public void Restart(int? preferredPort = null)
         {
-            while (_isRunning && _listener != null && _listener.IsListening)
+            int targetPort = preferredPort ?? Port;
+            Stop();
+            Start(targetPort);
+        }
+
+        private async Task ListenLoop(HttpListener listener)
+        {
+            while (_isRunning && ReferenceEquals(_listener, listener) && listener.IsListening)
             {
                 try
                 {
-                    var ctx = await _listener.GetContextAsync();
+                    var ctx = await listener.GetContextAsync();
                     _ = Task.Run(() => HandleRequestAsync(ctx));
                 }
                 catch
                 {
-                    if (!_isRunning) break;
+                    if (!_isRunning || !ReferenceEquals(_listener, listener)) break;
                 }
             }
         }

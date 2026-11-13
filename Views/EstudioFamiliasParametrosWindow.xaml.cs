@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using RevitToSupabasePlugin.Models;
@@ -412,8 +413,103 @@ namespace RevitToSupabasePlugin.Views
             bool canSelectInRevit = node.SampleInstanceIds.Count > 0 || (node.IsRoot && _currentRootFamilyId > 0);
             btnSelectNodeInRevit.IsEnabled = canSelectInRevit;
             btnOpenNodeInEditor.IsEnabled = string.IsNullOrEmpty(node.CycleWarning);
+            btnRenameNode.IsEnabled = string.IsNullOrEmpty(node.CycleWarning);
+            panelRenameNode.Visibility = System.Windows.Visibility.Collapsed;
 
             _isPopulatingUi = false;
+        }
+
+        private void TvNestedTree_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == Key.F2 && _selectedTreeNode != null)
+            {
+                BtnStartRenameNode_Click(sender, e);
+                e.Handled = true;
+            }
+        }
+
+        private void BtnStartRenameNode_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedTreeNode == null) return;
+            txtRenameNode.Text = _selectedTreeNode.Name;
+            panelRenameNode.Visibility = System.Windows.Visibility.Visible;
+            txtRenameNode.Focus();
+            txtRenameNode.SelectAll();
+        }
+
+        private void BtnCancelRenameNode_Click(object sender, RoutedEventArgs e)
+        {
+            panelRenameNode.Visibility = System.Windows.Visibility.Collapsed;
+        }
+
+        private void TxtRenameNode_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                BtnConfirmRenameNode_Click(sender, e);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                BtnCancelRenameNode_Click(sender, e);
+                e.Handled = true;
+            }
+        }
+
+        private void BtnConfirmRenameNode_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedTreeNode == null) return;
+            NestedFamilyNode targetNode = _selectedTreeNode;
+            string newName = txtRenameNode.Text;
+            long rootId = _currentRootFamilyId;
+
+            SetStatus($"Renombrando '{targetNode.Name}' a '{newName}'...");
+            RunInRevitContext(app =>
+            {
+                Document? doc = app.ActiveUIDocument?.Document;
+                if (doc == null) return;
+
+                var (ok, msg) = NestedFamilyService.RenameFamilyNode(doc, rootId, targetNode, newName);
+                SetStatus(msg, isError: !ok);
+                if (!ok) return;
+
+                // Reconstruir árbol actualizado para reflejar el nuevo nombre en la jerarquía y breadcrumbs
+                Family? rootFam = (!doc.IsFamilyDocument && rootId > 0)
+                    ? doc.GetElement(new ElementId(rootId)) as Family
+                    : null;
+
+                NestedFamilyNode? updatedTree = NestedFamilyService.InspectFamilyTree(app.Application, doc, rootFam);
+                List<LoadableFamilySummaryItem>? updatedProjFamilies = !doc.IsFamilyDocument
+                    ? NestedFamilyService.GetLoadableFamiliesInProject(doc)
+                    : null;
+
+                Dispatcher.Invoke(() =>
+                {
+                    _isPopulatingUi = true;
+                    panelRenameNode.Visibility = System.Windows.Visibility.Collapsed;
+
+                    if (updatedProjFamilies != null)
+                    {
+                        _allProjectFamilies = updatedProjFamilies;
+                        ApplyProjectFamiliesFilter();
+                        var match = _filteredProjectFamilies.FirstOrDefault(f => f.FamilyIdValue == rootId);
+                        if (match != null)
+                        {
+                            if (updatedTree != null) match.NestedCount = updatedTree.Children.Count;
+                            lstLoadableFamilies.SelectedItem = match;
+                        }
+                    }
+
+                    _treeRoots.Clear();
+                    if (updatedTree != null)
+                    {
+                        _treeRoots.Add(updatedTree);
+                        updatedTree.IsSelected = true;
+                        DisplaySelectedTreeNode(updatedTree);
+                    }
+                    _isPopulatingUi = false;
+                });
+            });
         }
 
         private void BtnSelectNodeInRevit_Click(object sender, RoutedEventArgs e)
