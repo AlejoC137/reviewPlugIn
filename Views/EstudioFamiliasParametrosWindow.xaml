@@ -1,0 +1,577 @@
+<Window x:Class="RevitToSupabasePlugin.Views.EstudioFamiliasParametrosWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ARCA REVIEW — Estudio de Familias &amp; Parámetros Nativos"
+        Width="1240" Height="780"
+        MinWidth="980" MinHeight="620"
+        WindowStartupLocation="CenterScreen"
+        Background="#FCF9F4"
+        FontFamily="Segoe UI">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/RevitToSupabasePlugin;component/ReviewDesignSystem.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <Style x:Key="PrimaryModeToggle" TargetType="RadioButton">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="#1C1C19"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="FontSize" Value="11.5"/>
+                <Setter Property="Padding" Value="12,6"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border x:Name="pill" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" CornerRadius="0">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="pill" Property="Background" Value="#0F4369"/>
+                                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                                    <Setter Property="FontWeight" Value="Bold"/>
+                                </Trigger>
+                                <MultiTrigger>
+                                    <MultiTrigger.Conditions>
+                                        <Condition Property="IsMouseOver" Value="True"/>
+                                        <Condition Property="IsChecked" Value="False"/>
+                                    </MultiTrigger.Conditions>
+                                    <Setter TargetName="pill" Property="Background" Value="#E5E2DD"/>
+                                </MultiTrigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="3"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Línea superior de identidad ARCA -->
+        <Rectangle Grid.Row="0" Height="3" Fill="#0F4369"/>
+
+        <!-- Barra Superior: Título, Selector de Modo y Contexto -->
+        <Border Grid.Row="1" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="0,0,0,1" Padding="14,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Identidad + Selector de Modo Principal -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel Margin="0,0,18,0" VerticalAlignment="Center">
+                        <TextBlock Text="FAMILIAS &amp; PARÁMETROS" Foreground="#0F4369" FontWeight="Bold" FontSize="15"/>
+                        <TextBlock x:Name="txtDocContextSubtitle" Text="Detectando documento activo..." Foreground="#72777F" FontSize="11"/>
+                    </StackPanel>
+
+                    <Border Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1" Padding="2">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="rbModeFamilies" Content="🌳 Familias &amp; Anidadas"
+                                         IsChecked="True" GroupName="MainMode"
+                                         Style="{StaticResource PrimaryModeToggle}"
+                                         Checked="MainMode_Changed"/>
+                            <RadioButton x:Name="rbModeParameters" Content="🎛️ Parámetros Nativos"
+                                         GroupName="MainMode"
+                                         Style="{StaticResource PrimaryModeToggle}"
+                                         Checked="MainMode_Changed"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Acciones Rápidas Globales -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="🎯 Leer Selección" Style="{StaticResource PrimaryButton}" Margin="0,0,6,0"
+                            ToolTip="Lee el elemento o familia que tienes seleccionado ahora mismo en Revit"
+                            Click="BtnInspectSelection_Click"/>
+                    <Button Content="🔄 Actualizar" Style="{StaticResource SecondaryButton}" Margin="0,0,6,0"
+                            Click="BtnRefreshContext_Click"/>
+                    <Button Content="⚙️ Avanzado (.TXT / Nube)" Style="{StaticResource SecondaryButton}"
+                            ToolTip="Abre el Gestor Avanzado de .TXT, Supabase Cloud y Operaciones Masivas"
+                            Click="BtnOpenAdvancedGestor_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- =========================================================================
+             CONTENIDO PRINCIPAL
+             ========================================================================= -->
+        <Grid Grid.Row="2" Margin="12,10,12,8">
+
+            <!-- MODO 1: EXPLORADOR DE FAMILIAS CARGABLES Y ANIDADAS -->
+            <Grid x:Name="panelFamiliesMode" Visibility="Visible">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="360"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Columna Izquierda: Lista de Cargables (en .rvt) + Árbol de Anidadas -->
+                <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition x:Name="rowProjectFamilies" Height="1.05*"/>
+                        <RowDefinition Height="8"/>
+                        <RowDefinition Height="1*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Listado de Familias Cargables (Visible en .rvt) -->
+                    <Border x:Name="cardProjectFamilies" Grid.Row="0" Style="{StaticResource CardBorder}" Margin="0" Padding="8">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <DockPanel Grid.Row="0" Margin="0,0,0,6">
+                                <TextBlock Text="📦 Familias Cargables del Proyecto" FontWeight="Bold" FontSize="12" Foreground="#0F4369" VerticalAlignment="Center"/>
+                                <Button x:Name="btnScanAllNested" Content="🔍 Detectar Anidadas" Style="{StaticResource SecondaryButton}"
+                                        HorizontalAlignment="Right" Padding="7,3" FontSize="10.5"
+                                        ToolTip="Abre parcialmente cada familia en memoria para contar cuántas familias anidadas tiene"
+                                        Click="BtnScanAllNested_Click"/>
+                            </DockPanel>
+
+                            <Grid Grid.Row="1" Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="txtSearchFamilies" Style="{StaticResource ArcaTextBox}"
+                                         Tag="Buscar familia..." ToolTip="Filtrar por nombre o categoría"
+                                         TextChanged="TxtSearchFamilies_TextChanged"/>
+                                <CheckBox x:Name="chkOnlyWithNested" Grid.Column="1" Content="Solo con anidadas"
+                                          Style="{StaticResource ArcaCheckBox}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                          Checked="ChkOnlyWithNested_Changed" Unchecked="ChkOnlyWithNested_Changed"/>
+                            </Grid>
+
+                            <ListBox x:Name="lstLoadableFamilies" Grid.Row="2"
+                                     Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
+                                     SelectionChanged="LstLoadableFamilies_SelectionChanged">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="6,5" BorderBrush="#E5E2DD" BorderThickness="0,0,0,1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11.5" Foreground="#1C1C19" TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding MetaLine}" FontSize="10" Foreground="#72777F"/>
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Background="#D1E4F9" Padding="6,2" VerticalAlignment="Center" Margin="6,0,0,0">
+                                                    <TextBlock Text="{Binding NestedSummaryBadge}" FontSize="9.5" FontWeight="Bold" Foreground="#0F4369"/>
+                                                </Border>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+
+                    <!-- Árbol de Estructura de Familias Anidadas -->
+                    <Border Grid.Row="2" Style="{StaticResource CardBorder}" Margin="0" Padding="8">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <DockPanel Grid.Row="0" Margin="0,0,0,6">
+                                <TextBlock Text="🌳 Estructura de Familia &amp; Anidadas" FontWeight="Bold" FontSize="12" Foreground="#0F4369" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="txtTreeHint" Text="Toca una familia para ver su árbol" FontSize="10" Foreground="#72777F" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </DockPanel>
+
+                            <TreeView x:Name="tvNestedTree" Grid.Row="1"
+                                      Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
+                                      SelectedItemChanged="TvNestedTree_SelectedItemChanged">
+                                <TreeView.ItemContainerStyle>
+                                    <Style TargetType="TreeViewItem">
+                                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                                        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+                                        <Setter Property="Padding" Value="2,3"/>
+                                    </Style>
+                                </TreeView.ItemContainerStyle>
+                                <TreeView.ItemTemplate>
+                                    <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                                        <StackPanel Orientation="Horizontal" Margin="2,2">
+                                            <TextBlock Text="{Binding NodeIcon}" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11.5" Foreground="#1C1C19"/>
+                                                <TextBlock Text="{Binding NodeBadgeText}" FontSize="9.5" Foreground="#72777F"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </HierarchicalDataTemplate>
+                                </TreeView.ItemTemplate>
+                            </TreeView>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- Columna Derecha: Inspector del Nodo Seleccionado -->
+                <Border Grid.Column="2" Style="{StaticResource CardBorder}" Margin="0" Padding="10">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Cabecera del Nodo Seleccionado + Acciones -->
+                        <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1" Padding="10" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock x:Name="txtNodeTitle" Text="Selecciona una familia para inspeccionar"
+                                               FontWeight="Bold" FontSize="14" Foreground="#0F4369"/>
+                                    <TextBlock x:Name="txtNodeBreadcrumb" Text="Puedes seleccionar una familia de la lista o tocar un ejemplar en Revit y pulsar 'Leer Selección'."
+                                               FontSize="10.5" Foreground="#72777F" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button x:Name="btnSelectNodeInRevit" Content="🎯 Seleccionar en Revit"
+                                            Style="{StaticResource SecondaryButton}" Margin="0,0,6,0" IsEnabled="False"
+                                            Click="BtnSelectNodeInRevit_Click"/>
+                                    <Button x:Name="btnOpenNodeInEditor" Content="✏️ Abrir en Editor .RFA"
+                                            Style="{StaticResource PrimaryButton}" IsEnabled="False"
+                                            Click="BtnOpenNodeInEditor_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Sub-pestañas limpias del Nodo -->
+                        <TabControl x:Name="tabNodeDetails" Grid.Row="1" Background="#FCF9F4" BorderBrush="#1C1C19" BorderThickness="1">
+                            <!-- Sub-tab 1: Parámetros de la Familia / Nodo -->
+                            <TabItem Header="📋 Parámetros de esta Familia" Padding="10,5" FontWeight="SemiBold">
+                                <Grid Margin="8">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+
+                                    <DockPanel Grid.Row="0" Margin="0,0,0,6">
+                                        <TextBlock x:Name="txtNodeParamsCount" Text="0 parámetros" FontWeight="Bold" Foreground="#0F4369" VerticalAlignment="Center"/>
+                                        <Button Content="🎛️ Editar estos parámetros en Editor Nativo" Style="{StaticResource SecondaryButton}"
+                                                HorizontalAlignment="Right" Padding="8,3" FontSize="10.5"
+                                                Click="BtnJumpToParamEditor_Click"/>
+                                    </DockPanel>
+
+                                    <DataGrid x:Name="dgNodeParameters" Grid.Row="1"
+                                              AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                                              Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
+                                              RowBackground="#FFFFFF" AlternatingRowBackground="#F6F3EE"
+                                              GridLinesVisibility="All" HorizontalGridLinesBrush="#E5E2DD" VerticalGridLinesBrush="#E5E2DD"
+                                              FontSize="11">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Nombre" Binding="{Binding Name}" Width="190" FontWeight="SemiBold"/>
+                                            <DataGridTextColumn Header="Origen" Binding="{Binding OriginBadge}" Width="105"/>
+                                            <DataGridTextColumn Header="Ámbito" Binding="{Binding ScopeBadge}" Width="80"/>
+                                            <DataGridTextColumn Header="Tipo Dato" Binding="{Binding DataTypeLabel}" Width="110"/>
+                                            <DataGridTextColumn Header="Grupo" Binding="{Binding GroupLabel}" Width="135"/>
+                                            <DataGridTextColumn Header="Valor / Fórmula" Binding="{Binding FormulaOrValueSummary}" Width="*"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </TabItem>
+
+                            <!-- Sub-tab 2: Asociaciones Anidada <-> Anfitriona -->
+                            <TabItem Header="🔗 Asociaciones (Anidada ↔ Anfitriona)" Padding="10,5" FontWeight="SemiBold">
+                                <Grid Margin="8">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Border Grid.Row="0" Background="#D1E4F9" BorderBrush="#0F4369" BorderThickness="1" Padding="8,6" Margin="0,0,0,8">
+                                        <TextBlock x:Name="txtAssocBanner"
+                                                   Text="Muestra los parámetros de esta familia anidada que pueden vincularse (=) a parámetros de su familia anfitriona. Si estás editando el .RFA anfitrión, puedes cambiar el vínculo aquí mismo."
+                                                   FontSize="10.5" Foreground="#0F4369" TextWrapping="Wrap"/>
+                                    </Border>
+
+                                    <DataGrid x:Name="dgNodeAssociations" Grid.Row="1"
+                                              AutoGenerateColumns="False" CanUserAddRows="False"
+                                              Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
+                                              RowBackground="#FFFFFF" AlternatingRowBackground="#F6F3EE"
+                                              GridLinesVisibility="All" HorizontalGridLinesBrush="#E5E2DD" VerticalGridLinesBrush="#E5E2DD"
+                                              FontSize="11">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Parámetro Anidado" Binding="{Binding NestedParamName}" IsReadOnly="True" Width="180" FontWeight="SemiBold"/>
+                                            <DataGridTextColumn Header="Ámbito" Binding="{Binding NestedScopeText}" IsReadOnly="True" Width="75"/>
+                                            <DataGridTextColumn Header="Tipo" Binding="{Binding DataTypeLabel}" IsReadOnly="True" Width="105"/>
+                                            <DataGridTextColumn Header="Valor Actual" Binding="{Binding CurrentValue}" IsReadOnly="True" Width="115"/>
+                                            <DataGridTextColumn Header="Estado" Binding="{Binding StatusBadge}" IsReadOnly="True" Width="95"/>
+                                            <DataGridTemplateColumn Header="Parámetro Anfitrión (=)" Width="*">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <ComboBox ItemsSource="{Binding CompatibleHostParams}"
+                                                                  SelectedItem="{Binding HostFamilyParamName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  SelectionChanged="CmbAssociationHost_SelectionChanged"
+                                                                  FontSize="11" Padding="4,2"/>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </TabItem>
+
+                            <!-- Sub-tab 3: Tipos de Familia -->
+                            <TabItem Header="🏷️ Tipos de Familia" Padding="10,5" FontWeight="SemiBold">
+                                <Grid Margin="8">
+                                    <DataGrid x:Name="dgNodeTypes"
+                                              AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                                              Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
+                                              RowBackground="#FFFFFF" AlternatingRowBackground="#F6F3EE"
+                                              GridLinesVisibility="All" HorizontalGridLinesBrush="#E5E2DD" VerticalGridLinesBrush="#E5E2DD"
+                                              FontSize="11">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Nombre del Tipo" Binding="{Binding TypeName}" Width="210" FontWeight="SemiBold"/>
+                                            <DataGridTextColumn Header="Estado" Binding="{Binding CurrentBadge}" Width="85"/>
+                                            <DataGridTextColumn Header="Parámetros con Valor" Binding="{Binding ParameterValueCount}" Width="140"/>
+                                            <DataGridTextColumn Header="Vista Rápida de Valores" Binding="{Binding PreviewValues}" Width="*"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </TabItem>
+                        </TabControl>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- MODO 2: EDITOR NATIVO DE PARÁMETROS -->
+            <Grid x:Name="panelParametersMode" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Barra de Contexto y Filtros -->
+                <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="8" Margin="0,0,0,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="ORIGEN:" FontWeight="Bold" FontSize="10.5" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <RadioButton x:Name="rbParamScopeDoc" Content="📄 Documento Activo" IsChecked="True" GroupName="ParamScope"
+                                         Style="{StaticResource ArcaRadioButton}" Checked="ParamScope_Changed"/>
+                            <RadioButton x:Name="rbParamScopeSelection" Content="📌 Selección Actual" GroupName="ParamScope"
+                                         Style="{StaticResource ArcaRadioButton}" Checked="ParamScope_Changed"/>
+
+                            <Border Width="1" Background="#C2C7CF" Margin="10,2"/>
+
+                            <TextBlock Text="FILTRO:" FontWeight="Bold" FontSize="10.5" Foreground="#0F4369" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <ComboBox x:Name="cmbParamFilter" Width="170" SelectedIndex="0" FontSize="11" SelectionChanged="CmbParamFilter_SelectionChanged">
+                                <ComboBoxItem Content="Todos los parámetros" Tag="ALL"/>
+                                <ComboBoxItem Content="Nativos de Revit (Built-In)" Tag="BUILTIN"/>
+                                <ComboBoxItem Content="Familia / Proyecto" Tag="LOCAL"/>
+                                <ComboBoxItem Content="Compartidos (Shared)" Tag="SHARED"/>
+                                <ComboBoxItem Content="Con Fórmula (=)" Tag="FORMULA"/>
+                                <ComboBoxItem Content="Solo Ejemplar (Instancia)" Tag="INSTANCE"/>
+                                <ComboBoxItem Content="Solo Tipo" Tag="TYPE"/>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="🔎" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox x:Name="txtSearchNativeParams" Width="200" Style="{StaticResource ArcaTextBox}"
+                                     TextChanged="TxtSearchNativeParams_TextChanged"/>
+                            <Button x:Name="btnToggleCreateParam" Content="➕ Nuevo Parámetro" Style="{StaticResource SuccessButton}"
+                                    Margin="8,0,0,0" Padding="10,4" Click="BtnToggleCreateParam_Click"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Panel Compacto de Creación de Nuevo Parámetro (Colapsable) -->
+                <Border x:Name="panelCreateParameter" Grid.Row="1" Background="#D1E4F9" BorderBrush="#0F4369" BorderThickness="1"
+                        Padding="10" Margin="0,0,0,8" Visibility="Collapsed">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.2*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="1*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="1*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Nombre del Parámetro" FontSize="10" FontWeight="Bold" Foreground="#0F4369"/>
+                            <TextBox x:Name="txtCreateParamName" Text="ARCA_Parametro" Style="{StaticResource ArcaTextBox}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Tipo de Dato" FontSize="10" FontWeight="Bold" Foreground="#0F4369"/>
+                            <ComboBox x:Name="cmbCreateParamDataType" DisplayMemberPath="Label" SelectedIndex="0" FontSize="11"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="4">
+                            <TextBlock Text="Grupo en Propiedades" FontSize="10" FontWeight="Bold" Foreground="#0F4369"/>
+                            <ComboBox x:Name="cmbCreateParamGroup" DisplayMemberPath="Label" SelectedIndex="0" FontSize="11"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="6" VerticalAlignment="Bottom">
+                            <ComboBox x:Name="cmbCreateParamScope" Width="105" SelectedIndex="0" FontSize="11">
+                                <ComboBoxItem Content="Ejemplar" Tag="INSTANCE"/>
+                                <ComboBoxItem Content="Tipo" Tag="TYPE"/>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <CheckBox x:Name="chkCreateParamShared" Grid.Column="8" Content="Compartido (.TXT)"
+                                  Style="{StaticResource ArcaCheckBox}" VerticalAlignment="Bottom" Margin="0,0,0,4"/>
+
+                        <StackPanel Grid.Column="10" Orientation="Horizontal" VerticalAlignment="Bottom">
+                            <Button Content="✅ Crear" Style="{StaticResource PrimaryButton}" Margin="0,0,4,0" Click="BtnConfirmCreateParam_Click"/>
+                            <Button Content="✕" Style="{StaticResource SecondaryButton}" Padding="8,5" Click="BtnToggleCreateParam_Click"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Tabla de Parámetros + Inspector de Edición Directa -->
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="360"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- DataGrid Limpio -->
+                    <DataGrid x:Name="dgNativeParameters" Grid.Column="0"
+                              AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" SelectionMode="Single"
+                              Background="#FFFFFF" BorderBrush="#1C1C19" BorderThickness="1"
+                              RowBackground="#FFFFFF" AlternatingRowBackground="#F6F3EE"
+                              GridLinesVisibility="All" HorizontalGridLinesBrush="#E5E2DD" VerticalGridLinesBrush="#E5E2DD"
+                              FontSize="11" SelectionChanged="DgNativeParameters_SelectionChanged">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Nombre" Binding="{Binding Name}" Width="195" FontWeight="SemiBold"/>
+                            <DataGridTextColumn Header="Origen" Binding="{Binding OriginBadge}" Width="105"/>
+                            <DataGridTextColumn Header="Ámbito" Binding="{Binding ScopeBadge}" Width="75"/>
+                            <DataGridTextColumn Header="Tipo Dato" Binding="{Binding DataTypeLabel}" Width="100"/>
+                            <DataGridTextColumn Header="Grupo" Binding="{Binding GroupLabel}" Width="130"/>
+                            <DataGridTextColumn Header="Valor / Fórmula" Binding="{Binding FormulaOrValueSummary}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Inspector Nativo de Edición Directa -->
+                    <Border Grid.Column="2" Style="{StaticResource CardBorder}" Margin="0" Padding="12">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="INSPECTOR DE EDICIÓN NATIVA" FontWeight="Bold" FontSize="11" Foreground="#0F4369" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="txtInspectorParamName" Text="Selecciona un parámetro"
+                                           FontWeight="Bold" FontSize="14" Foreground="#1C1C19" TextWrapping="Wrap"/>
+                                <TextBlock x:Name="txtInspectorParamMeta" Text="Haz clic en cualquier fila de la tabla para ver sus reglas nativas en Revit y editarlo."
+                                           FontSize="10.5" Foreground="#72777F" TextWrapping="Wrap" Margin="0,2,0,10"/>
+
+                                <Border Background="#FFFFFF" BorderBrush="#C2C7CF" BorderThickness="1" Padding="8" Margin="0,0,0,10">
+                                    <TextBlock x:Name="txtInspectorHint" Text="Revit distingue entre parámetros nativos (Built-In), de Familia, de Proyecto y Compartidos."
+                                               FontSize="10.5" Foreground="#1C1C19" TextWrapping="Wrap"/>
+                                </Border>
+
+                                <!-- 1. Editar Valor -->
+                                <TextBlock Text="Valor Actual" FontWeight="SemiBold" FontSize="11"/>
+                                <Grid Margin="0,3,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="txtEditValue" Style="{StaticResource ArcaTextBox}" IsEnabled="False"/>
+                                    <Button x:Name="btnApplyValue" Grid.Column="2" Content="Aplicar" Style="{StaticResource PrimaryButton}"
+                                            Padding="10,4" IsEnabled="False" Click="BtnApplyValue_Click"/>
+                                </Grid>
+
+                                <!-- 2. Editar Fórmula (.rfa) -->
+                                <TextBlock Text="Fórmula (Editor de Familias .RFA)" FontWeight="SemiBold" FontSize="11"/>
+                                <Grid Margin="0,3,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="txtEditFormula" Style="{StaticResource ArcaTextBox}" FontFamily="Consolas" IsEnabled="False"/>
+                                    <Button x:Name="btnApplyFormula" Grid.Column="2" Content="Aplicar" Style="{StaticResource PrimaryButton}"
+                                            Padding="10,4" IsEnabled="False" Click="BtnApplyFormula_Click"/>
+                                </Grid>
+
+                                <!-- 3. Renombrar -->
+                                <TextBlock Text="Nombre" FontWeight="SemiBold" FontSize="11"/>
+                                <Grid Margin="0,3,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="txtEditName" Style="{StaticResource ArcaTextBox}" IsEnabled="False"/>
+                                    <Button x:Name="btnApplyRename" Grid.Column="2" Content="Renombrar" Style="{StaticResource SecondaryButton}"
+                                            Padding="8,4" IsEnabled="False" Click="BtnApplyRename_Click"/>
+                                </Grid>
+
+                                <!-- 4. Grupo en Propiedades -->
+                                <TextBlock Text="Grupo en Propiedades" FontWeight="SemiBold" FontSize="11"/>
+                                <Grid Margin="0,3,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox x:Name="cmbEditGroup" DisplayMemberPath="Label" FontSize="11" IsEnabled="False"/>
+                                    <Button x:Name="btnApplyGroup" Grid.Column="2" Content="Mover" Style="{StaticResource SecondaryButton}"
+                                            Padding="10,4" IsEnabled="False" Click="BtnApplyGroup_Click"/>
+                                </Grid>
+
+                                <!-- 5. Comportamiento y Transformaciones -->
+                                <CheckBox x:Name="chkEditReporting" Content="Parámetro de informe (Reporting)"
+                                          Style="{StaticResource ArcaCheckBox}" Margin="0,0,0,10" IsEnabled="False"
+                                          Click="ChkEditReporting_Click"/>
+
+                                <Button x:Name="btnToggleScope" Content="🔄 Cambiar Ámbito (Ejemplar ↔ Tipo)"
+                                        Style="{StaticResource SecondaryButton}" Margin="0,0,0,6" IsEnabled="False"
+                                        Click="BtnToggleScope_Click"/>
+
+                                <Button x:Name="btnConvertToShared" Content="🔗 Convertir a Compartido (.TXT)"
+                                        Style="{StaticResource SuccessButton}" Margin="0,0,0,6" IsEnabled="False"
+                                        Click="BtnConvertToShared_Click"/>
+
+                                <Button x:Name="btnDeleteParam" Content="🗑️ Eliminar Parámetro"
+                                        Style="{StaticResource DangerButton}" IsEnabled="False"
+                                        Click="BtnDeleteParam_Click"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- Barra de Estado Limpia (1 línea) -->
+        <Border Grid.Row="3" Background="#F6F3EE" BorderBrush="#1C1C19" BorderThickness="0,1,0,0" Padding="14,6">
+            <DockPanel>
+                <TextBlock x:Name="txtStatusBar" Text="Listo. Selecciona una familia o parámetro para comenzar."
+                           FontSize="11" Foreground="#1C1C19" VerticalAlignment="Center"/>
+                <TextBlock x:Name="txtStatusGuid" Text="" FontFamily="Consolas" FontSize="10" Foreground="#72777F"
+                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

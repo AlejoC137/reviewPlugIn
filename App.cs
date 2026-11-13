@@ -220,13 +220,17 @@ namespace RevitToSupabasePlugin
             RibbonPanel panelCategorias = GetOrCreatePanel("🏷️ Categorías & Plantillas");
             if (panelCategorias != null && panelCategorias.GetItems().Count == 0)
             {
-                PushButtonData btnGestorParametros = CreateBtnData("cmdGestorParametros", "Gestor de\nParámetros", "CommandGestorParametros", "icon_masivo");
-                btnGestorParametros.ToolTip = "Gestor Integral y Transformativo de Parámetros BIM: Audita, convierte Parámetros de Proyecto a Compartidos preservando valores, cambia Instancia ↔ Tipo, opera valores masivamente, sincroniza multi-documento y respalda archivos .TXT en Supabase Cloud.";
+                PushButtonData btnFamiliasParametros = CreateBtnData("cmdEstudioFamiliasParametros", "Familias &\nParámetros", "CommandEstudioFamiliasParametros", "icon_estudio_modular");
+                btnFamiliasParametros.ToolTip = "Estudio Unificado de Familias Cargables (con Anidadas) y Parámetros Nativos: explora el árbol de familias anidadas al seleccionar o editar .RFA, asocia parámetros y edita valores, fórmulas, ámbito y grupos de forma directa.";
+
+                PushButtonData btnGestorParametros = CreateBtnData("cmdGestorParametros", "Gestor .TXT\n& Masivo", "CommandGestorParametros", "icon_masivo");
+                btnGestorParametros.ToolTip = "Gestor Avanzado de Parámetros Compartidos (.TXT), sincronización con Supabase Cloud y operaciones masivas en matriz de elementos.";
 
                 PushButtonData btnGestorCat = CreateBtnData("cmdGestorCat", "Gestor de\nCategorías", "CommandGestorCategorias", "icon_gestor_cat");
                 PushButtonData btnConfigPlantillas = CreateBtnData("cmdConfigPlantillas", "Configurar\nPlantillas", "CommandConfiguradorPlantilla", "icon_config_plantilla");
                 btnConfigPlantillas.ToolTip = "Configurador IA de Plantillas y Metadatos de Proyecto.";
 
+                panelCategorias.AddItem(btnFamiliasParametros);
                 panelCategorias.AddItem(btnGestorParametros);
                 panelCategorias.AddItem(btnGestorCat);
                 panelCategorias.AddItem(btnConfigPlantillas);
