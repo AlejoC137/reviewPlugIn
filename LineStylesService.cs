@@ -72,13 +72,13 @@ namespace RevitToSupabasePlugin
 
         public static readonly int[] StandardScales = { 10, 20, 25, 50, 100, 200 };
 
-        public static string GetScaleStyleName(int scale) => $"ARCA - Auxiliar [1:{scale}]";
-        public static string GetScalePatternName(int scale) => $"ARCA - Espacio [1:{scale}]";
+        public static string GetScaleStyleName(int scale) => $"ARCA - Auxiliar Esc 1-{scale}";
+        public static string GetScalePatternName(int scale) => $"ARCA - Espacio Esc 1-{scale}";
 
         public static string ExtractScaleLabel(string styleName)
         {
             if (string.IsNullOrWhiteSpace(styleName)) return "—";
-            var match = System.Text.RegularExpressions.Regex.Match(styleName, @"1\s*:\s*(\d+)");
+            var match = System.Text.RegularExpressions.Regex.Match(styleName, @"1\s*[-:]\s*(\d+)");
             return match.Success ? $"1:{match.Groups[1].Value}" : "Todas";
         }
 
@@ -426,6 +426,9 @@ namespace RevitToSupabasePlugin
                 throw new InvalidOperationException("No se encontró la categoría de líneas (OST_Lines) en el documento.");
 
             string trimmedName = name.Trim();
+            char[] prohibited = { '\\', ':', '{', '}', '[', ']', '|', ';', '<', '>', '?', '`', '~' };
+            if (trimmedName.IndexOfAny(prohibited) >= 0)
+                throw new ArgumentException("El nombre no puede contener caracteres prohibidos por Revit (\\ : { } [ ] | ; < > ? ` ~). Usa guiones (-) en su lugar, por ejemplo: Esc 1-50.");
             foreach (Category existing in linesCat.SubCategories)
             {
                 if (string.Equals(existing.Name, trimmedName, StringComparison.OrdinalIgnoreCase))
