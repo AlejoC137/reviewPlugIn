@@ -50,19 +50,21 @@ namespace RevitToSupabasePlugin
 
     public class PrintModeStatus
     {
+        public int NonPrintStylesCount { get; set; }
         public int VisibleNonPrintLines { get; set; }
-        public int HiddenNonPrintLines { get; set; }
-        public bool IsPrintModeActive => HiddenNonPrintLines > 0 && VisibleNonPrintLines == 0;
+        public int HiddenStylesCount { get; set; }
+        public bool IsPrintModeActive => HiddenStylesCount > 0;
     }
 
     public static class LineStylesService
     {
         private static readonly Guid NonPrintStylesSchemaGuid = new Guid("A7C4E912-3B8D-4F1A-9C2E-8D5F6A1B3C4E");
-        private static readonly Guid HiddenLineBackupSchemaGuid = new Guid("B8D5F023-4C9E-4A2B-8D3F-9E6A7B2C4D5F");
+        private static readonly Guid HiddenStyleBackupSchemaGuid = new Guid("C9E6A134-5D0F-4B3C-9E4A-0F7B8C3D5E6A");
 
         private const string NonPrintStorageName = "ARCA_NonPrintLineStyles_Config";
+        private const string HiddenStyleStorageName = "ARCA_NonPrintLineStyles_PrintBackup";
         private const string FieldStyleIds = "NonPrintStyleCategoryIds";
-        private const string FieldOriginalGStyleId = "OriginalGraphicsStyleId";
+        private const string FieldStyleBackups = "StyleColorWeightBackups";
 
         public const string DefaultAuxiliaryStyleName = "ARCA - Auxiliar No Imprimible";
 
@@ -496,8 +498,9 @@ namespace RevitToSupabasePlugin
         {
             var status = new PrintModeStatus();
             var nonPrintCatIds = GetNonPrintableStyleIds(doc);
-            var nonPrintGStyleIds = new HashSet<long>();
+            status.NonPrintStylesCount = nonPrintCatIds.Count;
 
+            var nonPrintGStyleIds = new HashSet<long>();
             foreach (long catIdVal in nonPrintCatIds)
             {
                 Category? cat = FindSubcategoryById(doc, new ElementId(catIdVal));
@@ -505,146 +508,140 @@ namespace RevitToSupabasePlugin
                 if (gs != null) nonPrintGStyleIds.Add(gs.Id.Value);
             }
 
-            Schema? backupSchema = Schema.Lookup(HiddenLineBackupSchemaGuid);
-
-            var curves = new FilteredElementCollector(doc)
-                .OfClass(typeof(CurveElement))
-                .Cast<CurveElement>();
-
-            foreach (var c in curves)
+            if (nonPrintGStyleIds.Count > 0)
             {
-                if (c.LineStyle != null && nonPrintGStyleIds.Contains(c.LineStyle.Id.Value))
+                var curves = new FilteredElementCollector(doc)
+                    .OfClass(typeof(CurveElement))
+                    .Cast<CurveElement>();
+
+                foreach (var c in curves)
                 {
-                    status.VisibleNonPrintLines++;
-                }
-                else if (backupSchema != null)
-                {
-                    Entity ent = c.GetEntity(backupSchema);
-                    if (ent.IsValid())
+                    if (c.LineStyle != null && nonPrintGStyleIds.Contains(c.LineStyle.Id.Value))
                     {
-                        status.HiddenNonPrintLines++;
+                        status.VisibleNonPrintLines++;
                     }
                 }
             }
 
+            var backups = LoadStyleBackups(doc);
+            status.HiddenStylesCount = backups.Count;
+
             return status;
         }
 
-        public static (int hiddenCount, int skippedCount) ActivatePrintMode(Document doc)
+        public static (int stylesHidden, int linesAffected) ActivatePrintMode(Document doc)
         {
             var nonPrintCatIds = GetNonPrintableStyleIds(doc);
             if (nonPrintCatIds.Count == 0)
                 return (0, 0);
 
-            var nonPrintGStyleIds = new HashSet<long>();
-            foreach (long catIdVal in nonPrintCatIds)
-            {
-                Category? cat = FindSubcategoryById(doc, new ElementId(catIdVal));
-                var gs = cat?.GetGraphicsStyle(GraphicsStyleType.Projection);
-                if (gs != null) nonPrintGStyleIds.Add(gs.Id.Value);
-            }
+            var backups = LoadStyleBackups(doc);
+            int stylesHidden = 0;
+            var affectedGStyleIds = new HashSet<long>();
 
-            if (nonPrintGStyleIds.Count == 0)
-                return (0, 0);
-
-            GraphicsStyle? invisibleGs = GetInvisibleLinesGraphicsStyle(doc);
-            if (invisibleGs == null)
-                throw new InvalidOperationException("No se encontró el estilo '<Invisible lines>' en Revit.");
-
-            Schema backupSchema = GetOrCreateBackupSchema();
-
-            var curves = new FilteredElementCollector(doc)
-                .OfClass(typeof(CurveElement))
-                .Cast<CurveElement>()
-                .Where(c => c.LineStyle != null && nonPrintGStyleIds.Contains(c.LineStyle.Id.Value))
-                .ToList();
-
-            int hidden = 0;
-            int skipped = 0;
-
-            using (var t = new Transaction(doc, "Activar Modo Impresión (Ocultar Líneas Auxiliares)"))
+            using (var t = new Transaction(doc, "Activar Modo Impresión (Estilos No Imprimibles)"))
             {
                 t.Start();
-                foreach (var c in curves)
+                foreach (long catIdVal in nonPrintCatIds)
                 {
-                    try
-                    {
-                        if (c.GroupId != ElementId.InvalidElementId)
-                        {
-                            skipped++;
-                            continue;
-                        }
+                    Category? subCat = FindSubcategoryById(doc, new ElementId(catIdVal));
+                    if (subCat == null) continue;
 
-                        long origGsId = c.LineStyle.Id.Value;
-                        var entity = new Entity(backupSchema);
-                        entity.Set(FieldOriginalGStyleId, origGsId);
-                        c.SetEntity(entity);
+                    var gs = subCat.GetGraphicsStyle(GraphicsStyleType.Projection);
+                    if (gs != null) affectedGStyleIds.Add(gs.Id.Value);
 
-                        c.LineStyle = invisibleGs;
-                        hidden++;
-                    }
-                    catch
+                    if (!backups.ContainsKey(catIdVal))
                     {
-                        skipped++;
+                        RevitColor c = subCat.LineColor;
+                        byte r = c != null && c.IsValid ? c.Red : (byte)0;
+                        byte g = c != null && c.IsValid ? c.Green : (byte)0;
+                        byte b = c != null && c.IsValid ? c.Blue : (byte)0;
+                        int w = subCat.GetLineWeight(GraphicsStyleType.Projection) ?? 1;
+                        backups[catIdVal] = (r, g, b, w);
                     }
+
+                    subCat.LineColor = new RevitColor(255, 255, 255);
+                    subCat.SetLineWeight(1, GraphicsStyleType.Projection);
+                    stylesHidden++;
                 }
+
+                SaveStyleBackups(doc, backups);
                 t.Commit();
             }
 
-            return (hidden, skipped);
+            int linesAffected = 0;
+            if (affectedGStyleIds.Count > 0)
+            {
+                linesAffected = new FilteredElementCollector(doc)
+                    .OfClass(typeof(CurveElement))
+                    .Cast<CurveElement>()
+                    .Count(c => c.LineStyle != null && affectedGStyleIds.Contains(c.LineStyle.Id.Value));
+            }
+
+            return (stylesHidden, linesAffected);
         }
 
-        public static (int restoredCount, int skippedCount) ActivateWorkMode(Document doc)
+        public static (int stylesRestored, int skipped) ActivateWorkMode(Document doc)
         {
-            Schema? backupSchema = Schema.Lookup(HiddenLineBackupSchemaGuid);
-            if (backupSchema == null)
+            var backups = LoadStyleBackups(doc);
+            if (backups.Count == 0)
                 return (0, 0);
-
-            var curves = new FilteredElementCollector(doc)
-                .OfClass(typeof(CurveElement))
-                .Cast<CurveElement>()
-                .ToList();
 
             int restored = 0;
             int skipped = 0;
 
-            using (var t = new Transaction(doc, "Activar Modo Trabajo (Mostrar Líneas Auxiliares)"))
+            using (var t = new Transaction(doc, "Activar Modo Trabajo (Mostrar Estilos No Imprimibles)"))
             {
                 t.Start();
-                foreach (var c in curves)
+                foreach (var kvp in backups)
                 {
-                    Entity ent = c.GetEntity(backupSchema);
-                    if (!ent.IsValid()) continue;
-
-                    try
-                    {
-                        if (c.GroupId != ElementId.InvalidElementId)
-                        {
-                            skipped++;
-                            continue;
-                        }
-
-                        long origIdVal = ent.Get<long>(FieldOriginalGStyleId);
-                        if (doc.GetElement(new ElementId(origIdVal)) is GraphicsStyle origGs)
-                        {
-                            c.LineStyle = origGs;
-                            c.DeleteEntity(backupSchema);
-                            restored++;
-                        }
-                        else
-                        {
-                            skipped++;
-                        }
-                    }
-                    catch
+                    Category? subCat = FindSubcategoryById(doc, new ElementId(kvp.Key));
+                    if (subCat == null)
                     {
                         skipped++;
+                        continue;
                     }
+
+                    var (r, g, b, w) = kvp.Value;
+                    subCat.LineColor = new RevitColor(r, g, b);
+                    subCat.SetLineWeight(Math.Max(1, Math.Min(16, w)), GraphicsStyleType.Projection);
+                    restored++;
                 }
+
+                SaveStyleBackups(doc, new Dictionary<long, (byte R, byte G, byte B, int Weight)>());
                 t.Commit();
             }
 
             return (restored, skipped);
+        }
+
+        public static string ExportViewToPdfWithoutNonPrint(Document doc, ElementId viewOrSheetId, string outputFolder, string fileNameWithoutExt)
+        {
+            bool wasAlreadyPrintMode = GetPrintModeStatus(doc).IsPrintModeActive;
+            if (!wasAlreadyPrintMode)
+            {
+                ActivatePrintMode(doc);
+            }
+
+            try
+            {
+                var pdfOpts = new PDFExportOptions
+                {
+                    FileName = fileNameWithoutExt,
+                    Combine = true,
+                    ColorDepth = ColorDepthType.Color
+                };
+
+                doc.Export(outputFolder, new List<ElementId> { viewOrSheetId }, pdfOpts);
+                return System.IO.Path.Combine(outputFolder, fileNameWithoutExt + ".pdf");
+            }
+            finally
+            {
+                if (!wasAlreadyPrintMode)
+                {
+                    ActivateWorkMode(doc);
+                }
+            }
         }
 
         #region ExtensibleStorage Helpers
@@ -657,7 +654,7 @@ namespace RevitToSupabasePlugin
                 Schema? schema = Schema.Lookup(NonPrintStylesSchemaGuid);
                 if (schema == null) return result;
 
-                DataStorage? storage = FindNonPrintStorage(doc);
+                DataStorage? storage = FindDataStorage(doc, NonPrintStorageName);
                 if (storage == null) return result;
 
                 Entity ent = storage.GetEntity(schema);
@@ -677,7 +674,7 @@ namespace RevitToSupabasePlugin
         private static void SaveNonPrintableStyleIds(Document doc, HashSet<long> ids)
         {
             Schema schema = GetOrCreateNonPrintSchema();
-            DataStorage? storage = FindNonPrintStorage(doc);
+            DataStorage? storage = FindDataStorage(doc, NonPrintStorageName);
             if (storage == null)
             {
                 storage = DataStorage.Create(doc);
@@ -689,12 +686,63 @@ namespace RevitToSupabasePlugin
             storage.SetEntity(entity);
         }
 
-        private static DataStorage? FindNonPrintStorage(Document doc)
+        private static Dictionary<long, (byte R, byte G, byte B, int Weight)> LoadStyleBackups(Document doc)
+        {
+            var result = new Dictionary<long, (byte R, byte G, byte B, int Weight)>();
+            try
+            {
+                Schema? schema = Schema.Lookup(HiddenStyleBackupSchemaGuid);
+                if (schema == null) return result;
+
+                DataStorage? storage = FindDataStorage(doc, HiddenStyleStorageName);
+                if (storage == null) return result;
+
+                Entity ent = storage.GetEntity(schema);
+                if (!ent.IsValid()) return result;
+
+                string raw = ent.Get<string>(FieldStyleBackups) ?? string.Empty;
+                foreach (var entry in raw.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var parts = entry.Split(':');
+                    if (parts.Length == 5 &&
+                        long.TryParse(parts[0], out long id) &&
+                        byte.TryParse(parts[1], out byte r) &&
+                        byte.TryParse(parts[2], out byte g) &&
+                        byte.TryParse(parts[3], out byte b) &&
+                        int.TryParse(parts[4], out int w))
+                    {
+                        result[id] = (r, g, b, w);
+                    }
+                }
+            }
+            catch { }
+            return result;
+        }
+
+        private static void SaveStyleBackups(Document doc, Dictionary<long, (byte R, byte G, byte B, int Weight)> backups)
+        {
+            Schema schema = GetOrCreateStyleBackupSchema();
+            DataStorage? storage = FindDataStorage(doc, HiddenStyleStorageName);
+            if (storage == null)
+            {
+                storage = DataStorage.Create(doc);
+                storage.Name = HiddenStyleStorageName;
+            }
+
+            string serialized = string.Join(";", backups.Select(kvp =>
+                $"{kvp.Key}:{kvp.Value.R}:{kvp.Value.G}:{kvp.Value.B}:{kvp.Value.Weight}"));
+
+            var entity = new Entity(schema);
+            entity.Set(FieldStyleBackups, serialized);
+            storage.SetEntity(entity);
+        }
+
+        private static DataStorage? FindDataStorage(Document doc, string name)
         {
             return new FilteredElementCollector(doc)
                 .OfClass(typeof(DataStorage))
                 .Cast<DataStorage>()
-                .FirstOrDefault(ds => ds.Name == NonPrintStorageName);
+                .FirstOrDefault(ds => ds.Name == name);
         }
 
         private static Schema GetOrCreateNonPrintSchema()
@@ -710,16 +758,16 @@ namespace RevitToSupabasePlugin
             return sb.Finish();
         }
 
-        private static Schema GetOrCreateBackupSchema()
+        private static Schema GetOrCreateStyleBackupSchema()
         {
-            Schema? schema = Schema.Lookup(HiddenLineBackupSchemaGuid);
+            Schema? schema = Schema.Lookup(HiddenStyleBackupSchemaGuid);
             if (schema != null) return schema;
 
-            var sb = new SchemaBuilder(HiddenLineBackupSchemaGuid);
-            sb.SetSchemaName("ARCA_HiddenLineStyleBackup");
+            var sb = new SchemaBuilder(HiddenStyleBackupSchemaGuid);
+            sb.SetSchemaName("ARCA_NonPrintStyleColorBackup");
             sb.SetReadAccessLevel(AccessLevel.Public);
             sb.SetWriteAccessLevel(AccessLevel.Public);
-            sb.AddSimpleField(FieldOriginalGStyleId, typeof(long));
+            sb.AddSimpleField(FieldStyleBackups, typeof(string));
             return sb.Finish();
         }
 

@@ -127,18 +127,18 @@ namespace RevitToSupabasePlugin
             try
             {
                 var st = LineStylesService.GetPrintModeStatus(_doc);
-                txtPrintModeDetail.Text = $"{st.VisibleNonPrintLines} línea(s) auxiliar(es) visibles | {st.HiddenNonPrintLines} oculta(s) para impresión";
+                txtPrintModeDetail.Text = $"{st.NonPrintStylesCount} estilo(s) No Imprimible(s) | {st.VisibleNonPrintLines} línea(s) en modelo | {st.HiddenStylesCount} estilo(s) en modo impresión";
 
                 if (st.IsPrintModeActive)
                 {
-                    txtPrintModeTitle.Text = "🖨️ MODO IMPRESIÓN ACTIVO: Líneas auxiliares ocultas (Cotas intactas)";
+                    txtPrintModeTitle.Text = "🖨️ MODO IMPRESIÓN ACTIVO: Estilos No Imprimibles en blanco puro (Cotas intactas)";
                     txtPrintModeTitle.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(180, 83, 9));
                     borderPrintBanner.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 251, 235));
                     borderPrintBanner.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(245, 158, 11));
                 }
                 else
                 {
-                    txtPrintModeTitle.Text = "👁️ MODO TRABAJO: Líneas auxiliares visibles en pantalla";
+                    txtPrintModeTitle.Text = "👁️ MODO TRABAJO: Estilos No Imprimibles visibles en pantalla";
                     txtPrintModeTitle.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(15, 67, 105));
                     borderPrintBanner.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 255, 255));
                     borderPrintBanner.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(216, 210, 199));
@@ -494,16 +494,16 @@ namespace RevitToSupabasePlugin
         {
             try
             {
-                var (hidden, skipped) = LineStylesService.ActivatePrintMode(_doc);
+                var (stylesHidden, linesAffected) = LineStylesService.ActivatePrintMode(_doc);
+                LoadStyles(_selectedStyle?.CategoryId);
                 UpdatePrintBanner();
-                if (hidden == 0 && skipped == 0)
+                if (stylesHidden == 0)
                 {
-                    txtStatus.Text = "ℹ️ No se encontraron líneas visibles con estilos marcados como No Imprimibles.";
+                    txtStatus.Text = "ℹ️ No hay estilos marcados como No Imprimibles.";
                 }
                 else
                 {
-                    txtStatus.Text = $"🖨️ Modo Impresión activado: {hidden} línea(s) ocultadas como <Invisible lines>. Sus cotas siguen intactas." +
-                                     (skipped > 0 ? $" ({skipped} en grupos omitidas)." : "");
+                    txtStatus.Text = $"🖨️ Modo Impresión activado: {stylesHidden} estilo(s) ({linesAffected} líneas) listos para imprimir sin perder cotas.";
                 }
             }
             catch (Exception ex)
@@ -517,20 +517,53 @@ namespace RevitToSupabasePlugin
             try
             {
                 var (restored, skipped) = LineStylesService.ActivateWorkMode(_doc);
+                LoadStyles(_selectedStyle?.CategoryId);
                 UpdatePrintBanner();
                 if (restored == 0 && skipped == 0)
                 {
-                    txtStatus.Text = "ℹ️ No había líneas auxiliares ocultas para restaurar.";
+                    txtStatus.Text = "ℹ️ Los estilos ya están en Modo Trabajo (visibles).";
                 }
                 else
                 {
-                    txtStatus.Text = $"👁️ Modo Trabajo activado: {restored} línea(s) auxiliares restauradas en pantalla." +
-                                     (skipped > 0 ? $" ({skipped} omitidas)." : "");
+                    txtStatus.Text = $"👁️ Modo Trabajo activado: {restored} estilo(s) restaurados en pantalla." +
+                                     (skipped > 0 ? $" ({skipped} omitidos)." : "");
                 }
             }
             catch (Exception ex)
             {
                 TaskDialog.Show("Error al Activar Modo Trabajo", ex.Message);
+            }
+        }
+
+        private void BtnExportPdf_Click(object sender, RoutedEventArgs e)
+        {
+            if (_doc.ActiveView == null)
+            {
+                TaskDialog.Show("Aviso", "No hay ninguna vista o lámina activa para exportar.");
+                return;
+            }
+
+            try
+            {
+                string defaultName = string.Join("_", _doc.ActiveView.Name.Split(System.IO.Path.GetInvalidFileNameChars()));
+                using (var sfd = new System.Windows.Forms.SaveFileDialog())
+                {
+                    sfd.Filter = "Archivo PDF (*.pdf)|*.pdf";
+                    sfd.FileName = defaultName + ".pdf";
+                    if (sfd.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+
+                    string folder = System.IO.Path.GetDirectoryName(sfd.FileName) ?? Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                    string fileNoExt = System.IO.Path.GetFileNameWithoutExtension(sfd.FileName);
+
+                    string resultPath = LineStylesService.ExportViewToPdfWithoutNonPrint(_doc, _doc.ActiveView.Id, folder, fileNoExt);
+                    LoadStyles(_selectedStyle?.CategoryId);
+                    UpdatePrintBanner();
+                    txtStatus.Text = $"📄 PDF exportado sin líneas No Imprimibles: {resultPath}";
+                }
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Error al Exportar PDF", ex.Message);
             }
         }
 

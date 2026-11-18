@@ -112,15 +112,17 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
                     <TextBlock x:Name="txtPrintModeTitle" Text="👁️ MODO TRABAJO: Líneas auxiliares visibles en pantalla" FontSize="13" FontWeight="Bold" Foreground="#0F4369"/>
-                    <TextBlock x:Name="txtPrintModeDetail" Text="0 líneas auxiliares visibles | 0 ocultas para impresión" FontSize="11.5" Foreground="#5B616A" Margin="0,2,0,0"/>
+                    <TextBlock x:Name="txtPrintModeDetail" Text="0 estilos no imprimibles | 0 líneas auxiliares" FontSize="11.5" Foreground="#5B616A" Margin="0,2,0,0"/>
                 </StackPanel>
 
-                <Button Grid.Column="1" Content="🖨️ Ocultar para Imprimir (Conserva Cotas)" Style="{StaticResource PrimaryBtn}" Background="#B45309" Margin="10,0,8,0" Click="BtnActivatePrintMode_Click" ToolTip="Cambia las líneas de estilos 'No Imprimibles' a &lt;Invisible lines&gt; para que no salgan en PDF/impresión mientras sus cotas siguen visibles."/>
-                <Button Grid.Column="2" Content="👁️ Mostrar en Pantalla (Modo Trabajo)" Style="{StaticResource PrimaryBtn}" Background="#059669" Click="BtnActivateWorkMode_Click" ToolTip="Restaura todas las líneas auxiliares ocultas a su estilo visible original."/>
+                <Button Grid.Column="1" Content="📄 Exportar PDF Limpio" Style="{StaticResource PrimaryBtn}" Background="#7C3AED" Margin="8,0,6,0" Click="BtnExportPdf_Click" ToolTip="Exporta la vista o lámina activa a PDF ocultando automáticamente los estilos No Imprimibles y restaurándolos al instante."/>
+                <Button Grid.Column="2" Content="🖨️ Modo Impresión" Style="{StaticResource PrimaryBtn}" Background="#B45309" Margin="0,0,6,0" Click="BtnActivatePrintMode_Click" ToolTip="Prepara el proyecto para Ctrl+P pasando los estilos No Imprimibles a blanco puro RGB(255,255,255) sin perder cotas ni depender de otros estilos."/>
+                <Button Grid.Column="3" Content="👁️ Modo Trabajo" Style="{StaticResource PrimaryBtn}" Background="#059669" Click="BtnActivateWorkMode_Click" ToolTip="Restaura el color y calibre visible original de todos los estilos No Imprimibles."/>
             </Grid>
         </Border>
 
