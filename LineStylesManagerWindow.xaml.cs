@@ -30,6 +30,7 @@ namespace RevitToSupabasePlugin
         private byte _currentG = 0;
         private byte _currentB = 0;
         private bool _isUpdatingWeightControls = false;
+        private bool _isInitialized = false;
 
         public LineStylesManagerWindow(UIDocument uidoc)
         {
@@ -47,6 +48,7 @@ namespace RevitToSupabasePlugin
             LoadStyles();
             UpdateSelectionInfo();
             UpdatePrintBanner();
+            _isInitialized = true;
         }
 
         private void LoadPatterns()
@@ -69,6 +71,8 @@ namespace RevitToSupabasePlugin
 
         private void ApplyFilter(ElementId? selectCategoryId = null)
         {
+            if (dgStyles == null || txtSearch == null || cmbFilter == null) return;
+
             string query = txtSearch.Text?.Trim() ?? string.Empty;
             int filterIdx = cmbFilter.SelectedIndex;
 
@@ -221,9 +225,17 @@ namespace RevitToSupabasePlugin
             }
         }
 
-        private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilter(_selectedStyle?.CategoryId);
+        private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            ApplyFilter(_selectedStyle?.CategoryId);
+        }
 
-        private void CmbFilter_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplyFilter(_selectedStyle?.CategoryId);
+        private void CmbFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            ApplyFilter(_selectedStyle?.CategoryId);
+        }
 
         private void BtnRefresh_Click(object sender, RoutedEventArgs e)
         {
