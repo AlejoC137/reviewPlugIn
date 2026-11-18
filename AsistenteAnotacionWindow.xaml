@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="📐 Asistente de Anotación &amp; Gráficos | ARCA REVIEW"
-        Height="680" Width="960"
-        MinHeight="550" MinWidth="800"
+        Height="780" Width="980"
+        MinHeight="640" MinWidth="820"
         WindowStartupLocation="CenterScreen"
         Background="#FCF9F4"
         Foreground="#1C1C19"
@@ -121,11 +121,12 @@
             </Grid>
         </Border>
 
-        <!-- GRID DE LAS 4 HERRAMIENTAS PRINCIPALES -->
+        <!-- GRID DE LAS HERRAMIENTAS PRINCIPALES -->
         <Grid Grid.Row="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -221,6 +222,29 @@
                     <TextBlock Grid.Row="1" Text="Renumera planos correlativamente con ceros a la izquierda (001, 101), gestiona prefijos de disciplina, busca y reemplaza títulos sin riesgo de conflictos de números duplicados." FontSize="11" Foreground="#555550" TextWrapping="Wrap" Margin="0,0,0,10"/>
 
                     <Button Grid.Row="2" Content="📑 Abrir ProSheets" Style="{StaticResource LaunchButton}" Background="#0284C7" Click="BtnOpenSheetRevisor_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- MÓDULO 5: GESTOR DE ESTILOS DE LÍNEA & LÍNEAS NO IMPRIMIBLES -->
+            <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Background="#FFFFFF" BorderBrush="#C4B5FD" BorderThickness="1.5" CornerRadius="8" Padding="18" Margin="0,14,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <TextBlock Text="📏" FontSize="22" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                            <StackPanel>
+                                <TextBlock Text="Gestor de Estilos de Línea &amp; Líneas No Imprimibles" FontSize="15" FontWeight="Bold" Foreground="#0F4369"/>
+                                <TextBlock Text="Calibres (1-16), Colores, Patrones, Conversión Rápida y Auxiliares con Cotas" FontSize="11" Foreground="#7C3AED" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <TextBlock Text="Configura visualmente calibres, colores y patrones sin entrar a menús ocultos. Crea estilos auxiliares No Imprimibles visibles en pantalla para acotar, y ocúltalos al imprimir sin perder tus cotas." FontSize="11" Foreground="#555550" TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <Button Grid.Column="1" Content="📏 Abrir Gestor de Estilos de Línea" Style="{StaticResource LaunchButton}" Background="#7C3AED" Padding="18,10" VerticalAlignment="Center" Click="BtnOpenLineStyles_Click"/>
                 </Grid>
             </Border>
         </Grid>

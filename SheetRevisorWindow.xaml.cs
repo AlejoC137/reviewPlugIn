@@ -7,6 +7,8 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using TaskDialog = Autodesk.Revit.UI.TaskDialog;
@@ -24,6 +26,8 @@ namespace RevitToSupabasePlugin
         public string OriginalSheetNumber { get; set; } = string.Empty;
         public string OriginalSheetName { get; set; } = string.Empty;
         public int ViewportsCount { get; set; } = 0;
+        public string BrowserGroup { get; set; } = string.Empty;
+        public string[] BrowserGroupLevels { get; set; } = Array.Empty<string>();
 
         public bool IsSelected
         {
@@ -100,11 +104,14 @@ namespace RevitToSupabasePlugin
 
     public partial class SheetRevisorWindow : Window
     {
+        private const string AllChaptersOption = "Todos los capítulos";
         private readonly UIDocument _uidoc;
         private readonly Document _doc;
         private readonly List<SheetRevisorItem> _allSheets = new();
         private readonly ObservableCollection<SheetRevisorItem> _displayedSheets = new();
+        private readonly ICollectionView _sheetsView;
         private bool _isInitialized;
+        private bool _suppressFilterEvents;
 
         public SheetRevisorWindow(UIDocument uidoc)
         {
@@ -112,7 +119,8 @@ namespace RevitToSupabasePlugin
             _uidoc = uidoc ?? throw new ArgumentNullException(nameof(uidoc));
             _doc = uidoc.Document;
 
-            dgSheets.ItemsSource = _displayedSheets;
+            _sheetsView = CollectionViewSource.GetDefaultView(_displayedSheets);
+            dgSheets.ItemsSource = _sheetsView;
             LoadTitleBlocks();
             LoadModelSheets();
             _isInitialized = true;
@@ -122,16 +130,33 @@ namespace RevitToSupabasePlugin
         {
             _allSheets.Clear();
 
+            BrowserOrganization? browserOrg = null;
+            try
+            {
+                browserOrg = BrowserOrganization.GetCurrentBrowserOrganizationForSheets(_doc);
+            }
+            catch
+            {
+                browserOrg = null;
+            }
+
+            if (lblBrowserOrgName != null)
+            {
+                lblBrowserOrgName.Text = browserOrg != null && !string.IsNullOrWhiteSpace(browserOrg.Name)
+                    ? browserOrg.Name
+                    : "Sin organización activa";
+            }
+
             var sheets = new FilteredElementCollector(_doc)
                 .OfClass(typeof(ViewSheet))
                 .Cast<ViewSheet>()
                 .Where(s => !s.IsTemplate)
-                .OrderBy(s => s.SheetNumber, NaturalStringComparer.Instance)
                 .ToList();
 
             foreach (var s in sheets)
             {
                 int vpCount = s.GetAllViewports().Count;
+                var (groupName, levels) = ResolveBrowserGroup(browserOrg, s.Id);
 
                 _allSheets.Add(new SheetRevisorItem
                 {
@@ -140,17 +165,192 @@ namespace RevitToSupabasePlugin
                     NewSheetNumber = s.SheetNumber,
                     OriginalSheetName = s.Name,
                     NewSheetName = s.Name,
-                    ViewportsCount = vpCount
+                    ViewportsCount = vpCount,
+                    BrowserGroup = groupName,
+                    BrowserGroupLevels = levels
                 });
             }
+
+            _allSheets.Sort(CompareByBrowserOrder);
+
+            // Poblar filtro de capítulos preservando la selección actual si aún existe
+            if (cmbChapterFilter != null)
+            {
+                string? previousChapter = cmbChapterFilter.SelectedItem as string;
+                var chapters = new List<string> { AllChaptersOption };
+                foreach (var item in _allSheets)
+                {
+                    if (!chapters.Contains(item.BrowserGroup))
+                    {
+                        chapters.Add(item.BrowserGroup);
+                    }
+                }
+
+                _suppressFilterEvents = true;
+                cmbChapterFilter.ItemsSource = chapters;
+                cmbChapterFilter.SelectedItem = previousChapter != null && chapters.Contains(previousChapter)
+                    ? previousChapter
+                    : AllChaptersOption;
+                _suppressFilterEvents = false;
+            }
+
+            ApplyChapterFilterAndGrouping();
+        }
+
+        private static (string GroupName, string[] Levels) ResolveBrowserGroup(BrowserOrganization? browserOrg, ElementId sheetId)
+        {
+            if (browserOrg == null)
+            {
+                return ("Todas las láminas (sin capítulos)", Array.Empty<string>());
+            }
+
+            try
+            {
+                bool passesFilter = browserOrg.AreFiltersSatisfied(sheetId);
+                IList<FolderItemInfo>? folders = browserOrg.GetFolderItems(sheetId);
+
+                var levelList = new List<string>();
+                if (!passesFilter)
+                {
+                    levelList.Add("🚫 Oculto por filtro del Project Browser");
+                }
+
+                if (folders != null)
+                {
+                    foreach (var folder in folders)
+                    {
+                        string name = string.IsNullOrWhiteSpace(folder.Name) ? "???" : folder.Name.Trim();
+                        levelList.Add(name);
+                    }
+                }
+
+                if (levelList.Count == 0)
+                {
+                    return ("Todas las láminas (sin capítulos)", Array.Empty<string>());
+                }
+
+                return (string.Join("  ›  ", levelList), levelList.ToArray());
+            }
+            catch
+            {
+                return ("Todas las láminas (sin capítulos)", Array.Empty<string>());
+            }
+        }
+
+        private static int CompareByBrowserOrder(SheetRevisorItem a, SheetRevisorItem b)
+        {
+            int minLen = Math.Min(a.BrowserGroupLevels.Length, b.BrowserGroupLevels.Length);
+            for (int i = 0; i < minLen; i++)
+            {
+                int cmp = NaturalStringComparer.Instance.Compare(a.BrowserGroupLevels[i], b.BrowserGroupLevels[i]);
+                if (cmp != 0) return cmp;
+            }
+
+            if (a.BrowserGroupLevels.Length != b.BrowserGroupLevels.Length)
+            {
+                return a.BrowserGroupLevels.Length.CompareTo(b.BrowserGroupLevels.Length);
+            }
+
+            return NaturalStringComparer.Instance.Compare(a.OriginalSheetNumber, b.OriginalSheetNumber);
+        }
+
+        private void ApplyChapterFilterAndGrouping()
+        {
+            string? selectedChapter = cmbChapterFilter?.SelectedItem as string;
+            bool filterByChapter = !string.IsNullOrEmpty(selectedChapter) && selectedChapter != AllChaptersOption;
 
             _displayedSheets.Clear();
             foreach (var item in _allSheets)
             {
-                _displayedSheets.Add(item);
+                if (!filterByChapter || item.BrowserGroup == selectedChapter)
+                {
+                    _displayedSheets.Add(item);
+                }
             }
 
-            UpdateSummaryLabel();
+            bool groupEnabled = chkGroupByBrowser?.IsChecked == true;
+            using (_sheetsView.DeferRefresh())
+            {
+                _sheetsView.GroupDescriptions.Clear();
+                if (groupEnabled)
+                {
+                    _sheetsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(SheetRevisorItem.BrowserGroup)));
+                }
+            }
+
+            if (btnExpandAllGroups != null) btnExpandAllGroups.IsEnabled = groupEnabled;
+            if (btnCollapseAllGroups != null) btnCollapseAllGroups.IsEnabled = groupEnabled;
+
+            if (_isInitialized)
+            {
+                ApplyRulesToSheets();
+            }
+            else
+            {
+                UpdateSummaryLabel();
+            }
+        }
+
+        private void ChkGroupByBrowser_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized || _suppressFilterEvents) return;
+            ApplyChapterFilterAndGrouping();
+        }
+
+        private void CmbChapterFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized || _suppressFilterEvents) return;
+            ApplyChapterFilterAndGrouping();
+        }
+
+        private void BtnSelectGroup_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.Tag is not string groupName) return;
+            foreach (var item in _displayedSheets)
+            {
+                if (item.BrowserGroup == groupName) item.IsSelected = true;
+            }
+            ApplyRulesToSheets();
+        }
+
+        private void BtnDeselectGroup_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.Tag is not string groupName) return;
+            foreach (var item in _displayedSheets)
+            {
+                if (item.BrowserGroup == groupName) item.IsSelected = false;
+            }
+            ApplyRulesToSheets();
+        }
+
+        private void BtnExpandAllGroups_Click(object sender, RoutedEventArgs e) => SetAllGroupsExpanded(true);
+
+        private void BtnCollapseAllGroups_Click(object sender, RoutedEventArgs e) => SetAllGroupsExpanded(false);
+
+        private void SetAllGroupsExpanded(bool expanded)
+        {
+            foreach (var expander in FindVisualChildren<Expander>(dgSheets))
+            {
+                expander.IsExpanded = expanded;
+            }
+        }
+
+        private static IEnumerable<T> FindVisualChildren<T>(DependencyObject parent) where T : DependencyObject
+        {
+            if (parent == null) yield break;
+            int count = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T typedChild)
+                {
+                    yield return typedChild;
+                }
+                foreach (var descendant in FindVisualChildren<T>(child))
+                {
+                    yield return descendant;
+                }
+            }
         }
 
         private void ApplyRulesToSheets()

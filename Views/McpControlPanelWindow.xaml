@@ -171,7 +171,6 @@
                         <WrapPanel>
                             <Button x:Name="btnRestart" Style="{StaticResource PrimaryButton}" Content="🔄 Reiniciar Servidor MCP" Margin="0,0,8,0" Click="BtnRestart_Click"/>
                             <Button x:Name="btnTestSession" Style="{StaticResource SecondaryButton}" Content="🧪 Test Sesión Activa" Margin="0,0,8,0" Click="BtnTestSession_Click"/>
-                            <Button x:Name="btnTestDoorAssemblies" Style="{StaticResource SecondaryButton}" Content="🚪 Test Ensambles Puertas (1 por tipo)" Margin="0,0,8,0" Click="BtnTestDoorAssemblies_Click"/>
                             <Button x:Name="btnOpenFolder" Style="{StaticResource SecondaryButton}" Content="📂 Abrir Carpeta MCP" Margin="0,0,8,0" Click="BtnOpenFolder_Click"/>
                             <Button x:Name="btnLaunchInstaller" Style="{StaticResource SecondaryButton}" Content="⚡ Ejecutar Autoinstalador" Click="BtnLaunchInstaller_Click"/>
                         </WrapPanel>
@@ -278,8 +277,19 @@
                     <Border Grid.Row="0" Background="{StaticResource ArcaSurface}" BorderBrush="{StaticResource ArcaBorder}" BorderThickness="1" Padding="12" Margin="0,0,0,10">
                         <StackPanel>
                             <TextBlock Text="INTEGRACIÓN NATIVA CON CLIENTES MCP" FontSize="12" FontWeight="Bold" Foreground="{StaticResource ArcaPrimary}"/>
-                            <TextBlock Text="Antigravity y Claude Desktop se conectan por stdio lanzando el script puente local en Node.js. No se requieren puertos públicos ni firewalls."
+                            <TextBlock Text="Elige los servidores MCP a registrar en Antigravity y Claude Desktop (se conservan tus demás servidores existentes):"
                                        FontSize="10" Foreground="{StaticResource ArcaMuted}" Margin="0,2,0,8"/>
+
+                            <StackPanel Margin="0,0,0,10">
+                                <CheckBox x:Name="chkInstallPluginMcp" IsChecked="True"
+                                          Content="🔌 MCP del Plugin Revit (reviewplugin — puente local stdio)"
+                                          FontSize="10.5" Foreground="{StaticResource ArcaInk}" Margin="0,0,0,4"
+                                          Checked="ChkInstallOption_Changed" Unchecked="ChkInstallOption_Changed"/>
+                                <CheckBox x:Name="chkInstallReviewWebMcp" IsChecked="True"
+                                          Content="🌐 MCP de la Página Review (review — https://arca-review.vercel.app/mcp)"
+                                          FontSize="10.5" Foreground="{StaticResource ArcaInk}"
+                                          Checked="ChkInstallOption_Changed" Unchecked="ChkInstallOption_Changed"/>
+                            </StackPanel>
 
                             <WrapPanel>
                                 <Button x:Name="btnConfigureGemini" Style="{StaticResource PrimaryButton}" Content="⚡ Autoconfigurar Antigravity" Margin="0,0,8,0" Click="BtnConfigureGemini_Click"/>

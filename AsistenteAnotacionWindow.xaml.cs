@@ -118,6 +118,23 @@ namespace RevitToSupabasePlugin
             }
         }
 
+        private void BtnOpenLineStyles_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var win = new LineStylesManagerWindow(_uidoc)
+                {
+                    Owner = this
+                };
+                win.ShowDialog();
+                LoadSummaryMetrics();
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Error", "No se pudo abrir el Gestor de Estilos de Línea: " + ex.Message);
+            }
+        }
+
         private void BtnClose_Click(object sender, RoutedEventArgs e)
         {
             Close();

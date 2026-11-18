@@ -272,17 +272,63 @@ namespace RevitToSupabasePlugin.Views
             }
         }
 
+        private const string ReviewWebMcpUrl = "https://arca-review.vercel.app/mcp";
+
+        private static string ResolveBridgePath()
+        {
+            string fallback = @"G:/Mi unidad/git/reviewPlugIn/Antigravity_MCP/bridge/revit-mcp-bridge.mjs";
+            string? dir = Path.GetDirectoryName(typeof(McpControlPanelWindow).Assembly.Location);
+            while (!string.IsNullOrEmpty(dir))
+            {
+                string candidate = Path.Combine(dir, "Antigravity_MCP", "bridge", "revit-mcp-bridge.mjs");
+                if (File.Exists(candidate))
+                {
+                    return candidate.Replace('\\', '/');
+                }
+                dir = Path.GetDirectoryName(dir);
+            }
+            return fallback;
+        }
+
+        private JObject BuildSelectedMcpServers()
+        {
+            var servers = new JObject();
+
+            if (chkInstallPluginMcp?.IsChecked == true)
+            {
+                servers["reviewplugin"] = new JObject
+                {
+                    ["command"] = "node",
+                    ["args"] = new JArray(ResolveBridgePath())
+                };
+            }
+
+            if (chkInstallReviewWebMcp?.IsChecked == true)
+            {
+                servers["review"] = new JObject
+                {
+                    ["url"] = ReviewWebMcpUrl
+                };
+            }
+
+            return servers;
+        }
+
+        private void ChkInstallOption_Changed(object sender, RoutedEventArgs e)
+        {
+            if (txtConfigSnippet != null)
+            {
+                GenerateClientConfigSnippet();
+            }
+        }
+
         private void GenerateClientConfigSnippet()
         {
-            string bridgePath = @"G:/Mi unidad/git/reviewPlugIn/Antigravity_MCP/bridge/revit-mcp-bridge.mjs";
-            txtConfigSnippet.Text = "{\n" +
-                                    "  \"mcpServers\": {\n" +
-                                    "    \"reviewplugin\": {\n" +
-                                    "      \"command\": \"node\",\n" +
-                                    $"      \"args\": [\n        \"{bridgePath}\"\n      ]\n" +
-                                    "    }\n" +
-                                    "  }\n" +
-                                    "}";
+            var root = new JObject
+            {
+                ["mcpServers"] = BuildSelectedMcpServers()
+            };
+            txtConfigSnippet.Text = root.ToString(Formatting.Indented);
         }
 
         private void BtnRestart_Click(object sender, RoutedEventArgs e)
@@ -316,23 +362,6 @@ namespace RevitToSupabasePlugin.Views
             var res = await App.McpServerInstance.ExecuteToolDirectAsync("revit_get_active_session", new JObject());
             AddLog($"[{DateTime.Now:HH:mm:ss}] 📊 Proyecto Activo: {res["project_name"]} | Vista: {res["active_view"]}");
             WpfMessageBox.Show($"Sesión Activa Consultada con Éxito:\n\n• Proyecto: {res["project_name"]}\n• Vista Activa: {res["active_view"]}\n• Elementos Seleccionados: {res["selection_count"]}", "Test Exitoso", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-
-        private async void BtnTestDoorAssemblies_Click(object sender, RoutedEventArgs e)
-        {
-            if (App.McpServerInstance == null) return;
-            AddLog($"[{DateTime.Now:HH:mm:ss}] 🚪 Ejecutando creación batch de ensamblajes de puertas...");
-            var args = new JObject
-            {
-                ["group_by_instance"] = false,
-                ["single_instance_per_type"] = true,
-                ["initial_name"] = "P-01",
-                ["create_views"] = true,
-                ["category"] = "Doors"
-            };
-            var res = await App.McpServerInstance.ExecuteToolDirectAsync("revit_create_door_assemblies", args);
-            AddLog($"[{DateTime.Now:HH:mm:ss}] 🚪 Ensamblajes creados: {res["assemblies_created"]} | Vistas: {res["views_created"]}");
-            WpfMessageBox.Show($"Resultado de Creación de Ensamblajes:\n\n• Ensamblajes creados: {res["assemblies_created"]}\n• Vistas técnicas generadas: {res["views_created"]}", "Batch Completado", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void BtnOpenFolder_Click(object sender, RoutedEventArgs e)
@@ -387,40 +416,76 @@ namespace RevitToSupabasePlugin.Views
             catch { }
         }
 
-        private void BtnConfigureGemini_Click(object sender, RoutedEventArgs e)
+        private void ConfigureMcpClientFile(string path, string clientName)
         {
+            var selectedServers = BuildSelectedMcpServers();
+            if (selectedServers.Count == 0)
+            {
+                WpfMessageBox.Show("Selecciona al menos un servidor MCP (Plugin Revit o Página Review) para configurar.", "Sin selección", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             try
             {
-                string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".gemini", "config", "mcp_config.json");
                 string dir = Path.GetDirectoryName(path)!;
                 if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
 
-                File.WriteAllText(path, txtConfigSnippet.Text, Encoding.UTF8);
-                AddLog($"[{DateTime.Now:HH:mm:ss}] ✅ Antigravity configurado automáticamente en {path}");
-                WpfMessageBox.Show($"Antigravity ha sido configurado con éxito en:\n{path}\n\nReinicia Antigravity para aplicar los cambios.", "Configuración Exitosa", MessageBoxButton.OK, MessageBoxImage.Information);
+                JObject root = new();
+                if (File.Exists(path))
+                {
+                    string existing = File.ReadAllText(path, Encoding.UTF8);
+                    if (!string.IsNullOrWhiteSpace(existing))
+                    {
+                        try
+                        {
+                            root = JObject.Parse(existing);
+                        }
+                        catch
+                        {
+                            root = new JObject();
+                        }
+                    }
+                }
+
+                if (root["mcpServers"] is not JObject mcpServers)
+                {
+                    mcpServers = new JObject();
+                    root["mcpServers"] = mcpServers;
+                }
+
+                var installedNames = new List<string>();
+                foreach (var prop in selectedServers.Properties())
+                {
+                    mcpServers[prop.Name] = prop.Value.DeepClone();
+                    installedNames.Add(prop.Name);
+                }
+
+                File.WriteAllText(path, root.ToString(Formatting.Indented), new UTF8Encoding(false));
+
+                string summary = string.Join(", ", installedNames);
+                AddLog($"[{DateTime.Now:HH:mm:ss}] ✅ {clientName} configurado ({summary}) en {path}");
+                WpfMessageBox.Show(
+                    $"{clientName} ha sido configurado con éxito ({summary}) en:\n{path}\n\nReinicia {clientName} para aplicar los cambios.",
+                    "Configuración Exitosa",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                WpfMessageBox.Show($"Error al configurar Antigravity:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                WpfMessageBox.Show($"Error al configurar {clientName}:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private void BtnConfigureGemini_Click(object sender, RoutedEventArgs e)
+        {
+            string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".gemini", "config", "mcp_config.json");
+            ConfigureMcpClientFile(path, "Antigravity");
         }
 
         private void BtnConfigureClaude_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Claude", "claude_desktop_config.json");
-                string dir = Path.GetDirectoryName(path)!;
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-
-                File.WriteAllText(path, txtConfigSnippet.Text, Encoding.UTF8);
-                AddLog($"[{DateTime.Now:HH:mm:ss}] ✅ Claude Desktop configurado automáticamente en {path}");
-                WpfMessageBox.Show($"Claude Desktop ha sido configurado con éxito en:\n{path}\n\nReinicia Claude Desktop para aplicar los cambios.", "Configuración Exitosa", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                WpfMessageBox.Show($"Error al configurar Claude:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Claude", "claude_desktop_config.json");
+            ConfigureMcpClientFile(path, "Claude Desktop");
         }
 
         private void BtnClose_Click(object sender, RoutedEventArgs e)
