@@ -35,6 +35,7 @@ namespace RevitToSupabasePlugin
 
         public string TipoLabel => IsBuiltIn ? "Sistema" : "Personalizado";
         public string NonPrintLabel => IsNonPrintable ? "NO IMPRIME" : "Imprimible";
+        public string ScaleLabel => LineStylesService.ExtractScaleLabel(Name);
 
         public System.Windows.Media.Brush PreviewBrush =>
             new System.Windows.Media.SolidColorBrush(
@@ -68,6 +69,121 @@ namespace RevitToSupabasePlugin
 
         public const string DefaultAuxiliaryStyleName = "ARCA - Auxiliar No Imprimible";
         public const string GiantSpacePatternName = "ARCA - Espacio Gigante (No Imprime)";
+
+        public static readonly int[] StandardScales = { 10, 20, 25, 50, 100, 200 };
+
+        public static string GetScaleStyleName(int scale) => $"ARCA - Auxiliar [1:{scale}]";
+        public static string GetScalePatternName(int scale) => $"ARCA - Espacio [1:{scale}]";
+
+        public static string ExtractScaleLabel(string styleName)
+        {
+            if (string.IsNullOrWhiteSpace(styleName)) return "—";
+            var match = System.Text.RegularExpressions.Regex.Match(styleName, @"1\s*:\s*(\d+)");
+            return match.Success ? $"1:{match.Groups[1].Value}" : "Todas";
+        }
+
+        public static ElementId EnsureScaleAuxiliaryStyle(Document doc, int scale)
+        {
+            string styleName = GetScaleStyleName(scale);
+            Category? linesCat = doc.Settings.Categories.get_Item(BuiltInCategory.OST_Lines);
+            if (linesCat == null)
+                throw new InvalidOperationException("No se encontró la categoría de líneas (OST_Lines).");
+
+            foreach (Category existing in linesCat.SubCategories)
+            {
+                if (string.Equals(existing.Name, styleName, StringComparison.OrdinalIgnoreCase))
+                {
+                    var ids = GetNonPrintableStyleIds(doc);
+                    if (!ids.Contains(existing.Id.Value))
+                    {
+                        using (var t = new Transaction(doc, $"Marcar {styleName} como No Imprimible"))
+                        {
+                            t.Start();
+                            ids.Add(existing.Id.Value);
+                            SaveNonPrintableStyleIds(doc, ids);
+                            t.Commit();
+                        }
+                    }
+                    return existing.Id;
+                }
+            }
+
+            var dashPat = GetAllLinePatterns(doc).FirstOrDefault(p =>
+                !p.IsSolid &&
+                (p.Name.IndexOf("Dash", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 p.Name.IndexOf("Traz", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 p.Name.IndexOf("Hidden", StringComparison.OrdinalIgnoreCase) >= 0))
+                ?? GetAllLinePatterns(doc).FirstOrDefault(p => !p.IsSolid);
+
+            ElementId patId = dashPat?.Id ?? LinePatternElement.GetSolidPatternId();
+            RevitColor color = GetScaleColor(scale);
+
+            return CreateLineStyle(doc, styleName, 2, color, patId, true);
+        }
+
+        public static (int created, int existing) CreateStandardScaleKit(Document doc, IEnumerable<int> scales)
+        {
+            Category? linesCat = doc.Settings.Categories.get_Item(BuiltInCategory.OST_Lines);
+            if (linesCat == null)
+                throw new InvalidOperationException("No se encontró la categoría de líneas (OST_Lines).");
+
+            var existingNames = new Dictionary<string, ElementId>(StringComparer.OrdinalIgnoreCase);
+            foreach (Category c in linesCat.SubCategories)
+            {
+                existingNames[c.Name] = c.Id;
+            }
+
+            var dashPat = GetAllLinePatterns(doc).FirstOrDefault(p =>
+                !p.IsSolid &&
+                (p.Name.IndexOf("Dash", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 p.Name.IndexOf("Traz", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 p.Name.IndexOf("Hidden", StringComparison.OrdinalIgnoreCase) >= 0))
+                ?? GetAllLinePatterns(doc).FirstOrDefault(p => !p.IsSolid);
+
+            ElementId patId = dashPat?.Id ?? LinePatternElement.GetSolidPatternId();
+            var nonPrintIds = GetNonPrintableStyleIds(doc);
+
+            int created = 0;
+            int existingCount = 0;
+
+            using (var t = new Transaction(doc, "Crear Kit de Estilos No Imprimibles por Escala"))
+            {
+                t.Start();
+                foreach (int scale in scales)
+                {
+                    string name = GetScaleStyleName(scale);
+                    if (existingNames.TryGetValue(name, out ElementId? existId))
+                    {
+                        nonPrintIds.Add(existId.Value);
+                        existingCount++;
+                        continue;
+                    }
+
+                    Category newSub = doc.Settings.Categories.NewSubcategory(linesCat, name);
+                    newSub.SetLineWeight(2, GraphicsStyleType.Projection);
+                    newSub.LineColor = GetScaleColor(scale);
+                    newSub.SetLinePatternId(patId, GraphicsStyleType.Projection);
+                    nonPrintIds.Add(newSub.Id.Value);
+                    created++;
+                }
+                SaveNonPrintableStyleIds(doc, nonPrintIds);
+                t.Commit();
+            }
+
+            return (created, existingCount);
+        }
+
+        private static RevitColor GetScaleColor(int scale)
+        {
+            return scale switch
+            {
+                <= 10 => new RevitColor(236, 72, 153),  // Rosa
+                <= 25 => new RevitColor(168, 85, 247),  // Violeta
+                <= 50 => new RevitColor(217, 70, 239),  // Magenta
+                <= 100 => new RevitColor(6, 182, 212),  // Cian
+                _ => new RevitColor(249, 115, 22)       // Naranja
+            };
+        }
 
         public static ElementId GetOrCreateGiantSpacePatternId(Document doc)
         {

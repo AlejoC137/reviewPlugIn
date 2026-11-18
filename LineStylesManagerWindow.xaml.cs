@@ -46,9 +46,24 @@ namespace RevitToSupabasePlugin
 
             LoadPatterns();
             LoadStyles();
+            UpdateActiveScaleInfo();
             UpdateSelectionInfo();
             UpdatePrintBanner();
             _isInitialized = true;
+        }
+
+        private int GetActiveScale()
+        {
+            return _doc.ActiveView != null && _doc.ActiveView.Scale > 0 ? _doc.ActiveView.Scale : 100;
+        }
+
+        private void UpdateActiveScaleInfo()
+        {
+            int scale = GetActiveScale();
+            string viewName = _doc.ActiveView?.Name ?? "Sin vista activa";
+            txtActiveViewScaleInfo.Text = $"Vista Activa: {viewName} (Escala 1:{scale}) — Estilos etiquetados por escala para control independiente";
+            btnCreateActiveScaleStyle.Content = $"✨ Crear Estilo [1:{scale}]";
+            btnConvertToActiveScale.Content = $"⚡ Convertir Selección a [1:{scale}]";
         }
 
         private void LoadPatterns()
@@ -86,8 +101,13 @@ namespace RevitToSupabasePlugin
             if (filterIdx == 1)
                 filtered = filtered.Where(s => s.IsNonPrintable);
             else if (filterIdx == 2)
-                filtered = filtered.Where(s => !s.IsBuiltIn);
+            {
+                string activeScaleLabel = $"1:{GetActiveScale()}";
+                filtered = filtered.Where(s => string.Equals(s.ScaleLabel, activeScaleLabel, StringComparison.OrdinalIgnoreCase));
+            }
             else if (filterIdx == 3)
+                filtered = filtered.Where(s => !s.IsBuiltIn);
+            else if (filterIdx == 4)
                 filtered = filtered.Where(s => s.IsBuiltIn);
 
             var list = filtered.ToList();
@@ -301,55 +321,72 @@ namespace RevitToSupabasePlugin
             }
         }
 
-        private void BtnCreateDefaultAux_Click(object sender, RoutedEventArgs e)
+        private void BtnCreateActiveScaleStyle_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                var existing = _allStyles.FirstOrDefault(s =>
-                    string.Equals(s.Name, LineStylesService.DefaultAuxiliaryStyleName, StringComparison.OrdinalIgnoreCase));
-
-                if (existing != null)
-                {
-                    if (!existing.IsNonPrintable)
-                    {
-                        LineStylesService.UpdateLineStyle(
-                            _doc,
-                            existing.CategoryId,
-                            existing.LineWeight,
-                            new RevitColor(existing.ColorR, existing.ColorG, existing.ColorB),
-                            existing.LinePatternId,
-                            true);
-                    }
-                    LoadStyles(existing.CategoryId);
-                    UpdatePrintBanner();
-                    txtStatus.Text = $"✨ El estilo '{LineStylesService.DefaultAuxiliaryStyleName}' ya existe y está seleccionado.";
-                    return;
-                }
-
-                // Prefer a dashed pattern if available
-                var dashPattern = _allPatterns.FirstOrDefault(p =>
-                    !p.IsSolid &&
-                    (p.Name.IndexOf("Dash", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                     p.Name.IndexOf("Traz", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                     p.Name.IndexOf("Hidden", StringComparison.OrdinalIgnoreCase) >= 0))
-                    ?? _allPatterns.FirstOrDefault(p => !p.IsSolid)
-                    ?? _allPatterns.First();
-
-                ElementId newId = LineStylesService.CreateLineStyle(
-                    _doc,
-                    LineStylesService.DefaultAuxiliaryStyleName,
-                    2,
-                    new RevitColor(217, 70, 239), // Magenta visible
-                    dashPattern.Id,
-                    true);
-
-                LoadStyles(newId);
+                int scale = GetActiveScale();
+                ElementId id = LineStylesService.EnsureScaleAuxiliaryStyle(_doc, scale);
+                LoadStyles(id);
                 UpdatePrintBanner();
-                txtStatus.Text = $"✨ Estilo '{LineStylesService.DefaultAuxiliaryStyleName}' creado y marcado como No Imprimible.";
+                txtStatus.Text = $"✨ Estilo '{LineStylesService.GetScaleStyleName(scale)}' listo para la escala 1:{scale}.";
             }
             catch (Exception ex)
             {
                 TaskDialog.Show("Error", ex.Message);
+            }
+        }
+
+        private void BtnCreateScaleKit_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var scales = new HashSet<int>(LineStylesService.StandardScales);
+                scales.Add(GetActiveScale());
+
+                var (created, existing) = LineStylesService.CreateStandardScaleKit(_doc, scales.OrderBy(s => s));
+                LoadStyles();
+                UpdatePrintBanner();
+                txtStatus.Text = $"📐 Kit de escalas listo: {created} estilo(s) creado(s), {existing} ya existían (todos marcados como No Imprimibles).";
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Error al Crear Kit de Escalas", ex.Message);
+            }
+        }
+
+        private void BtnConvertToActiveScale_Click(object sender, RoutedEventArgs e)
+        {
+            var selIds = _uidoc.Selection.GetElementIds();
+            if (selIds == null || selIds.Count == 0)
+            {
+                TaskDialog.Show("Sin Selección", "No hay líneas seleccionadas en Revit. Usa 'Seleccionar Líneas en Revit...' primero.");
+                return;
+            }
+
+            try
+            {
+                int scale = GetActiveScale();
+                ElementId catId = LineStylesService.EnsureScaleAuxiliaryStyle(_doc, scale);
+                LoadStyles(catId);
+
+                var targetStyle = _allStyles.FirstOrDefault(s => s.CategoryId == catId);
+                if (targetStyle == null)
+                {
+                    TaskDialog.Show("Error", "No se pudo localizar el estilo creado para esta escala.");
+                    return;
+                }
+
+                var (converted, skipped) = LineStylesService.ConvertElementsToLineStyle(
+                    _doc, selIds, targetStyle.GraphicsStyleId);
+
+                UpdatePrintBanner();
+                txtStatus.Text = $"⚡ {converted} línea(s) convertidas a '{targetStyle.Name}' (Escala 1:{scale})." +
+                                 (skipped > 0 ? $" ({skipped} omitidas)." : "");
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Error al Convertir", ex.Message);
             }
         }
 

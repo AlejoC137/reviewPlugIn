@@ -96,12 +96,14 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="📏 GESTOR DE ESTILOS DE LÍNEA &amp; LÍNEAS NO IMPRIMIBLES" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF"/>
-                    <TextBlock Text="Configura calibres, colores y patrones al instante. Crea líneas auxiliares visibles con cotas y ocúltalas al imprimir sin perder las cotas." FontSize="11.5" Foreground="#D1E4F9" Margin="0,3,0,0"/>
+                    <TextBlock Text="📏 GESTOR DE ESTILOS DE LÍNEA &amp; ESTILOS POR ESCALA" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF"/>
+                    <TextBlock x:Name="txtActiveViewScaleInfo" Text="Vista Activa: ..." FontSize="11.5" Foreground="#D1E4F9" Margin="0,3,0,0"/>
                 </StackPanel>
-                <Button Grid.Column="1" Content="✨ Crear 'ARCA - Auxiliar No Imprimible'" Style="{StaticResource PrimaryBtn}" Background="#7C3AED" VerticalAlignment="Center" Click="BtnCreateDefaultAux_Click" ToolTip="Crea automáticamente un estilo de línea auxiliar Magenta discontinuo marcado como No Imprimible"/>
+                <Button Grid.Column="1" x:Name="btnCreateActiveScaleStyle" Content="✨ Crear para Escala Activa" Style="{StaticResource PrimaryBtn}" Background="#7C3AED" Margin="8,0,6,0" VerticalAlignment="Center" Click="BtnCreateActiveScaleStyle_Click" ToolTip="Crea automáticamente el estilo No Imprimible etiquetado con la escala de la vista activa"/>
+                <Button Grid.Column="2" Content="📐 Kit Escalas (1:10..1:200)" Style="{StaticResource PrimaryBtn}" Background="#0284C7" VerticalAlignment="Center" Click="BtnCreateScaleKit_Click" ToolTip="Crea estilos No Imprimibles etiquetados para 1:10, 1:20, 1:25, 1:50, 1:100 y 1:200 en un solo clic"/>
             </Grid>
         </Border>
 
@@ -153,6 +155,7 @@
                         <ComboBox x:Name="cmbFilter" Grid.Column="1" Padding="8,6" FontSize="12" Margin="0,0,8,0" SelectionChanged="CmbFilter_SelectionChanged">
                             <ComboBoxItem Content="Todos los estilos" IsSelected="True"/>
                             <ComboBoxItem Content="Solo No Imprimibles"/>
+                            <ComboBoxItem Content="Solo Escala Activa"/>
                             <ComboBoxItem Content="Solo Personalizados"/>
                             <ComboBoxItem Content="Solo Sistema (Revit)"/>
                         </ComboBox>
@@ -190,8 +193,9 @@
                             </DataGridTemplateColumn>
 
                             <DataGridTextColumn Header="Nombre del Estilo" Binding="{Binding Name}" Width="*"/>
-                            <DataGridTextColumn Header="Calibre" Binding="{Binding LineWeight}" Width="62"/>
-                            <DataGridTextColumn Header="Patrón" Binding="{Binding LinePatternName}" Width="125"/>
+                            <DataGridTextColumn Header="Escala" Binding="{Binding ScaleLabel}" Width="65"/>
+                            <DataGridTextColumn Header="Calibre" Binding="{Binding LineWeight}" Width="58"/>
+                            <DataGridTextColumn Header="Patrón" Binding="{Binding LinePatternName}" Width="120"/>
 
                             <DataGridTemplateColumn Header="Impresión" Width="105">
                                 <DataGridTemplateColumn.CellTemplate>
@@ -299,6 +303,7 @@
                             <TextBlock x:Name="txtSelectionInfo" Text="Selección actual en Revit: 0 líneas" FontSize="11.5" Foreground="#4B5563" Margin="0,0,0,8"/>
 
                             <Button Content="🎯 Seleccionar Líneas en Revit..." Style="{StaticResource SecondaryBtn}" Margin="0,0,0,6" Click="BtnPickLines_Click" ToolTip="Oculta esta ventana temporalmente para seleccionar líneas en el plano"/>
+                            <Button x:Name="btnConvertToActiveScale" Content="⚡ Convertir Selección a Escala Activa" Style="{StaticResource PrimaryBtn}" Background="#7C3AED" Margin="0,0,0,6" Click="BtnConvertToActiveScale_Click" ToolTip="Crea/selecciona el estilo No Imprimible de la escala de la vista activa y convierte las líneas seleccionadas"/>
                             <Button Content="🔄 Convertir Selección al Estilo Elegido" Style="{StaticResource PrimaryBtn}" Margin="0,0,0,10" Click="BtnConvertSelected_Click"/>
 
                             <Separator Background="#EAE5DC" Margin="0,0,0,10"/>
