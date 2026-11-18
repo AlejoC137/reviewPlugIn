@@ -67,6 +67,41 @@ namespace RevitToSupabasePlugin
         private const string FieldStyleBackups = "StyleColorWeightBackups";
 
         public const string DefaultAuxiliaryStyleName = "ARCA - Auxiliar No Imprimible";
+        public const string GiantSpacePatternName = "ARCA - Espacio Gigante (No Imprime)";
+
+        public static ElementId GetOrCreateGiantSpacePatternId(Document doc)
+        {
+            var existing = new FilteredElementCollector(doc)
+                .OfClass(typeof(LinePatternElement))
+                .Cast<LinePatternElement>()
+                .FirstOrDefault(p => string.Equals(p.Name, GiantSpacePatternName, StringComparison.OrdinalIgnoreCase));
+
+            if (existing != null)
+                return existing.Id;
+
+            double[] candidateSpaces = { 2.5, 1.0, 0.5 };
+            foreach (double spaceFeet in candidateSpaces)
+            {
+                try
+                {
+                    var lp = new LinePattern(GiantSpacePatternName);
+                    lp.SetSegments(new List<LinePatternSegment>
+                    {
+                        new LinePatternSegment(LinePatternSegmentType.Dot, 0.0),
+                        new LinePatternSegment(LinePatternSegmentType.Space, spaceFeet)
+                    });
+
+                    LinePatternElement created = LinePatternElement.Create(doc, lp);
+                    return created.Id;
+                }
+                catch
+                {
+                    // Try smaller space length if Revit rejects this length
+                }
+            }
+
+            throw new InvalidOperationException("No se pudo crear el patrón de espacio gigante en Revit.");
+        }
 
         public static List<LinePatternOption> GetAllLinePatterns(Document doc)
         {
@@ -538,10 +573,13 @@ namespace RevitToSupabasePlugin
             var backups = LoadStyleBackups(doc);
             int stylesHidden = 0;
             var affectedGStyleIds = new HashSet<long>();
+            ElementId solidId = LinePatternElement.GetSolidPatternId();
 
-            using (var t = new Transaction(doc, "Activar Modo Impresión (Estilos No Imprimibles)"))
+            using (var t = new Transaction(doc, "Activar Modo Impresión (Patrón Espacio Gigante)"))
             {
                 t.Start();
+                ElementId giantPatId = GetOrCreateGiantSpacePatternId(doc);
+
                 foreach (long catIdVal in nonPrintCatIds)
                 {
                     Category? subCat = FindSubcategoryById(doc, new ElementId(catIdVal));
@@ -552,15 +590,14 @@ namespace RevitToSupabasePlugin
 
                     if (!backups.ContainsKey(catIdVal))
                     {
-                        RevitColor c = subCat.LineColor;
-                        byte r = c != null && c.IsValid ? c.Red : (byte)0;
-                        byte g = c != null && c.IsValid ? c.Green : (byte)0;
-                        byte b = c != null && c.IsValid ? c.Blue : (byte)0;
+                        ElementId patId = subCat.GetLinePatternId(GraphicsStyleType.Projection);
+                        if (patId == null || patId == ElementId.InvalidElementId)
+                            patId = solidId;
                         int w = subCat.GetLineWeight(GraphicsStyleType.Projection) ?? 1;
-                        backups[catIdVal] = (r, g, b, w);
+                        backups[catIdVal] = (patId.Value, w);
                     }
 
-                    subCat.LineColor = new RevitColor(255, 255, 255);
+                    subCat.SetLinePatternId(giantPatId, GraphicsStyleType.Projection);
                     subCat.SetLineWeight(1, GraphicsStyleType.Projection);
                     stylesHidden++;
                 }
@@ -602,13 +639,21 @@ namespace RevitToSupabasePlugin
                         continue;
                     }
 
-                    var (r, g, b, w) = kvp.Value;
-                    subCat.LineColor = new RevitColor(r, g, b);
+                    var (patIdVal, w) = kvp.Value;
+                    ElementId patId = new ElementId(patIdVal);
+                    if (patIdVal == LinePatternElement.GetSolidPatternId().Value || doc.GetElement(patId) is LinePatternElement)
+                    {
+                        subCat.SetLinePatternId(patId, GraphicsStyleType.Projection);
+                    }
+                    else
+                    {
+                        subCat.SetLinePatternId(LinePatternElement.GetSolidPatternId(), GraphicsStyleType.Projection);
+                    }
                     subCat.SetLineWeight(Math.Max(1, Math.Min(16, w)), GraphicsStyleType.Projection);
                     restored++;
                 }
 
-                SaveStyleBackups(doc, new Dictionary<long, (byte R, byte G, byte B, int Weight)>());
+                SaveStyleBackups(doc, new Dictionary<long, (long PatternId, int Weight)>());
                 t.Commit();
             }
 
@@ -686,9 +731,9 @@ namespace RevitToSupabasePlugin
             storage.SetEntity(entity);
         }
 
-        private static Dictionary<long, (byte R, byte G, byte B, int Weight)> LoadStyleBackups(Document doc)
+        private static Dictionary<long, (long PatternId, int Weight)> LoadStyleBackups(Document doc)
         {
-            var result = new Dictionary<long, (byte R, byte G, byte B, int Weight)>();
+            var result = new Dictionary<long, (long PatternId, int Weight)>();
             try
             {
                 Schema? schema = Schema.Lookup(HiddenStyleBackupSchemaGuid);
@@ -704,14 +749,12 @@ namespace RevitToSupabasePlugin
                 foreach (var entry in raw.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
                 {
                     var parts = entry.Split(':');
-                    if (parts.Length == 5 &&
+                    if (parts.Length == 3 &&
                         long.TryParse(parts[0], out long id) &&
-                        byte.TryParse(parts[1], out byte r) &&
-                        byte.TryParse(parts[2], out byte g) &&
-                        byte.TryParse(parts[3], out byte b) &&
-                        int.TryParse(parts[4], out int w))
+                        long.TryParse(parts[1], out long patId) &&
+                        int.TryParse(parts[2], out int w))
                     {
-                        result[id] = (r, g, b, w);
+                        result[id] = (patId, w);
                     }
                 }
             }
@@ -719,7 +762,7 @@ namespace RevitToSupabasePlugin
             return result;
         }
 
-        private static void SaveStyleBackups(Document doc, Dictionary<long, (byte R, byte G, byte B, int Weight)> backups)
+        private static void SaveStyleBackups(Document doc, Dictionary<long, (long PatternId, int Weight)> backups)
         {
             Schema schema = GetOrCreateStyleBackupSchema();
             DataStorage? storage = FindDataStorage(doc, HiddenStyleStorageName);
@@ -730,7 +773,7 @@ namespace RevitToSupabasePlugin
             }
 
             string serialized = string.Join(";", backups.Select(kvp =>
-                $"{kvp.Key}:{kvp.Value.R}:{kvp.Value.G}:{kvp.Value.B}:{kvp.Value.Weight}"));
+                $"{kvp.Key}:{kvp.Value.PatternId}:{kvp.Value.Weight}"));
 
             var entity = new Entity(schema);
             entity.Set(FieldStyleBackups, serialized);

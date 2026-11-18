@@ -131,7 +131,7 @@ namespace RevitToSupabasePlugin
 
                 if (st.IsPrintModeActive)
                 {
-                    txtPrintModeTitle.Text = "🖨️ MODO IMPRESIÓN ACTIVO: Estilos No Imprimibles en blanco puro (Cotas intactas)";
+                    txtPrintModeTitle.Text = "🖨️ MODO IMPRESIÓN ACTIVO: Patrón Espacio Gigante (Sin trazos ni blanco, cotas intactas)";
                     txtPrintModeTitle.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(180, 83, 9));
                     borderPrintBanner.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 251, 235));
                     borderPrintBanner.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(245, 158, 11));
@@ -495,6 +495,7 @@ namespace RevitToSupabasePlugin
             try
             {
                 var (stylesHidden, linesAffected) = LineStylesService.ActivatePrintMode(_doc);
+                LoadPatterns();
                 LoadStyles(_selectedStyle?.CategoryId);
                 UpdatePrintBanner();
                 if (stylesHidden == 0)

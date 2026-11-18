@@ -120,9 +120,9 @@
                     <TextBlock x:Name="txtPrintModeDetail" Text="0 estilos no imprimibles | 0 líneas auxiliares" FontSize="11.5" Foreground="#5B616A" Margin="0,2,0,0"/>
                 </StackPanel>
 
-                <Button Grid.Column="1" Content="📄 Exportar PDF Limpio" Style="{StaticResource PrimaryBtn}" Background="#7C3AED" Margin="8,0,6,0" Click="BtnExportPdf_Click" ToolTip="Exporta la vista o lámina activa a PDF ocultando automáticamente los estilos No Imprimibles y restaurándolos al instante."/>
-                <Button Grid.Column="2" Content="🖨️ Modo Impresión" Style="{StaticResource PrimaryBtn}" Background="#B45309" Margin="0,0,6,0" Click="BtnActivatePrintMode_Click" ToolTip="Prepara el proyecto para Ctrl+P pasando los estilos No Imprimibles a blanco puro RGB(255,255,255) sin perder cotas ni depender de otros estilos."/>
-                <Button Grid.Column="3" Content="👁️ Modo Trabajo" Style="{StaticResource PrimaryBtn}" Background="#059669" Click="BtnActivateWorkMode_Click" ToolTip="Restaura el color y calibre visible original de todos los estilos No Imprimibles."/>
+                <Button Grid.Column="1" Content="📄 Exportar PDF Limpio" Style="{StaticResource PrimaryBtn}" Background="#7C3AED" Margin="8,0,6,0" Click="BtnExportPdf_Click" ToolTip="Exporta la vista o lámina activa a PDF usando el patrón Espacio Gigante en estilos No Imprimibles y restaurándolos al instante."/>
+                <Button Grid.Column="2" Content="🖨️ Modo Impresión" Style="{StaticResource PrimaryBtn}" Background="#B45309" Margin="0,0,6,0" Click="BtnActivatePrintMode_Click" ToolTip="Cambia los estilos No Imprimibles al patrón de Espacio Gigante (micro-punto + hueco enorme) para no dejar trazos ni rayas blancas sobre achurados, conservando las cotas."/>
+                <Button Grid.Column="3" Content="👁️ Modo Trabajo" Style="{StaticResource PrimaryBtn}" Background="#059669" Click="BtnActivateWorkMode_Click" ToolTip="Restaura el patrón y calibre visible original de todos los estilos No Imprimibles."/>
             </Grid>
         </Border>
 
