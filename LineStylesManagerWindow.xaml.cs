@@ -180,7 +180,7 @@ namespace RevitToSupabasePlugin
 
         private void SldWeight_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (_isUpdatingWeightControls) return;
+            if (_isUpdatingWeightControls || cmbWeight == null || sldWeight == null) return;
             _isUpdatingWeightControls = true;
             cmbWeight.SelectedItem = (int)Math.Round(sldWeight.Value);
             _isUpdatingWeightControls = false;
@@ -188,7 +188,7 @@ namespace RevitToSupabasePlugin
 
         private void CmbWeight_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_isUpdatingWeightControls) return;
+            if (_isUpdatingWeightControls || sldWeight == null || cmbWeight == null) return;
             if (cmbWeight.SelectedItem is int w)
             {
                 _isUpdatingWeightControls = true;

@@ -131,7 +131,7 @@ namespace RevitToSupabasePlugin
             }
             catch (Exception ex)
             {
-                TaskDialog.Show("Error", "No se pudo abrir el Gestor de Estilos de Línea: " + ex.Message);
+                TaskDialog.Show("Error", "No se pudo abrir el Gestor de Estilos de Línea: " + ex.Message + "\n\n" + ex.StackTrace);
             }
         }
 
